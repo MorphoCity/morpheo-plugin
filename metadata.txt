@@ -1,0 +1,13 @@
+[general]
+name=morpheo
+qgisMinimumVersion=2.6
+description=graph construction and analysis from linestrings
+version=0.0.1
+author=Oslandia
+email=infos@oslandia.com
+homepage=https://github.com/Oslandia/morpheo
+repository=https://github.com/Oslandia/morpheo
+tracker=https://github.com/Oslandia/morpheo/issues
+icon=morpheo.png
+experimental=True
+deprecated=False
