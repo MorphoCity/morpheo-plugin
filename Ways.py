@@ -31,6 +31,11 @@ from Terminology import TrCursor
 from Indicators import *
 import numpy as np
 
+import os, sys, inspect
+cmd_folder = os.path.split(inspect.getfile(inspect.currentframe()))[0]
+if cmd_folder not in sys.path:
+    sys.path.insert(0, cmd_folder)
+
 def log_info(info):
     "logs and print on console"
     print "info: ", info
