@@ -58,7 +58,7 @@ from Graph import Graph
 from Ways import Ways
 from Streets import Streets
 from Edges import Edges
-import Terminology 
+import Terminology
 
 
 def log_info(info):
@@ -153,18 +153,18 @@ class MorpheoAlgorithm(GeoAlgorithm):
 
         self.addParameter(ParameterBoolean(self.WAYS_ACCESSIBILITY, 'Ways accessibility', True))
         self.addParameter(ParameterBoolean(self.WAYS_ORTHOGONALITY, 'Ways orthogonality', True))
-        self.addParameter(ParameterBoolean(self.WAYS_USE, 'Ways use', True))
+        self.addParameter(ParameterBoolean(self.WAYS_USE, 'Ways use (betweenness)', True))
         self.addParameter(ParameterBoolean(self.WAYS_STRUCT_POT, 'Ways structural potential', True))
-        self.addParameter(ParameterBoolean(self.WAYS_BETWEENNESS, 'Ways betweenness', False))
+        #self.addParameter(ParameterBoolean(self.WAYS_BETWEENNESS, 'Ways betweenness', False))
 
         self.addParameter(ParameterBoolean(self.STREETS_ACCESSIBILITY, 'Streets accessibility', False))
         self.addParameter(ParameterBoolean(self.STREETS_ORTHOGONALITY, 'Streets orthogonality', False))
-        self.addParameter(ParameterBoolean(self.STREETS_USE, 'Streets use', False))
+        self.addParameter(ParameterBoolean(self.STREETS_USE, 'Streets use (betweenness)', False))
         self.addParameter(ParameterBoolean(self.STREETS_STRUCT_POT, 'Streets structural potential', False))
-        
+
         self.addParameter(ParameterBoolean(self.EDGES_ACCESSIBILITY, 'Edges accessibility', False))
         self.addParameter(ParameterBoolean(self.EDGES_ORTHOGONALITY, 'Edges orthogonality', False))
-        self.addParameter(ParameterBoolean(self.EDGES_USE, 'Edges use', False))
+        self.addParameter(ParameterBoolean(self.EDGES_USE, 'Edges use (betweenness)', False))
         self.addParameter(ParameterBoolean(self.EDGES_STRUCT_POT, 'Edges structural potential', False))
 
         self.addOutput(OutputTable(self.VERTICES_OUTPUT, 'Vertices output table'))
@@ -193,7 +193,7 @@ class MorpheoAlgorithm(GeoAlgorithm):
             log_info("Start")
             start = time.time()
 
-            
+
 
             folder = os.path.abspath(
                 ProcessingConfig.getSetting(ProcessingConfig.OUTPUT_FOLDER))
@@ -233,10 +233,10 @@ class MorpheoAlgorithm(GeoAlgorithm):
                 graph_needed = True
                 progress.setText('Graph in progress')
                 conn = db.connect(os.path.join(dbname))
-                graph = Graph(conn, 
-                        brut_arcs_table, 
-                        self.getParameterValue(self.NAME_FIELD), 
-                        progress, 
+                graph = Graph(conn,
+                        brut_arcs_table,
+                        self.getParameterValue(self.NAME_FIELD),
+                        progress,
                         self.getParameterValue(self.MINIMUN_EDGE_LENGTH),
                         self.getParameterValue(self.SNAP_RADIUS))
                 log_info("Graph created")
@@ -250,7 +250,7 @@ class MorpheoAlgorithm(GeoAlgorithm):
                 ways = Ways(graph,
                            folder,
                            self.getParameterValue(self.THRESHOLD),
-                           progress, 
+                           progress,
                            recompute)
                 log_info("Ways created")
 
@@ -269,7 +269,7 @@ class MorpheoAlgorithm(GeoAlgorithm):
                     ways.compute_use(
                             self.getParameterValue(self.NB_CLASSES),
                             progress)
-                
+
                 if self.getParameterValue(self.WAYS_STRUCT_POT):
                     ways.compute_inclusion(
                             self.getParameterValue(self.NB_CLASSES),
@@ -277,7 +277,7 @@ class MorpheoAlgorithm(GeoAlgorithm):
 
                 if self.getParameterValue(self.WAYS_BETWEENNESS):
                     ways.compute_betweenness()
-            
+
             if self.getParameterValue(self.NAME_FIELD):
                 progress.setText("Streets in progress")
                 streets = Streets(graph, folder, progress, recompute)
@@ -298,7 +298,7 @@ class MorpheoAlgorithm(GeoAlgorithm):
                     streets.compute_use(
                             self.getParameterValue(self.NB_CLASSES),
                             progress)
-                
+
                 if self.getParameterValue(self.STREETS_STRUCT_POT):
                     streets.compute_inclusion(
                             self.getParameterValue(self.NB_CLASSES),
@@ -327,7 +327,7 @@ class MorpheoAlgorithm(GeoAlgorithm):
                     edges.compute_use(
                             self.getParameterValue(self.NB_CLASSES),
                             progress)
-                
+
                 if self.getParameterValue(self.EDGES_STRUCT_POT):
                     edges.compute_inclusion(
                             self.getParameterValue(self.NB_CLASSES),
@@ -347,10 +347,10 @@ class MorpheoAlgorithm(GeoAlgorithm):
             table_writer = self.getOutputFromName(self.VERTICES_OUTPUT).getTableWriter(fields)
             table_writer.addRecords(cur.fetchall())
 
-            self.write_output_table(self.EDGES_OUTPUT, '$edges', cur) 
-            self.write_output_table(self.ANGLE_OUTPUT, 'angles', cur) 
-            self.write_output_table(self.STREET_OUTPUT, 'streets', cur) 
-            self.write_output_table(self.WAY_OUTPUT, 'ways', cur) 
+            self.write_output_table(self.EDGES_OUTPUT, '$edges', cur)
+            self.write_output_table(self.ANGLE_OUTPUT, 'angles', cur)
+            self.write_output_table(self.STREET_OUTPUT, 'streets', cur)
+            self.write_output_table(self.WAY_OUTPUT, 'ways', cur)
 
             self.add_vector_layer('$vertices', dbname)
             self.add_vector_layer('$edges', dbname)
@@ -366,7 +366,7 @@ class MorpheoAlgorithm(GeoAlgorithm):
 
     def write_output_table(self, output_param, table, cursor):
         cursor.execute("pragma table_info("+table+")")
-        fields = [name for [cid,name,typ,notnull,dflt_value,pk] in cursor.fetchall() 
+        fields = [name for [cid,name,typ,notnull,dflt_value,pk] in cursor.fetchall()
                 if name != 'GEOMETRY']
         table_writer = self.getOutputFromName(output_param).getTableWriter(fields)
         cursor.execute("SELECT "+','.join(fields)+" FROM "+table)

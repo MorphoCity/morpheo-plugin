@@ -76,7 +76,7 @@ class Edges(object):
                           AND (edges_vertices.VTX = e.START_VTX
                                OR edges_vertices.VTX = e.END_VTX))
                 )""")
-        
+
         progress.setText("Compute SPACING")
         cur.execute("""UPDATE $edges
                 SET SPACING = CONNECTIVITY/LENGTH
@@ -111,21 +111,32 @@ class Edges(object):
         element_length = self.edge_length()
         [topo_radius_and_struct, unconnected_edges] = compute_structurality(edge_edge, element_length, nb_of_classes, self.__output_dir, 'edges_', progress)
 
-        add_attribute(self.__conn, '$edges', 'ACCESSIBILITY', 'real')
+        add_attribute(self.__conn, '$edges', 'DEGREE', 'integer')
         add_attribute(self.__conn, '$edges', 'RTOPO', 'real')
-        add_attribute(self.__conn, '$edges', 'MESHING', 'real')
+        add_attribute(self.__conn, '$edges', 'CLOSENESS', 'real')
+        add_attribute(self.__conn, '$edges', 'STRUCT', 'real')
 
         cur = TrCursor(self.__conn.cursor())
         cur.executemany("DELETE FROM $edges WHERE OGC_FID = ?",
                 [(ogc_fid,) for ogc_fid in unconnected_edges])
-        cur.executemany("UPDATE $edges SET RTOPO = ?, ACCESSIBILITY = ? WHERE OGC_FID = ?",
-                [(r, s, i) for i, (r, s) in topo_radius_and_struct.iteritems()])
-        cur.execute("""UPDATE $edges SET MESHING = ACCESSIBILITY/LENGTH""")
+        cur.executemany("UPDATE $edges SET DEGREE = ?, RTOPO = ?, CLOSENESS = ?, STRUCT = ? WHERE OGC_FID = ?",
+                [(len(edge_edge[i]), r, c, s, i) for i, (r, c, s) in topo_radius_and_struct.iteritems()])
         self.__conn.commit()
 
-        add_classification(self.__conn, '$edges', 'ACCESSIBILITY', nb_of_classes)
-        add_classification(self.__conn, '$edges', 'MESHING', nb_of_classes)
+        add_att_div(self.__conn, '$edges', 'SOL', 'STRUCT', 'LENGTH')
+        add_att_div(self.__conn, '$edges', 'ROS', 'RTOPO', 'STRUCT')
+
+        add_classification(self.__conn, '$edges', 'STRUCT', nb_of_classes)
+        add_classification(self.__conn, '$edges', 'SOL', nb_of_classes)
+        add_classification(self.__conn, '$edges', 'ROS', nb_of_classes)
+
         add_classification(self.__conn, '$edges', 'RTOPO', nb_of_classes)
+        add_classification(self.__conn, '$edges', 'LENGTH', nb_of_classes)
+        add_classification(self.__conn, '$edges', 'DEGREE', nb_of_classes)
+
+        add_classification(self.__conn, '$edges', 'CLOSENESS', nb_of_classes)
+
+        add_att_dif(self.__conn, '$edges', 'DIFF_CL_STRUCT_RTOPO', 'CL_STRUCT', 'CL_RTOPO')
 
 
     def compute_inclusion(self, nb_of_classes, progress=Progress()):
@@ -137,7 +148,7 @@ class Edges(object):
         cur.execute("""UPDATE $edges
             SET STRUCT_POT =
             (
-                SELECT SUM(ACCESSIBILITY) FROM $edges AS w, edges_edges AS ww
+                SELECT SUM(STRUCT) FROM $edges AS w, edges_edges AS ww
                 WHERE w.OGC_FID = ww.EDGE2
                 AND ww.EDGE1 = $edges.OGC_FID
             )""")
@@ -212,10 +223,17 @@ class Edges(object):
         edge_length = self.edge_length()
         use = compute_use(edge_edge, edge_length, nb_of_classes, progress)
         add_attribute(self.__conn, '$edges', 'USE', 'integer')
+        add_attribute(self.__conn, '$edges', 'USE_MLT', 'integer')
+        add_attribute(self.__conn, '$edges', 'USE_MLT_MOY', 'real')
+        add_attribute(self.__conn, '$edges', 'USE_LGT', 'integer')
         #calcul de use
-        update_use = [(u, idv) for idv, u in use.iteritems()]
+        update_use = [(u, um, umm, ul, i) for i, (u, um, umm, ul) in use.iteritems()]
         cur = TrCursor(self.__conn.cursor())
-        cur.executemany("UPDATE $edges SET USE = ? WHERE OGC_FID = ?", update_use)
+        cur.executemany("UPDATE $edges SET USE = ?, USE_MLT = ?, USE_MLT_MOY = ?, USE_LGT = ? WHERE OGC_FID = ?", update_use)
         self.__conn.commit()
+
         add_classification(self.__conn, '$edges', 'USE', nb_of_classes)
+        add_classification(self.__conn, '$edges', 'USE_MLT', nb_of_classes)
+        add_classification(self.__conn, '$edges', 'USE_MLT_MOY', nb_of_classes)
+        add_classification(self.__conn, '$edges', 'USE_LGT', nb_of_classes)
 

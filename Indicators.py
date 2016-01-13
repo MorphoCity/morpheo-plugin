@@ -110,8 +110,35 @@ def add_classification(conn, table, attribute, nb_of_classes, order='ASC'):
                 "WHERE OGC_FID IN ("+str(ogc_fid_list)[1:-1]+")")
     conn.commit()
 
+def add_att_div(conn, table, attribute, att_prod, att_div):
+    """Add a division column and fills it."""
+    cur = TrCursor(conn.cursor())
 
+    cur.execute("pragma table_info("+table+")")
+    column_names = [name for [cid,name,typ,notnull,dflt_value,pk] in cur.fetchall()]
+    if attribute not in column_names:
+        cur.execute("ALTER TABLE "+table+" "
+            "ADD COLUMN "+attribute+" real")
+    else:
+        cur.execute("UPDATE "+table+" SET "+attribute+" = NULL")
 
+    cur.execute("UPDATE "+table+" SET "+attribute+" = "+att_prod+" / "+att_div+"")
+    conn.commit()
+
+def add_att_dif(conn, table, attribute, att1, att2):
+    """Add a difference column and fills it."""
+    cur = TrCursor(conn.cursor())
+
+    cur.execute("pragma table_info("+table+")")
+    column_names = [name for [cid,name,typ,notnull,dflt_value,pk] in cur.fetchall()]
+    if attribute not in column_names:
+        cur.execute("ALTER TABLE "+table+" "
+            "ADD COLUMN "+attribute+" real")
+    else:
+        cur.execute("UPDATE "+table+" SET "+attribute+" = NULL")
+
+    cur.execute("UPDATE "+table+" SET "+attribute+" = "+att1+" - "+att2+"")
+    conn.commit()
 
 
 # Testing if module is run as main
@@ -151,6 +178,8 @@ def compute_use(element_connections, element_length, nb_of_classes, progress=Pro
     voie_useMLT = [0]*(max_wayid + 1)
     #creation du tableau compteur distance
     voie_useLGT = [0]*(max_wayid + 1)
+    #compteur des chemin
+    nb_chemin = 0;
     #creation du tableau donnant la longueur de chaque voie
     length_voie = [-1]*(max_wayid + 1)
     for key, value in element_length.iteritems():
@@ -236,6 +265,9 @@ def compute_use(element_connections, element_length, nb_of_classes, progress=Pro
 
                                             if idv_parentMLT == -1:
                                                 raise Exception("Probleme de voie parente non remplie ! (idv_parentMLT = %d)"%(idv_parentMLT))
+
+                                        #on est dans le cas où on a trouvé un nouveau chemin, on incrémente le compteur
+                                        nb_chemin += 1
 
                                     # = si la voie a deja ete traitee
                                     if dtopo_voies[idv3] != -1:
@@ -329,9 +361,16 @@ def compute_use(element_connections, element_length, nb_of_classes, progress=Pro
         idv1 += 1
     #end for idv1
 
+    if not nb_chemin:
+        raise Exception("Aucun chemin trouve : Pas de voies !!!!")
+
     use = {}
     for idv in range(1, max_wayid + 1):
-        use[idv] = voie_useMLT[idv]
+        use_v = voie_use[idv]
+        useMLT_v = voie_useMLT[idv]
+        useMLT_moy = useMLT_v / (1.0*nb_chemin)
+        useLGT_v = voie_useLGT[idv] if voie_useLGT[idv] else voie_use[idv]
+        use[idv] = (use_v, useMLT_v, useMLT_moy, useLGT_v)
     return use;
 
 def compute_structurality(element_connections, element_length,
@@ -366,7 +405,7 @@ def compute_structurality(element_connections, element_length,
         while nb_voiestraitees != nb_of_ways:
             nb_voiestraitees_test = nb_voiestraitees
             #TRAITEMENT DE LA LIGrE ORDRE+1 DANS LES VECTEURS
-            V_ordreNombre.append(-2)
+            V_ordreNombre.append(0)
             V_ordreLength.append(0)
 
             idv2 = 1
@@ -391,7 +430,7 @@ def compute_structurality(element_connections, element_length,
                     k += 1
 
                 #SUPPRESSION DES VOIES NON CONNEXES AU GRAPHE PRINCIPAL
-                if nbvoies_connexe < nb_of_ways/2:
+                if nbvoies_connexe < nb_of_ways/4:
                     deleted_ways.add(idv1)
                     nb_voies_supprimees +=1
 
@@ -406,7 +445,10 @@ def compute_structurality(element_connections, element_length,
         #CALCUL DU RAYON TOPO
         rayonTopologique_v = sum([l*v for l,v in enumerate(V_ordreNombre)])
 
-        topo_radius_and_struct[idv1] = (rayonTopologique_v, structuralite_v)
+        #CALCUL DE LA CLOSENESS
+        closeness_v = 1.0/rayonTopologique_v if rayonTopologique_v else 1.0
+
+        topo_radius_and_struct[idv1] = (rayonTopologique_v, closeness_v, structuralite_v)
 
         if dtopostream:
             dtopostream.write( ', '.join([str(v) for v in dtopo_voies[1:]]) + '\n')

@@ -58,11 +58,11 @@ class Streets(object):
         # update edges with no name
         cur.execute("""
             UPDATE $edges
-            SET STREET = (SELECT OGC_FID FROM streets 
+            SET STREET = (SELECT OGC_FID FROM streets
                 WHERE NAME IS NULL
-                AND Equals(streets.GEOMETRY, $edges.GEOMETRY) 
+                AND Equals(streets.GEOMETRY, $edges.GEOMETRY)
                 AND $edges.ROWID IN (
-                  SELECT ROWID FROM SpatialIndex 
+                  SELECT ROWID FROM SpatialIndex
                   WHERE f_table_name='$edges' AND search_frame=streets.GEOMETRY)
             )
             """)
@@ -117,7 +117,7 @@ class Streets(object):
                           AND (streets_vertices.VTX = $edges.START_VTX
                                OR streets_vertices.VTX = $edges.END_VTX))
                 )""")
-        
+
         progress.setText("Compute SPACING and NB_VERTICES")
         cur.execute("""UPDATE streets
                 SET SPACING = CONNECTIVITY/LENGTH
@@ -158,21 +158,32 @@ class Streets(object):
         element_length = self.street_length()
         [topo_radius_and_struct, unconnected_streets] = compute_structurality(street_street, element_length, nb_of_classes, self.__output_dir, 'streets_', progress)
 
-        add_attribute(self.__conn, 'streets', 'ACCESSIBILITY', 'real')
-        add_attribute(self.__conn, 'streets', 'STRUCT_POT', 'real')
-        add_attribute(self.__conn, 'streets', 'MESHING', 'real')
+        add_attribute(self.__conn, 'streets', 'DEGREE', 'integer')
+        add_attribute(self.__conn, 'streets', 'RTOPO', 'real')
+        add_attribute(self.__conn, 'streets', 'CLOSENESS', 'real')
+        add_attribute(self.__conn, 'streets', 'STRUCT', 'real')
 
         cur = TrCursor(self.__conn.cursor())
         cur.executemany("DELETE FROM streets WHERE OGC_FID = ?",
                 [(ogc_fid,) for ogc_fid in unconnected_streets])
-        cur.executemany("UPDATE streets SET STRUCT_POT = ?, ACCESSIBILITY = ? WHERE OGC_FID = ?",
-                [(r, s, i) for i, (r, s) in topo_radius_and_struct.iteritems()])
-        cur.execute("""UPDATE streets SET MESHING = ACCESSIBILITY/LENGTH""")
+        cur.executemany("UPDATE streets SET DEGREE = ?, RTOPO = ?, CLOSENESS = ?, STRUCT = ? WHERE OGC_FID = ?",
+                [(len(street_street[i]), r, c, s, i) for i, (r, c, s) in topo_radius_and_struct.iteritems()])
         self.__conn.commit()
 
-        add_classification(self.__conn, 'streets', 'ACCESSIBILITY', nb_of_classes)
-        add_classification(self.__conn, 'streets', 'MESHING', nb_of_classes)
-        add_classification(self.__conn, 'streets', 'STRUCT_POT', nb_of_classes)
+        add_att_div(self.__conn, 'streets', 'SOL', 'STRUCT', 'LENGTH')
+        add_att_div(self.__conn, 'streets', 'ROS', 'RTOPO', 'STRUCT')
+
+        add_classification(self.__conn, 'streets', 'STRUCT', nb_of_classes)
+        add_classification(self.__conn, 'streets', 'SOL', nb_of_classes)
+        add_classification(self.__conn, 'streets', 'ROS', nb_of_classes)
+
+        add_classification(self.__conn, 'streets', 'RTOPO', nb_of_classes)
+        add_classification(self.__conn, 'streets', 'LENGTH', nb_of_classes)
+        add_classification(self.__conn, 'streets', 'DEGREE', nb_of_classes)
+
+        add_classification(self.__conn, 'streets', 'CLOSENESS', nb_of_classes)
+
+        add_att_dif(self.__conn, 'streets', 'DIFF_CL_STRUCT_RTOPO', 'CL_STRUCT', 'CL_RTOPO')
 
 
     def compute_inclusion(self, nb_of_classes, progress=Progress()):
@@ -184,7 +195,7 @@ class Streets(object):
         cur.execute("""UPDATE streets
             SET STRUCT_POT =
             (
-                SELECT SUM(ACCESSIBILITY) FROM streets AS w, streets_streets AS ww
+                SELECT SUM(STRUCT) FROM streets AS w, streets_streets AS ww
                 WHERE w.OGC_FID = ww.STREET2
                 AND ww.STREET1 = streets.OGC_FID
             )""")
@@ -259,10 +270,17 @@ class Streets(object):
         street_length = self.street_length()
         use = compute_use(street_street, street_length, nb_of_classes, progress)
         add_attribute(self.__conn, 'streets', 'USE', 'integer')
+        add_attribute(self.__conn, 'streets', 'USE_MLT', 'integer')
+        add_attribute(self.__conn, 'streets', 'USE_MLT_MOY', 'real')
+        add_attribute(self.__conn, 'streets', 'USE_LGT', 'integer')
         #calcul de use
-        update_use = [(u, idv) for idv, u in use.iteritems()]
+        update_use = [(u, um, umm, ul, i) for i, (u, um, umm, ul) in use.iteritems()]
         cur = TrCursor(self.__conn.cursor())
-        cur.executemany("UPDATE streets SET USE = ? WHERE OGC_FID = ?", update_use)
+        cur.executemany("UPDATE streets SET USE = ?, USE_MLT = ?, USE_MLT_MOY = ?, USE_LGT = ? WHERE OGC_FID = ?", update_use)
         self.__conn.commit()
+
         add_classification(self.__conn, 'streets', 'USE', nb_of_classes)
+        add_classification(self.__conn, 'streets', 'USE_MLT', nb_of_classes)
+        add_classification(self.__conn, 'streets', 'USE_MLT_MOY', nb_of_classes)
+        add_classification(self.__conn, 'streets', 'USE_LGT', nb_of_classes)
 

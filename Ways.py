@@ -298,24 +298,32 @@ class Ways(object):
         element_length = self.way_length()
         [topo_radius_and_struct, unconnected_ways] = compute_structurality(way_way, element_length, nb_of_classes, self.__output_dir, 'ways_', progress)
 
-        add_attribute(self.__conn, 'ways', 'ACCESSIBILITY', 'real')
+        add_attribute(self.__conn, 'ways', 'DEGREE', 'integer')
         add_attribute(self.__conn, 'ways', 'RTOPO', 'real')
-        add_attribute(self.__conn, 'ways', 'MESHING', 'real')
+        add_attribute(self.__conn, 'ways', 'CLOSENESS', 'real')
+        add_attribute(self.__conn, 'ways', 'STRUCT', 'real')
 
         cur = TrCursor(self.__conn.cursor())
         cur.executemany("DELETE FROM ways WHERE OGC_FID = ?",
                 [(ogc_fid,) for ogc_fid in unconnected_ways])
-        cur.executemany("UPDATE ways SET RTOPO = ?, ACCESSIBILITY = ? WHERE OGC_FID = ?",
-                [(r, s, i) for i, (r, s) in topo_radius_and_struct.iteritems()])
-        cur.execute("""UPDATE ways SET MESHING = ACCESSIBILITY/LENGTH""")
+        cur.executemany("UPDATE ways SET DEGREE = ?, RTOPO = ?, CLOSENESS = ?, STRUCT = ? WHERE OGC_FID = ?",
+                [(len(way_way[i]), r, c, s, i) for i, (r, c, s) in topo_radius_and_struct.iteritems()])
         self.__conn.commit()
 
-        add_classification(self.__conn, 'ways', 'RTOPO', nb_of_classes)
-        add_classification(self.__conn, 'ways', 'ACCESSIBILITY', nb_of_classes)
-        add_classification(self.__conn, 'ways', 'MESHING', nb_of_classes)
+        add_att_div(self.__conn, 'ways', 'SOL', 'STRUCT', 'LENGTH')
+        add_att_div(self.__conn, 'ways', 'ROS', 'RTOPO', 'STRUCT')
 
-        add_classification(self.__conn, 'ways', 'CONNECTIVITY', nb_of_classes)
-        add_classification(self.__conn, 'ways', 'SPACING', nb_of_classes)
+        add_classification(self.__conn, 'ways', 'STRUCT', nb_of_classes)
+        add_classification(self.__conn, 'ways', 'SOL', nb_of_classes)
+        add_classification(self.__conn, 'ways', 'ROS', nb_of_classes)
+
+        add_classification(self.__conn, 'ways', 'RTOPO', nb_of_classes)
+        add_classification(self.__conn, 'ways', 'LENGTH', nb_of_classes)
+        add_classification(self.__conn, 'ways', 'DEGREE', nb_of_classes)
+
+        add_classification(self.__conn, 'ways', 'CLOSENESS', nb_of_classes)
+
+        add_att_dif(self.__conn, 'ways', 'DIFF_CL_STRUCT_RTOPO', 'CL_STRUCT', 'CL_RTOPO')
 
 
 
@@ -327,7 +335,7 @@ class Ways(object):
         cur.execute("""UPDATE ways
             SET STRUCT_POT =
             (
-                SELECT SUM(ACCESSIBILITY) FROM ways AS w, ways_ways AS ww
+                SELECT SUM(STRUCT) FROM ways AS w, ways_ways AS ww
                 WHERE w.OGC_FID = ww.WAY2
                 AND ww.WAY1 = ways.OGC_FID
             )""")
@@ -437,13 +445,19 @@ class Ways(object):
         way_length = self.way_length()
         use = compute_use(way_way, way_length, nb_of_classes, progress)
         add_attribute(self.__conn, 'ways', 'USE', 'integer')
+        add_attribute(self.__conn, 'ways', 'USE_MLT', 'integer')
+        add_attribute(self.__conn, 'ways', 'USE_MLT_MOY', 'real')
+        add_attribute(self.__conn, 'ways', 'USE_LGT', 'integer')
         #calcul de use
-        update_use = [(u, idv) for idv, u in use.iteritems()]
+        update_use = [(u, um, umm, ul, i) for i, (u, um, umm, ul) in use.iteritems()]
         cur = TrCursor(self.__conn.cursor())
-        cur.executemany("UPDATE ways SET USE = ? WHERE OGC_FID = ?", update_use)
+        cur.executemany("UPDATE ways SET USE = ?, USE_MLT = ?, USE_MLT_MOY = ?, USE_LGT = ? WHERE OGC_FID = ?", update_use)
         self.__conn.commit()
 
         add_classification(self.__conn, 'ways', 'USE', nb_of_classes)
+        add_classification(self.__conn, 'ways', 'USE_MLT', nb_of_classes)
+        add_classification(self.__conn, 'ways', 'USE_MLT_MOY', nb_of_classes)
+        add_classification(self.__conn, 'ways', 'USE_LGT', nb_of_classes)
 
 
     def compute_betweenness(self):
