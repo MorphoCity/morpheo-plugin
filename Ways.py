@@ -460,7 +460,8 @@ class Ways(object):
         add_classification(self.__conn, 'ways', 'USE_LGT', nb_of_classes)
 
 
-    def compute_betweenness(self):
+    def compute_betweenness(self, nb_of_classes, progress=Progress()):
+        progress.setText("Compute betweenness")
 
         #networkx = lib for networks
         try:
@@ -496,6 +497,26 @@ class Ways(object):
 
         #calculation of betweenness (vector)
         betweenness = nx.betweenness_centrality(gr_adjacency)
-        closeness = nx.closeness_centrality(gr_adjacency)
+        #closeness = nx.closeness_centrality(gr_adjacency)
+
+        #btwstream = open(path.join(self.__output_dir, "ways_betweenness.txt"), 'w')
+        #for k,v in betweenness.items():
+        #    btwstream.write( ', '.join((str(k), str(v), str(closeness[k]))) + '\n')
+        #btwstream.close()
+
+        add_attribute(self.__conn, 'ways', 'BETWEENNESS', 'real')
+        update_btw = []
+        r = 0
+        for row in range(len(brut_adjacency)):
+            if brut_adjacency[row][0] == -1:
+                update_btw.append(('0.0', row))
+            else:
+                update_btw.append((betweenness[r], row))
+                r = r + 1
+        cur = TrCursor(self.__conn.cursor())
+        cur.executemany("UPDATE ways SET BETWEENNESS = ? WHERE OGC_FID = ?", update_btw)
+        self.__conn.commit()
+
+        add_classification(self.__conn, 'ways', 'BETWEENNESS', nb_of_classes)
 
         #np.savetxt(path.join(self.__output_dir, "ways_betweenness.txt"), btw, delimiter=',')

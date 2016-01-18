@@ -153,18 +153,18 @@ class MorpheoAlgorithm(GeoAlgorithm):
 
         self.addParameter(ParameterBoolean(self.WAYS_ACCESSIBILITY, 'Ways accessibility', True))
         self.addParameter(ParameterBoolean(self.WAYS_ORTHOGONALITY, 'Ways orthogonality', True))
-        self.addParameter(ParameterBoolean(self.WAYS_USE, 'Ways use (betweenness)', True))
+        self.addParameter(ParameterBoolean(self.WAYS_USE, 'Ways use', True))
         self.addParameter(ParameterBoolean(self.WAYS_STRUCT_POT, 'Ways structural potential', True))
-        #self.addParameter(ParameterBoolean(self.WAYS_BETWEENNESS, 'Ways betweenness', False))
+        self.addParameter(ParameterBoolean(self.WAYS_BETWEENNESS, 'Ways betweenness', False))
 
         self.addParameter(ParameterBoolean(self.STREETS_ACCESSIBILITY, 'Streets accessibility', False))
         self.addParameter(ParameterBoolean(self.STREETS_ORTHOGONALITY, 'Streets orthogonality', False))
-        self.addParameter(ParameterBoolean(self.STREETS_USE, 'Streets use (betweenness)', False))
+        self.addParameter(ParameterBoolean(self.STREETS_USE, 'Streets use', False))
         self.addParameter(ParameterBoolean(self.STREETS_STRUCT_POT, 'Streets structural potential', False))
 
         self.addParameter(ParameterBoolean(self.EDGES_ACCESSIBILITY, 'Edges accessibility', False))
         self.addParameter(ParameterBoolean(self.EDGES_ORTHOGONALITY, 'Edges orthogonality', False))
-        self.addParameter(ParameterBoolean(self.EDGES_USE, 'Edges use (betweenness)', False))
+        self.addParameter(ParameterBoolean(self.EDGES_USE, 'Edges use', False))
         self.addParameter(ParameterBoolean(self.EDGES_STRUCT_POT, 'Edges structural potential', False))
 
         self.addOutput(OutputTable(self.VERTICES_OUTPUT, 'Vertices output table'))
@@ -255,7 +255,8 @@ class MorpheoAlgorithm(GeoAlgorithm):
                 log_info("Ways created")
 
                 if self.getParameterValue(self.WAYS_ACCESSIBILITY) or\
-                        self.getParameterValue(self.WAYS_STRUCT_POT):
+                        self.getParameterValue(self.WAYS_STRUCT_POT) or\
+                        self.getParameterValue(self.WAYS_BETWEENNESS):
                     ways.compute_structurality(
                             self.getParameterValue(self.NB_CLASSES),
                             progress)
@@ -276,7 +277,9 @@ class MorpheoAlgorithm(GeoAlgorithm):
                             progress)
 
                 if self.getParameterValue(self.WAYS_BETWEENNESS):
-                    ways.compute_betweenness()
+                    ways.compute_betweenness(
+                            self.getParameterValue(self.NB_CLASSES),
+                            progress)
 
             if self.getParameterValue(self.NAME_FIELD):
                 progress.setText("Streets in progress")
