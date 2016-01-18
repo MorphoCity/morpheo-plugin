@@ -2,7 +2,7 @@
 name=morpheo
 qgisMinimumVersion=2.6
 description=graph construction and analysis from linestrings
-version=0.0.2
+version=0.3
 author=Oslandia
 email=infos@oslandia.com
 homepage=https://github.com/Oslandia/morpheo

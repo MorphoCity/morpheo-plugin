@@ -410,7 +410,7 @@ def compute_structurality(element_connections, element_length,
 
             idv2 = 1
             while idv2 < nb_of_ways+1:
-                if dtopo_voies[idv2] == dtopo:
+                if dtopo_voies[idv2] == dtopo and idv2 in element_connections:
                     for idv3 in element_connections[idv2]:
                         if dtopo_voies[idv3] == -1:
                             dtopo_voies[idv3] = dtopo + 1
