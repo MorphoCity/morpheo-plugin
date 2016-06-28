@@ -1,8 +1,11 @@
-MORPHEO
-========
+# Morpho: plugin QGIS pour la caractérisation des graphes spatiaux.
 
-Portage pour QGIS Processing du projet Morpheo
+
+## Sources c++
 
 https://github.com/clag/morpheo
 
-Avec integration de NetworkX pour le calul de betweenness.
+## Documents de référerence
+
+* Thèse Claire Lagesse: https://halshs.archives-ouvertes.fr/tel-01245898
+

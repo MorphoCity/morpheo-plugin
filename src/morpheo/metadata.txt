@@ -1,0 +1,10 @@
+[general]
+name=morpheo
+qgisMinimumVersion=2.14
+description=graph construction and analysis from linestrings
+version=0.4.0
+author=3Liz
+email=infos@3liz.com
+icon=morpheo.png
+experimental=True
+deprecated=False
