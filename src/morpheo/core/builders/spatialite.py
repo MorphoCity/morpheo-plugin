@@ -1,47 +1,77 @@
-""" Spatialite builder implementation
+# -*- encoding=utf-8 -*-
+""" Spatialite graph builder implementation
 """
 from pyspatialite import dbapi2 as db
 
 import os
 import logging
+import string
+
+from .errors import BuilderError
+from .sanitize import sanitize
+
+class SQLNotFoundError(BuilderError):
+    pass
+
+class InvalidLayerError(BuilderError):
+    pass
+
+class FileNotFoundError(BuilderError):
+    pass
+
 
 class SpatialiteBuilder(object):
 
-    
-    def __init__(self, dbname, table, build_graph=False):
+    version     = "1.0"
+    description = "Spatialite graph builder"
+
+    def __init__(self, dbname, table=None):
         """ Initialize builder
 
             :param dbname: the path of the database
-            :param load_schema: Reload the schema when initializing graph
+            :param table: name of the table containing input data
         """
+        logging.info("Opening database %s" % dbname)
         self._conn = db.connect(dbname)
-        self._build_graph = build_graph
+        self._input_table = table or os.path.basename(os.path.splitext(dbname)[0])
 
-    def build_graph( self, snap_distance, min_edge_length ):
+    def build_graph( self, snap_distance, min_edge_length, name_field=None ):
         """ Load database schema
         """
         # sanitize graph
-        self.sanitize(snap_distance, min_edge_length)
+        sanitize(self._conn, self._input_table, snap_distance, min_edge_length, 
+                 name_field=name_field)
+        
 
+    def load_sql(self):
+        """ Load graph builder sql
+
+            sql file is first searched as package data. If not
+            found then __file__ path  is searched
+
+            :raises: SQLNotFoundError
+        """
         # Try to get schema from ressources
         import pkg_resources
         
         srcpath = pkg_resources.resource_filename("morpheo","core","builders")
         sqlfile = os.path.join(srcpath, "build_graph.sql")
-    
+        if not os.path.exists(sqlfile):
+            # If we are not in standard python installation,
+            # try to get file locally
+            sqlfile = os.path.join(os.path.dirname(__file__))
+
+        if not os.path.exists(sqlfile):
+            raise SQLNotFoundError("Cannot find file %s" % sqlfile)
+
+        with open(sqlfile,'r') as f:
+            sql = string.Template(f.read()).substitute(input_table=self._input_table)
+
+        return sql
+
     def sanitize(self, snap_distance, min_edge_length ):
         """ Sanitize the input data
-
-            The method will compute the following:
-                
-                - Remove unconnected features
-                - Snap close geometries
-                - Resolve intersection
         """
-        self.remove_unconnected_features()
-        self.snap_geometries(snap_distance)
-        self.resolve_intersection()d
-        self.remove_small_edges(min_edge_length)
 
     @staticmethod
     def from_shapefile( path, dbname=None ):
@@ -53,14 +83,21 @@ class SpatialiteBuilder(object):
 
             :param path: the path of the shapefile
 
-            :returns: A qgis layer
+            :returns: A Builder object
         """
         from qgis.core import QgsVectorLayer
 
-        basename = os,path.basename(os.path.splitext(path)[0])
-        layer    = QgisVectorLayer(path, basename, 'ogr' )
+        path = os.path.abspath(path)
+        if not os.path.exists(path):
+            raise FileNotFoundError("Shapefile not found: %s" % path)
 
-        builder  = Builder.from_layer(layer, dbname)
+        basename = os.path.basename(os.path.splitext(path)[0])
+        layer    = QgsVectorLayer(path, basename, 'ogr' )
+       
+        if not layer.isValid():
+            raise InvalidLayerError("Failed to load layer %s" % path)
+
+        builder  = SpatialiteBuilder.from_layer(layer, dbname)
         return builder
 
     @staticmethod
@@ -68,8 +105,15 @@ class SpatialiteBuilder(object):
         """ Build graph from qgis layer
 
             :param layer: a QGis layer to build the graph from
+            :returns: A builder object
         """
-        from qgis.core import qgsvectorfilewriter        
+        from qgis.core import QgsVectorFileWriter, QGis
+        
+        if layer.wkbType() not in (QGis.WKBLineString25D, QGis.WKBLineString) :
+            raise InvalidLayerError("Invalid geometry type for input layer {}".format(layer.wkbType()))
+
+        if layer.crs().geographicFlag():
+            raise InvalidLayerError("Invalid CRS (lat/long) for inputlayer")
 
         dbname = dbname or 'morpheo_'+layer.name().replace(" ", "_") + '.sqlite'
         if os.path.isfile(dbname):
@@ -77,37 +121,12 @@ class SpatialiteBuilder(object):
             os.remove(dbname)
     
         # Create database from layer
-        logging.info("Creating database %s from layer")
-        QgsVectorFileWriter.writeAsVectorFormat(layer, dbname, "utf-8", None, "SQLite", False, None,
-                                                ["SPATIALITE=YES", ])
+        QgsVectorFileWriter.writeAsVectorFormat(layer, dbname, "utf-8", None, "Spatialite", False, None,[])
 
-        raw_data_table = os.path.basename(os.path.splitext(dbname)[0])
-        return Builder(dbname, table=raw_data_table, build_graph=True)
+        logging.info("Creating database '%s' from layer" % dbname)
+        return SpatialiteBuilder(dbname)
 
-    def remove_small_edges(self, min_edge_length):
-        """ Remove small egdes and merge extremities
 
-            All edges below min_edge_length will be removed an connected vertices
-            will be merged at the centroid position of the removed geometry.
-    
-            :param min_edge_length: the minimun length for edges
-        """
-        raise NotImplementedError()
 
-        
-     def delete_unconnected_features(self):
-        """
-        """
-        raise NotImplementedError()
-
-    def snap_geometries(self, snap_distance):
-        """
-        """
-        raise NotImplementedError()
-
-    def resolve_intersections(self)
-        """
-        """
-        raise NotImplementedError()
 
 

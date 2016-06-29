@@ -19,15 +19,16 @@ setup(
     name='morpheo-plugin',
     version=version_tag,
     author='3Liz',
-    author_email='david.marteau@3liz.org',
-    maintainer='3Liz',
+    author_email='infos@3liz.org',
+    maintainer='Daved Marteau',
     maintainer_email='david.marteau@3liz.org',
     description=VER.__description__,
     url='',
     packages=find_packages('src'),
     package_dir={'': 'src'},
+    package_data={'morpheo.core.builders':['*.sql'], },
     entry_points={
-        'console_scripts': []
+        'console_scripts': ['morpheo-build = morpheo.core.builder:build_graph_']
     },
     install_requires=get_requirements('requirements.txt'),
     classifiers=[

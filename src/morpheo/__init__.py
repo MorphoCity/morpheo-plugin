@@ -1,7 +1,9 @@
 # -*- coding: UTF-8 -*-
 
-from gui.gui import Gui
-
+# -----------------------
+# Qgis plugin entrypoint
+# -----------------------
 def classFactory(iface):
+    from gui.gui import Cui
     return Gui(iface)
 
