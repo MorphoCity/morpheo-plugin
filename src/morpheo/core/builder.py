@@ -21,23 +21,22 @@ def setup_qgis():
         }.get(platform))
 
     if qgis_pythonpath is not None:
-        logging.info("Qgis python path set to %s" % qgis_pythonpath)
         sys.path.append(qgis_pythonpath)
 
+    qgis_home = os.environ.get('QGIS_HOME',{
+            'darwin':'/Applications/QGIS.app/Contents/MacOS',
+            'linux' :'/usr/local/',
+        }.get(platform))
+
+
+    logging.info("QGIS_PYTHONPATH set to '%s'" % qgis_pythonpath)
+    logging.info("QGIS_HOME set to '%s'" % qgis_home)
+
     global qgis_app
-    # XXX Fail to  initialize Qgis in OSX 
-    # because I don't know how to set the prefixpath
-    # So use server to initialize qgis properly
-
-    #from qgis.core import QgsApplication
-    #qgis_app = QgsApplication([], False )
-    #qgis_app.initQgis()
-
-    # This will initialize Qgis correctly
-    from qgis.server import QgsServer
-    qgis_app = QgsServer()
-    qgis_app.init()
-
+    from qgis.core import QgsApplication
+    qgis_app = QgsApplication([], False )
+    QgsApplication.setPrefixPath(qgis_home, True)
+    QgsApplication.initQgis()
 
 
 def build_graph( path, snap_distance=0, min_edge_length=1, dbname=None, name_field=None ):

@@ -121,9 +121,9 @@ class SpatialiteBuilder(object):
             os.remove(dbname)
     
         # Create database from layer
-        QgsVectorFileWriter.writeAsVectorFormat(layer, dbname, "utf-8", None, "Spatialite", False, None,[])
-
+        QgsVectorFileWriter.writeAsVectorFormat(layer, dbname, "utf-8", None, "SpatiaLite", False, None,[])
         logging.info("Creating database '%s' from layer" % dbname)
+
         return SpatialiteBuilder(dbname)
 
 
