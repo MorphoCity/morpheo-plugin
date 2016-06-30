@@ -1,7 +1,6 @@
 # -*- encoding=utf-8 -*-
 """ Spatialite graph builder implementation
 """
-from pyspatialite import dbapi2 as db
 
 import os
 import logging
@@ -20,6 +19,7 @@ class FileNotFoundError(BuilderError):
     pass
 
 
+
 class SpatialiteBuilder(object):
 
     version     = "1.0"
@@ -31,17 +31,36 @@ class SpatialiteBuilder(object):
             :param dbname: the path of the database
             :param table: name of the table containing input data
         """
+        from pyspatialite import dbapi2 as db
+
         logging.info("Opening database %s" % dbname)
         self._conn = db.connect(dbname)
-        self._input_table = table or os.path.basename(os.path.splitext(dbname)[0])
+        self._input_table = table or os.path.basename(os.path.splitext(dbname)[0]).lower()
 
     def build_graph( self, snap_distance, min_edge_length, name_field=None ):
-        """ Load database schema
+        """ Build morpheo topological graph
+
+            This method will build the topological graph
+            - The vertices
+            - The edges
+            - The way (TODO link to definition)
+            - The angles
+
+            :param snap_distance: The snap distance used to sanitize  the graph,
+                 If the snap_distance is > 0 the graph will be sanitized (merge close vertices, 
+                    remove unconnected features, the result will be a topological graph
+            :param min_edge_length: The minimum edge length - edge below this length will be removed
+            :param name_field: TODO ????
         """
         # sanitize graph
-        sanitize(self._conn, self._input_table, snap_distance, min_edge_length, 
-                 name_field=name_field)
+        if snap_distance > 0:
+            logging.info("Builder: sanitizing graph")
+            sanitize(self._conn, self._input_table, snap_distance, min_edge_length, 
+                     name_field=name_field)
         
+         
+        
+
 
     def load_sql(self):
         """ Load graph builder sql
@@ -93,7 +112,7 @@ class SpatialiteBuilder(object):
 
         basename = os.path.basename(os.path.splitext(path)[0])
         layer    = QgsVectorLayer(path, basename, 'ogr' )
-       
+
         if not layer.isValid():
             raise InvalidLayerError("Failed to load layer %s" % path)
 
@@ -117,11 +136,14 @@ class SpatialiteBuilder(object):
 
         dbname = dbname or 'morpheo_'+layer.name().replace(" ", "_") + '.sqlite'
         if os.path.isfile(dbname):
-            logging.warning("Removing existing database %s" % dbname)
+            logging.info("Removing existing database %s" % dbname)
             os.remove(dbname)
-    
+
         # Create database from layer
-        QgsVectorFileWriter.writeAsVectorFormat(layer, dbname, "utf-8", None, "SpatiaLite", False, None,[])
+        error = QgsVectorFileWriter.writeAsVectorFormat(layer, dbname, "utf-8", None, "SpatiaLite")
+        if error != QgsVectorFileWriter.NoError:
+            raise IOError("Failed to create database '{}': error {}".format(dbname, error))
+
         logging.info("Creating database '%s' from layer" % dbname)
 
         return SpatialiteBuilder(dbname)

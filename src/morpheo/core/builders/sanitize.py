@@ -15,7 +15,7 @@ class Sanitizer(object):
             :param input_table: name of the input raw data
         """
         self._table  = input_table
-        self._cursor = conn.cursor()
+        self._conn   = conn
 
     def sanitize(self, snap_distance, min_edge_length, name_field=None):
         """ Sanitize input data
@@ -31,19 +31,29 @@ class Sanitizer(object):
                 :param min_edge_length: minimum length for small edges
                 :param name_field: TODO ?????
         """
-        self.delete_unconnected_features()
-        self.snap_geometries(snap_distance)
-        self.resolve_intersections(min_edge_length, name_field)
+        if snap_distance <= 0:
+            raise BuilderError("Invalid snap distance {}".format(snap_distance))
+             
+
+        logging.info(("Sanitizing input: snap_distance={}"
+                      ", min_edge_length={}, name_field={}").format(snap_distance,
+                                                                    min_edge_length,
+                                                                    name_field))
+        cur = self._conn.cursor()
+        self.delete_unconnected_features(cur)
+        self.snap_geometries(cur, snap_distance)
+        self.resolve_intersections(cur, min_edge_length, name_field)
+        self._conn.commit()
 
     def SQL( self, sql, **kwargs):
         sql = sql.format(input_table=self._table, **kwargs)
         logging.debug(sql)
         return sql
 
-    def delete_unconnected_features(self):
-        """ Remove unconnerted features from input data
+    def delete_unconnected_features(self, cur):
+        """ Remove unconnected features from input data
         """
-        cur = self._cursor
+        logging.info("Builder: Deleting unconnected features")
         cur.execute(self.SQL("""DELETE FROM {input_table}
             WHERE NOT (
                 SELECT COUNT(1) FROM {input_table} AS o
@@ -56,31 +66,31 @@ class Sanitizer(object):
                 )
                 """))
 
-    def snap_geometries(self, snap_distance):
+    def snap_geometries(self, cur, snap_distance):
         """ Snap close goametries 
 
             :param snap_distance: minimum snap distance
         """
-        cur = self._cursor
+        logging.info("Builder: Snapping geometries")
         cur.execute(self.SQL("""UPDATE {input_table}
             SET GEOMETRY = Snap({input_table}.GEOMETRY,
                 (
                 SELECT Collect(o.GEOMETRY) FROM {input_table} AS o
                 WHERE o.ROWID IN (
                       SELECT ROWID FROM SpatialIndex
-                      WHERE f_table_name='{input_table}' AND search_frame=Buffer({input_table}.GEOMETRY, $epsilon))
+                      WHERE f_table_name='{input_table}' AND search_frame=Buffer({input_table}.GEOMETRY, {snap_distance}))
                 AND o.OGC_FID != {input_table}.OGC_FID
                 )
                 , {snap_distance})
             """, snap_distance=snap_distance))
 
 
-    def resolve_intersections(self, min_edge_length, name_field):
+    def resolve_intersections(self, cur, min_edge_length, name_field):
         """ Resolve intersections
 
             TODO: elaborate logic
         """
-        cur = self._cursor
+        logging.info("Builder: Resolving intersections")
         self._1_find_overlapping_lines(cur)
         self._2_find_crossing_points(cur)
         self._3_cut_lines_at_nodes(cur)
@@ -95,7 +105,6 @@ class Sanitizer(object):
             geometries from which intersection do not resolve to simple points
         """
         SQL = self.SQL
-
         self._create_indexed_line_table(cur, 'overlaping_lines', 'MULTI')
         cur.execute(SQL("""INSERT INTO overlaping_lines(GEOMETRY)
             SELECT CastToMulti(Intersection(w1.GEOMETRY, w2.GEOMETRY))
@@ -122,7 +131,7 @@ class Sanitizer(object):
                     FROM geometry_columns
                     WHERE f_table_name='{input_table}'"""))
         [dim] = cur.fetchone()
-        self.create_indexed_point_table(cur, 'crossings', 'MULTI')
+        self._create_indexed_point_table(cur, 'crossings', 'MULTI')
 
         # Adding crossings, skipping bridge
         cur.execute(SQL("""INSERT INTO crossings(GEOMETRY)
@@ -158,14 +167,14 @@ class Sanitizer(object):
         cur.execute(SQL("CREATE TABLE counter(VALUE integer)"))
         cur.executemany(SQL("INSERT INTO counter(VALUE) SELECT ?"),[(c+1,) for c in range(count_max)] )
 
-        self.create_indexed_point_table(cur, 'crossing_points')
+        self._create_indexed_point_table(cur, 'crossing_points')
         cur.execute(SQL("""INSERT INTO crossing_points(GEOMETRY)
             SELECT DISTINCT GeometryN(crossings.GEOMETRY, VALUE)
             FROM crossings, counter
             WHERE counter.VALUE <= NumGeometries(crossings.GEOMETRY)
             """))
 
-        self.create_indexed_line_table(cur, 'split_lines')
+        self._create_indexed_line_table(cur, 'split_lines')
         cur.execute(SQL("ALTER TABLE split_lines ADD COLUMN START_VTX integer REFERENCES crossing_points(OGC_FID)"))
         cur.execute(SQL("ALTER TABLE split_lines ADD COLUMN END_VTX integer REFERENCES crossing_points(OGC_FID)"))
         cur.execute(SQL("CREATE INDEX split_lines_start_vtx_idx ON split_lines(START_VTX)"))
@@ -184,8 +193,7 @@ class Sanitizer(object):
         res = cur.fetchall()
         splits = []
         for [rowid, line_id] in res:
-            if progress:
-                progress.setPercentage(int(100*float(rowid)/len(res)))
+            #    progress.setPercentage(int(100*float(rowid)/len(res)))
             # get all points on line
             cur.execute(SQL("""
                 SELECT Line_Locate_Point(o.GEOMETRY, v.GEOMETRY) AS LOCATION, v.OGC_FID
@@ -386,7 +394,7 @@ class Sanitizer(object):
 
         # Sanity check ?
         cur.execute(SQL("SELECT COUNT(1) FROM split_lines WHERE END_VTX IS NULL OR START_VTX IS NULL"))
-        [bug] = self.fetchone()
+        [bug] = cur.fetchone()
         if bug: 
             raise BuilderError("Graph build error: NULL vertices in 'merge_lines'") 
 
@@ -406,9 +414,9 @@ class Sanitizer(object):
         [max_fid] = cur.fetchone()
         cur.execute(SQL("""SELECT OGC_FID, START_VTX, END_VTX 
             FROM split_lines
-            WHERE GLength(GEOMETRY) < """+str(minArcLength)))
+            WHERE GLength(GEOMETRY) < """+str(min_edge_length)))
 
-        logging.info("Builder: Removing arcs smaller than {}".format(minArcLength))
+        logging.info("Builder: Removing arcs smaller than {}".format(min_edge_length))
 
         for [ogc_fid, start_vtx, end_vtx] in cur.fetchall():
             max_fid += 1
@@ -419,7 +427,7 @@ class Sanitizer(object):
             cur.execute(SQL("""UPDATE split_lines
                 SET GEOMETRY = Snap(GEOMETRY, 
                     (SELECT v.GEOMETRY FROM crossing_points AS v 
-                    WHERE v.OGC_FID="""+str(max_fid)+"), "+str(1.1*minArcLength/2)+")"
+                    WHERE v.OGC_FID="""+str(max_fid)+"), "+str(1.1*min_edge_length/2)+")"
                 "WHERE START_VTX = "+str(start_vtx)+" "
                 "OR START_VTX = "+str(end_vtx)+" "
                 "OR END_VTX = "+str(start_vtx)+" "
@@ -497,21 +505,21 @@ class Sanitizer(object):
                       WHERE f_table_name='split_lines' AND search_frame={input_table}.GEOMETRY)
                 )"""))
 
-        cur.execute(SQL("DROP TABLE {input_table}"))
-        self.create_indexed_line_table(cur, '{input_table}')
+        self._create_indexed_line_table(cur, '{input_table}_2')
         if name_field:
-            cur.execute(SQL("ALTER TABLE {input_table} ADD COLUMN "+name_field))
-            cur.execute(SQL("INSERT INTO {input_table}(GEOMETRY, "+name_field\
+            cur.execute(SQL("ALTER TABLE {input_table}_2 ADD COLUMN "+name_field))
+            cur.execute(SQL("INSERT INTO {input_table}_2 (GEOMETRY, "+name_field\
                     +") SELECT GEOMETRY, "+name_field+" from split_lines"))
         else:
-            cur.execute(SQL("INSERT INTO {input_table}(GEOMETRY) SELECT Simplify(GEOMETRY,.1) from split_lines"))
+            cur.execute(SQL("INSERT INTO {input_table}_2(GEOMETRY) SELECT Simplify(GEOMETRY,.1) from split_lines"))
 
+        cur.execute(SQL("DROP TABLE {input_table}"))
+        cur.execute(SQL("ALTER TABLE {input_table}_2 RENAME TO {input_table}")) 
 
     def _create_indexed_line_table(self, cur, table, multi=''):
         """
         """
         SQL = self.SQL
-
         cur.execute(SQL("""
             CREATE TABLE """+table+"""(
                 OGC_FID integer PRIMARY KEY
@@ -538,7 +546,6 @@ class Sanitizer(object):
         """
         """
         SQL = self.SQL
-
         cur.execute(SQL("""
             CREATE TABLE """+table+"""(
                 OGC_FID integer PRIMARY KEY
@@ -567,6 +574,5 @@ def sanitize( conn, table, snap_distance, min_edge_length, name_field=None ):
     """
     sanitizer = Sanitizer(conn, table)
     sanitizer.sanitize(snap_distance, min_edge_length, name_field=name_field)
-    conn.commit()
 
 

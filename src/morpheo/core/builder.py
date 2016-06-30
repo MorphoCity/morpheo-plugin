@@ -1,5 +1,7 @@
 # -*- encoding=utf-8 -*-
 
+from __future__ import print_function
+
 import os
 import sys
 import logging
@@ -14,6 +16,7 @@ def setup_qgis():
     """ Setup qgis
     """
     # Get the qgis python path
+
     platform = os.uname()[0].lower()
     qgis_pythonpath = os.environ.get('QGIS_PYTHONPATH',{
           'darwin':'/Applications/QGIS.app/Contents/Resources/python',
@@ -33,10 +36,16 @@ def setup_qgis():
     logging.info("QGIS_HOME set to '%s'" % qgis_home)
 
     global qgis_app
-    from qgis.core import QgsApplication
+    from qgis.core import QgsApplication, QgsMessageLog, QgsProviderRegistry
     qgis_app = QgsApplication([], False )
     QgsApplication.setPrefixPath(qgis_home, True)
     QgsApplication.initQgis()
+
+    # Add a hook to qgis  message log 
+    def writelogmessage(message, tag, level):
+        logging.info('Qgis: {}({}): {}'.format( tag, level, message ))
+
+    QgsMessageLog.instance().messageReceived.connect( writelogmessage )
 
 
 def build_graph( path, snap_distance=0, min_edge_length=1, dbname=None, name_field=None ):
@@ -56,26 +65,33 @@ def build_graph_():
     """ Run 'build_graph' from command line
     """
     import argparse
-
+    from time import time
     from .logger import setup_log_handler
 
     version = "{} {}".format(Builder.description, Builder.version)
     parser = argparse.ArgumentParser(description=version)
     parser.add_argument("shapefile", help="Shapefile path")
-    parser.add_argument("--snap-distance"  , nargs='?', type=float, default=0, help="Snap distance")
-    parser.add_argument("--min-edge-length", nargs='?', type=float, default=1, help="Min edge length")
+    parser.add_argument("--snap-distance"  , nargs='?', type=float, default=0.2, help="Snap distance")
+    parser.add_argument("--min-edge-length", nargs='?', type=float, default=4, help="Min edge length")
     parser.add_argument("--name-field", nargs='?', default=None, help="?????")
     parser.add_argument("--dbname", nargs='?', default=None, help="Database name")
     parser.add_argument("--logging", choices=['debug','info','warning','error'], default='info', help="set log level")
 
     args = parser.parse_args()
     
-    setup_log_handler(args.logging)
+    setup_log_handler(args.logging, formatstr='%(asctime)s\t%(levelname)s\t%(message)s')
     setup_qgis()
-    
-    build_graph(args.shapefile,
-                snap_distance   = args.snap_distance,
-                min_edge_length = args.min_edge_length,
-                dbname = args.dbname,
-                name_field = args.name_field)
+   
+    start = time()
+    try:
+        build_graph(args.shapefile,
+                    snap_distance   = args.snap_distance,
+                    min_edge_length = args.min_edge_length,
+                    dbname = args.dbname,
+                    name_field = args.name_field)
+    except Exception as e:
+        logging.critical("{}".format(e))
+        raise
+    finally:
+        print( "====== Elapsed time: {:.3f} s ======".format(time()-start), file=sys.stderr )
 
