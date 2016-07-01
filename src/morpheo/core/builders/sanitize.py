@@ -17,7 +17,11 @@ class Sanitizer(object):
         self._table  = input_table
         self._conn   = conn
 
-    def sanitize(self, snap_distance, min_edge_length, name_field=None):
+    @property
+    def work_table(self):
+        return "sanitized"
+
+    def sanitize(self, snap_distance, min_edge_length, attribute=None):
         """ Sanitize input data
 
             The method will compute the following:
@@ -29,20 +33,20 @@ class Sanitizer(object):
 
                 :param snap_distance: snap minimum distance
                 :param min_edge_length: minimum length for small edges
-                :param name_field: TODO ?????
+                :param attribute: attribute to import from original data
         """
         if snap_distance <= 0:
             raise BuilderError("Invalid snap distance {}".format(snap_distance))
              
 
-        logging.info(("Sanitizing input: snap_distance={}"
-                      ", min_edge_length={}, name_field={}").format(snap_distance,
+        logging.info(("Sanitizer: snap_distance={}"
+                      ", min_edge_length={}, attribute={}").format(snap_distance,
                                                                     min_edge_length,
-                                                                    name_field))
+                                                                    attribute))
         cur = self._conn.cursor()
         self.delete_unconnected_features(cur)
         self.snap_geometries(cur, snap_distance)
-        self.resolve_intersections(cur, min_edge_length, name_field)
+        self.resolve_intersections(cur, min_edge_length, attribute)
         self._conn.commit()
 
     def SQL( self, sql, **kwargs):
@@ -53,7 +57,7 @@ class Sanitizer(object):
     def delete_unconnected_features(self, cur):
         """ Remove unconnected features from input data
         """
-        logging.info("Builder: Deleting unconnected features")
+        logging.info("Sanitizer: Deleting unconnected features")
         cur.execute(self.SQL("""DELETE FROM {input_table}
             WHERE NOT (
                 SELECT COUNT(1) FROM {input_table} AS o
@@ -71,7 +75,7 @@ class Sanitizer(object):
 
             :param snap_distance: minimum snap distance
         """
-        logging.info("Builder: Snapping geometries")
+        logging.info("Sanitizer: Snapping geometries")
         cur.execute(self.SQL("""UPDATE {input_table}
             SET GEOMETRY = Snap({input_table}.GEOMETRY,
                 (
@@ -85,18 +89,18 @@ class Sanitizer(object):
             """, snap_distance=snap_distance))
 
 
-    def resolve_intersections(self, cur, min_edge_length, name_field):
+    def resolve_intersections(self, cur, min_edge_length, attribute):
         """ Resolve intersections
 
             TODO: elaborate logic
         """
-        logging.info("Builder: Resolving intersections")
+        logging.info("Sanitizer: Resolving intersections")
         self._1_find_overlapping_lines(cur)
         self._2_find_crossing_points(cur)
         self._3_cut_lines_at_nodes(cur)
         self._4_merge_lines(cur)
         self._5_remove_small_edges(cur, min_edge_length)
-        self._6_remove_unconnected_elements(cur, name_field)
+        self._6_remove_unconnected_elements(cur, attribute)
 
     def _1_find_overlapping_lines(self, cur):
         """ Find overlapping lines
@@ -260,7 +264,7 @@ class Sanitizer(object):
                 for id_ in list(eq)[1:]:
                     deleted_dupes.append((id_,))
         cur.executemany(SQL("DELETE FROM split_lines WHERE OGC_FID = ?"), deleted_dupes)
-        logging.info("Builder: Deleted {} duplicates in split_lines".format(len(deleted_dupes)))
+        logging.info("Sanitizer: Deleted {} duplicates in split_lines".format(len(deleted_dupes)))
 
         cur.execute(SQL("ALTER TABLE crossing_points ADD COLUMN DEGREE integer"))
         cur.execute(SQL("""
@@ -416,7 +420,7 @@ class Sanitizer(object):
             FROM split_lines
             WHERE GLength(GEOMETRY) < """+str(min_edge_length)))
 
-        logging.info("Builder: Removing arcs smaller than {}".format(min_edge_length))
+        logging.info("Sanitizer: Removing arcs smaller than {}".format(min_edge_length))
 
         for [ogc_fid, start_vtx, end_vtx] in cur.fetchall():
             max_fid += 1
@@ -449,7 +453,7 @@ class Sanitizer(object):
             cur.execute(SQL("""DELETE FROM split_lines
                 WHERE OGC_FID="""+str(ogc_fid)))
 
-    def _6_remove_unconnected_elements(self, cur, name_field):
+    def _6_remove_unconnected_elements(self, cur, attribute):
         """ Remove unconnected elements
 
             TODO: Elaborate logic
@@ -492,12 +496,12 @@ class Sanitizer(object):
         [count, component] = cur.fetchone()
         cur.execute("DELETE FROM split_lines WHERE COMPONENT != "+str(component))
 
-        if name_field:
-            cur.execute(SQL("ALTER TABLE split_lines ADD COLUMN "+name_field))
+        if attribute:
+            cur.execute(SQL("ALTER TABLE split_lines ADD COLUMN "+attribute))
             cur.execute(SQL("""UPDATE split_lines
-                SET """+name_field+""" =
+                SET """+attribute+""" =
                 (
-                    SELECT """+name_field+"""
+                    SELECT """+attribute+"""
                     FROM {input_table}
                     WHERE Covers({input_table}.GEOMETRY, split_lines.GEOMETRY)
                     AND split_lines.ROWID IN (
@@ -505,16 +509,14 @@ class Sanitizer(object):
                       WHERE f_table_name='split_lines' AND search_frame={input_table}.GEOMETRY)
                 )"""))
 
-        self._create_indexed_line_table(cur, '{input_table}_2')
-        if name_field:
-            cur.execute(SQL("ALTER TABLE {input_table}_2 ADD COLUMN "+name_field))
-            cur.execute(SQL("INSERT INTO {input_table}_2 (GEOMETRY, "+name_field\
-                    +") SELECT GEOMETRY, "+name_field+" from split_lines"))
+        self._create_indexed_line_table(cur, 'sanitized')
+        
+        if attribute:
+            cur.execute(SQL("ALTER TABLE "+self.work_table+" ADD COLUMN "+attribute))
+            cur.execute(SQL("INSERT INTO "+self.work_table+" (GEOMETRY, "+atribute\
+                    +") SELECT GEOMETRY, "+attribute+" from split_lines"))
         else:
-            cur.execute(SQL("INSERT INTO {input_table}_2(GEOMETRY) SELECT Simplify(GEOMETRY,.1) from split_lines"))
-
-        cur.execute(SQL("DROP TABLE {input_table}"))
-        cur.execute(SQL("ALTER TABLE {input_table}_2 RENAME TO {input_table}")) 
+            cur.execute(SQL("INSERT INTO "+self.work_table+"(GEOMETRY) SELECT Simplify(GEOMETRY,.1) from split_lines"))
 
     def _create_indexed_line_table(self, cur, table, multi=''):
         """
@@ -569,10 +571,10 @@ class Sanitizer(object):
         cur.execute(SQL("SELECT CreateSpatialIndex('"+table+"', 'GEOMETRY')"))
 
 
-def sanitize( conn, table, snap_distance, min_edge_length, name_field=None ):
+def sanitize( conn, table, snap_distance, min_edge_length, attribute=None ):
     """ Wrap sanitizer call
     """
     sanitizer = Sanitizer(conn, table)
-    sanitizer.sanitize(snap_distance, min_edge_length, name_field=name_field)
-
+    sanitizer.sanitize(snap_distance, min_edge_length, attribute=attribute)
+    return sanitizer.work_table
 

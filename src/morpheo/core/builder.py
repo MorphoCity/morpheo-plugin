@@ -48,17 +48,17 @@ def setup_qgis():
     QgsMessageLog.instance().messageReceived.connect( writelogmessage )
 
 
-def build_graph( path, snap_distance=0, min_edge_length=1, dbname=None, name_field=None ):
+def build_graph( path, snap_distance=0, min_edge_length=1, dbname=None, attribute=None ):
     """ Build a graph from a shapefile
 
-        :param path: path of the shapefile
-        :param snap_distance: the minimun snap distance
-        :param min_edge_length: the minimun edfyge length
-        :param dbname: the database name (optional)
-        :param name_field: TODO ????
+        :param path: Path of the shapefile
+        :param snap_distance: The minimun snap distance
+        :param min_edge_length: The minimun edge length
+        :param dbname: The database name (optional)
+        :param attribute: 
     """
     builder = Builder.from_shapefile( path, dbname )
-    builder.build_graph(snap_distance, min_edge_length, name_field)
+    builder.build_graph(snap_distance, min_edge_length, attribute)
         
 
 def build_graph_():
@@ -73,7 +73,7 @@ def build_graph_():
     parser.add_argument("shapefile", help="Shapefile path")
     parser.add_argument("--snap-distance"  , nargs='?', type=float, default=0.2, help="Snap distance")
     parser.add_argument("--min-edge-length", nargs='?', type=float, default=4, help="Min edge length")
-    parser.add_argument("--name-field", nargs='?', default=None, help="?????")
+    parser.add_argument("--attribute", nargs='?', default=None, help="Attribute for building ways")
     parser.add_argument("--dbname", nargs='?', default=None, help="Database name")
     parser.add_argument("--logging", choices=['debug','info','warning','error'], default='info', help="set log level")
 
@@ -88,7 +88,7 @@ def build_graph_():
                     snap_distance   = args.snap_distance,
                     min_edge_length = args.min_edge_length,
                     dbname = args.dbname,
-                    name_field = args.name_field)
+                    attribute = args.attribute)
     except Exception as e:
         logging.critical("{}".format(e))
         raise

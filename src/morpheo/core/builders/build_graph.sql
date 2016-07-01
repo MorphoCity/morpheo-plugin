@@ -342,15 +342,15 @@ SELECT 'Set edges degree', time();
 
 UPDATE edges 
 SET DEGREE = 
-        (SELECT DEGREE FROM vertices WHERE $vertices.OGC_FID = edges.START_VTX)
-       +(SELECT DEGREE FROM vertices WHERE $vertices.OGC_FID = edges.END_VTX)
+        (SELECT DEGREE FROM vertices WHERE vertices.OGC_FID = edges.START_VTX)
+       +(SELECT DEGREE FROM vertices WHERE vertices.OGC_FID = edges.END_VTX)
        - 2
     WHERE edges.START_VTX != edges.END_VTX
 ;
 
 UPDATE edges 
 SET DEGREE = 
-        (SELECT DEGREE FROM vertices WHERE $vertices.OGC_FID = edges.START_VTX)
+        (SELECT DEGREE FROM vertices WHERE vertices.OGC_FID = edges.START_VTX)
        - 2
     WHERE edges.START_VTX == edges.END_VTX
 ;
