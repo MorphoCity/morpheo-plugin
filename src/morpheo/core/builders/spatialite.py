@@ -20,6 +20,9 @@ class InvalidLayerError(BuilderError):
 class FileNotFoundError(BuilderError):
     pass
 
+class DatabaseNotFound(BuilderError):
+    pass
+
 
 def SQL( self, sql, **kwargs):
     sql = sql.format(**kwargs)
@@ -84,22 +87,22 @@ class SpatialiteBuilder(object):
                                 attribute=way_attribute))
         self._conn.commit()
         
-
-    def build_ways(self,  threshold_angle, buffer_size, 
-                   output_filei=None,
-                   input_polygons=None,
-                   output_loop_file=None):
+    def build_ways(self,  threshold, buffer_size, 
+                   output=None,
+                   places=None,
+                   loop_output=None):
         """ Build way's hypergraph
 
-            :param threshold_angle:
+            :param threshold: 
             :param buffer_size:
-            :param output_file: output shapefile to store results
-            :param input_polygons: input polygon files for places
-            :param output_loop_file: file to store computed loop polygons
+            :param output: output shapefile to store results
+            :param places: input polygon files for places
+            :param loop_output: file to store computed loop polygons
         """
         raise NotImplementedError()
+        
 
-    def build_ways_from_attribute(self, output_file=None):
+    def build_ways_from_attribute(self, output=None):
         """ Build way's hypergraph from street names.
 
             Note that the attribute name need to be spcified
@@ -200,6 +203,17 @@ class SpatialiteBuilder(object):
         logging.info("Creating database '%s' from layer" % dbname)
 
         return SpatialiteBuilder(dbname)
+
+
+    @staticmethod
+    def from_database( dbname ):
+        """" Open existing database 
+        """
+        if os.path.isfile( dbname ):
+            raise DatabaseNotFound(dbname)
+        
+        return SpatialiteBuilder(dbname)
+        
 
 
 

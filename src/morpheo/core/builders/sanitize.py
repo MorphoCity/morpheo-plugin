@@ -43,6 +43,7 @@ class Sanitizer(object):
                       ", min_edge_length={}, attribute={}").format(snap_distance,
                                                                     min_edge_length,
                                                                     attribute))
+
         cur = self._conn.cursor()
         self.delete_unconnected_features(cur)
         self.snap_geometries(cur, snap_distance)
@@ -108,7 +109,9 @@ class Sanitizer(object):
             The method locates all overlaping lines: i.e parts of 
             geometries from which intersection do not resolve to simple points
         """
+        logging.info("Sanitizer: Resolving intersections: find overlapping lines")
         SQL = self.SQL
+
         self._create_indexed_line_table(cur, 'overlaping_lines', 'MULTI')
         cur.execute(SQL("""INSERT INTO overlaping_lines(GEOMETRY)
             SELECT CastToMulti(Intersection(w1.GEOMETRY, w2.GEOMETRY))
@@ -123,12 +126,14 @@ class Sanitizer(object):
             """))
 
     def _2_find_crossing_points(self, cur):
-        """ Find crossing points between geametries
+        """ Find crossing points between geometries
 
             The method locates intersections between geometries that resolve
             to points.
         """
+        logging.info("Sanitizer: Resolving intersections: find crossing points")
         SQL = self.SQL
+
         # add intersections
         # we first locate crossing points
         cur.execute(SQL("""SELECT coord_dimension
@@ -190,6 +195,7 @@ class Sanitizer(object):
 
             TODO: Elaborate underlying logic 
         """
+        logging.info("Sanitizer: Resolving intersections: cut lines")
         SQL = self.SQL
         # since LinesCutAtNodes in not available in pyspatialite
         # we have to cut lines one segment at a time
@@ -300,6 +306,7 @@ class Sanitizer(object):
             since several segment can be joined, we need to do that in
             python and not simply SQL
         """
+        logging.info("Sanitizer: Resolving intersections: merge lines")
         SQL = self.SQL
 
         merges = []
@@ -411,7 +418,7 @@ class Sanitizer(object):
             :param min_edge_length: the minimun length for edges
         """
         # remove small edges and merge extremities at centroid
-        
+        logging.info("Sanitizer: Resolving intersections: remove arcs smaller than {}".format(min_edge_length))
         SQL = self.SQL
 
         cur.execute(SQL("SELECT MAX(OGC_FID) FROM crossing_points"))
@@ -419,8 +426,6 @@ class Sanitizer(object):
         cur.execute(SQL("""SELECT OGC_FID, START_VTX, END_VTX 
             FROM split_lines
             WHERE GLength(GEOMETRY) < """+str(min_edge_length)))
-
-        logging.info("Sanitizer: Removing arcs smaller than {}".format(min_edge_length))
 
         for [ogc_fid, start_vtx, end_vtx] in cur.fetchall():
             max_fid += 1
@@ -458,6 +463,7 @@ class Sanitizer(object):
 
             TODO: Elaborate logic
         """
+        logging.info("Sanitizer: Resolving intersections: remove unconnect elements")
         SQL = self.SQL
 
         cur.execute(SQL("ALTER TABLE split_lines ADD COLUMN COMPONENT integer"))
@@ -509,7 +515,7 @@ class Sanitizer(object):
                       WHERE f_table_name='split_lines' AND search_frame={input_table}.GEOMETRY)
                 )"""))
 
-        self._create_indexed_line_table(cur, 'sanitized')
+        self._create_indexed_line_table(cur, self.work_table)
         
         if attribute:
             cur.execute(SQL("ALTER TABLE "+self.work_table+" ADD COLUMN "+attribute))
@@ -517,6 +523,20 @@ class Sanitizer(object):
                     +") SELECT GEOMETRY, "+attribute+" from split_lines"))
         else:
             cur.execute(SQL("INSERT INTO "+self.work_table+"(GEOMETRY) SELECT Simplify(GEOMETRY,.1) from split_lines"))
+
+        # Do some clean up
+        self._drop_indexed_table(cur, "split_lines")
+        self._drop_indexed_table(cur, "crossing_points")
+        self._drop_indexed_table(cur, "crossings")
+        self._drop_indexed_table(cur, "overlaping_lines")
+
+    def _drop_indexed_table(self, cur, table):
+        """ Drop a table and its index
+        """
+        SQL = self.SQL
+        cur.execute(SQL("SELECT DisableSpatialIndex('%s', 'GEOMETRY')" % table));
+        cur.execute(SQL("DROP TABLE idx_%s_GEOMETRY" % table))
+        cur.execute(SQL("DROP TABLE %s" % table))
 
     def _create_indexed_line_table(self, cur, table, multi=''):
         """
