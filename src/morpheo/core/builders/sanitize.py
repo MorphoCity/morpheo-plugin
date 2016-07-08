@@ -21,6 +21,7 @@ class Sanitizer(object):
     def work_table(self):
         return "sanitized"
 
+
     def sanitize(self, snap_distance, min_edge_length, attribute=None):
         """ Sanitize input data
 
@@ -529,12 +530,14 @@ class Sanitizer(object):
         self._drop_indexed_table(cur, "crossing_points")
         self._drop_indexed_table(cur, "crossings")
         self._drop_indexed_table(cur, "overlaping_lines")
+        cur.execute("VACUUM")
 
     def _drop_indexed_table(self, cur, table):
         """ Drop a table and its index
         """
         SQL = self.SQL
         cur.execute(SQL("SELECT DisableSpatialIndex('%s', 'GEOMETRY')" % table));
+        cur.execute(SQL("SELECT DiscardGeometryColumn('%s', 'GEOMETRY')" % table));
         cur.execute(SQL("DROP TABLE idx_%s_GEOMETRY" % table))
         cur.execute(SQL("DROP TABLE %s" % table))
 

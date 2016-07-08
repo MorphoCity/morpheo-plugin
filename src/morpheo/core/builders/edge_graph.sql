@@ -158,4 +158,33 @@ SET DEGREE =
     WHERE edges.START_VTX == edges.END_VTX
 ;
 
+-- Create places schema
+
+-- Places are created from buffers and from external geometries
+
+CREATE TABLE places(
+    OGC_FID integer primary key,
+    DEGREE integer default 0
+);
+
+SELECT AddGeometryColumn(
+    'places',
+    'GEOMETRY',
+    (
+        SELECT CAST(srid AS integer)
+        FROM geometry_columns
+        WHERE f_table_name='$input_table'
+    ),
+    'POLYGON',
+    (
+        SELECT coord_dimension
+        FROM geometry_columns
+        WHERE f_table_name='$input_table'
+    )
+);
+
+SELECT CreateSpatialIndex('places', 'GEOMETRY');
+
+
+
 

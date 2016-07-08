@@ -6,7 +6,8 @@ import os
 import sys
 import logging
 
-from builders.spatialite import SpatialiteBuilder
+from builders.errors import BuilderError
+from builders.graph_builder import SpatialiteBuilder
 
 Builder = SpatialiteBuilder
 
@@ -14,6 +15,9 @@ qgis_app = None
 
 def setup_qgis():
     """ Setup qgis
+
+        This function is only used when morpheo is
+        used as standalone command
     """
     # Get the qgis python path
 
@@ -47,6 +51,26 @@ def setup_qgis():
 
     QgsMessageLog.instance().messageReceived.connect( writelogmessage )
 
+
+def check_requirements( stand_alone = True ):
+    """ Check that everything is ok to run morpheo
+    """
+    # Lookup for ogr2ogr
+    from distutils.spawn import  find_executable
+
+    ogr2ogr = find_executable('ogr2ogr')
+    if ogr2ogr is None:
+        raise BuilderError("Gdal/OGR executables not found: morpheo requires ogr2ogr")
+    else:
+        os.environ.update(OGR2OGR=ogr2ogr)
+
+    # Checkout for networkx
+    try:
+        import networkx
+    except ImportError:
+        raise BuilderError("Python Module networkx is required, please update your python environment")
+   
+
 #
 # Morpheo commands
 #
@@ -65,12 +89,20 @@ def build_ways( args ):
     if args.street:
         builder_build_ways_from_attribute(output=args.output)
     else:
-        builder.build_ways( threshold=args.threshold,
-                            buffer_size=args.buffer_size,
-                            places=args.places,
-                            loop_output=args.loop_output,
-                            output=args.output)
+        builder.build_ways(threshold=args.threshold,
+                           buffer_size=args.buffer_size,
+                           places=args.places,
+                           loop_output=args.loop_output,
+                           output=args.output)
 
+
+def build_places( args ):
+    """ Build places
+    """
+    builder = Builder.from_database( args.dbname )
+    builder.build_places(buffer_size=args.buffer,
+                         places=args.places,
+                         loop_output=args.loop_output)
 
     
 def morpheo_():
@@ -86,14 +118,22 @@ def morpheo_():
 
     sub = parser.add_subparsers(title='commands', help='type morpheo <command> help')
 
-    # Builder command
-    builder_cmd = sub.add_parser('build')
+    # Graph Builder command
+    builder_cmd = sub.add_parser('graph')
     builder_cmd.add_argument("shapefile", help="Shapefile path")
     builder_cmd.add_argument("--snap-distance"  , metavar='VALUE', type=float, default=0.2, help="Snap distance")
     builder_cmd.add_argument("--min-edge-length", metavar='VALUE', type=float, default=4, help="Min edge length")
     builder_cmd.add_argument("--attribute",       metavar='NAME', default=None, help="Attribute for building street ways")
     builder_cmd.add_argument("--dbname"   , default=None, help="Database name")
     builder_cmd.set_defaults(func=build_graph)
+
+    # Places builder command
+    places_cmd = sub.add_parser('places')
+    places_cmd.add_argument("dbname", help="Database")
+    places_cmd.add_argument("--buffer"      , metavar='VALUE', type=float, default=5 , help="Buffer size")
+    places_cmd.add_argument("--places"      , metavar='PATH' , default=None, help="Default input polygons for places")
+    places_cmd.add_argument("--loop-output" , metavar='PATH' , default=None, help="Output polygons shapefile")
+    places_cmd.set_defaults(func=build_places)
 
     # Way builder command
     ways_cmd = sub.add_parser('ways')
@@ -111,6 +151,8 @@ def morpheo_():
     setup_log_handler(args.logging, formatstr='%(asctime)s\t%(levelname)s\t%(message)s')
     setup_qgis()
   
+    check_requirements(stand_alone=True)
+
     start = time()
     try:
         args.func(args)
