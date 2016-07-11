@@ -59,16 +59,12 @@ CREATE INDEX edges_name_idx ON edges(NAME);
 
 -- Copy edges from origin table
 
-SELECT 'Initialze edges table geometries';
-
 INSERT INTO edges(GEOMETRY, LENGTH)
 SELECT GEOMETRY, GLength(GEOMETRY)
 FROM $input_table
 ;
 
 -- Create the vertices of the graph
-
-SELECT 'Fill up vertices table';
 
 INSERT INTO vertices(GEOMETRY)
 SELECT StartPoint( GEOMETRY ) AS GEOMETRY FROM edges
@@ -79,7 +75,7 @@ SELECT EndPoint( GEOMETRY ) AS GEOMETRY FROM edges
 
 -- Create the vertices of the graph
 
-SELECT 'Fill up vertices table';
+-- Fill up vertices table
 
 INSERT INTO vertices(GEOMETRY)
 SELECT StartPoint( GEOMETRY ) AS GEOMETRY FROM edges
@@ -88,8 +84,7 @@ SELECT EndPoint( GEOMETRY ) AS GEOMETRY FROM edges
 ;
 
 -- Edges connectivity
-
-SELECT 'Set edges connectivity';
+-- Set edges connectivity
 
 UPDATE edges 
 SET END_VTX = 
@@ -116,8 +111,6 @@ START_VTX =
 
 -- Update vertices degree
 
-SELECT 'Set vertices degree';
-
 UPDATE vertices 
 SET DEGREE = 
 (
@@ -141,8 +134,6 @@ SET DEGREE = vertices.DEGREE + -- add one to the count for each loops touching t
 
 -- Update edges degree
 
-SELECT 'Set edges degree';
-
 UPDATE edges 
 SET DEGREE = 
         (SELECT DEGREE FROM vertices WHERE vertices.OGC_FID = edges.START_VTX)
@@ -158,8 +149,8 @@ SET DEGREE =
     WHERE edges.START_VTX == edges.END_VTX
 ;
 
+-- -----------------------------------------------------------
 -- Create places schema
-
 -- Places are created from buffers and from external geometries
 
 CREATE TABLE places(
@@ -184,6 +175,70 @@ SELECT AddGeometryColumn(
 );
 
 SELECT CreateSpatialIndex('places', 'GEOMETRY');
+
+ 
+-- Create an assoction table betwween vertices and places
+-- This table is faster to build than using subquery/join with 
+
+CREATE TABLE place_vtx(
+    VERTEX REFERENCES vertices(OGC_FID),
+    PLACE  REFERENCES places(OGC_FID)
+);
+
+CREATE INDEX place_vtx_idx ON place_vtx(VERTEX);
+
+
+-- Create edge table computed between places intead of vertices
+-- This will be the starting point for ways
+
+CREATE TABLE place_edges(
+   OGC_FID  integer PRIMARY KEY,
+   EDGE      REFERENCES edges(OGC_FID),
+   START_PL  REFERENCES places(OGC_FID),
+   END_PL    REFERENCES places(OGC_FID),
+   START_VTX REFERENCES vertices(OGC_FID),  -- for optimizing join 
+   END_VTX   REFERENCES vertices(OCG_FID), -- for optimizing join
+   START_AZ double,
+   END_AZ   double,
+   WAY      integer
+);
+
+SELECT AddGeometryColumn(
+    'place_edges',
+    'GEOMETRY',
+    (
+        SELECT CAST(srid AS integer)
+        FROM geometry_columns
+        WHERE f_table_name='$input_table'
+    ),
+    'LINESTRING',
+    (
+        SELECT coord_dimension
+        FROM geometry_columns
+        WHERE f_table_name='$input_table'
+    )
+);
+
+SELECT CreateSpatialIndex('place_edges', 'GEOMETRY');
+CREATE INDEX place_edges_start_pl_idx   ON place_edges(START_PL);
+CREATE INDEX place_edges_end_pl_idx     ON place_edges(END_PL);
+CREATE INDEX place_edges_edge_idx       ON place_edges(EDGE);
+CREATE INDEX place_edges_start_vtx_idx  ON place_edges(START_VTX);
+CREATE INDEX place_edges_end_vtx_idx    ON place_edges(END_VTX);
+
+
+-- Create angles table
+-- The angle table references angles between couples of edges that have one end in the same place
+
+CREATE TABLE angles(
+    OGC_FID integer PRIMARY KEY,
+    PLACE   integer REFERENCES places(OGC_FID),
+    EDGE1   integer REFERENCES place_edges(OGC_FID),
+    EDGE2   integer REFERENCES place_edges(OGC_FID),
+    ANGLE   double,
+    COEFF   double
+);    
+
 
 
 

@@ -49,7 +49,6 @@ class PlaceBuilder(object):
         try:
             logging.info("Places: building places from buffers (buffer size={})".format(buffer_size))
             self.creates_places_from_buffer(buffer_size, input_places )
-            self.compute_angles()
         finally:
             delete_table(self._conn, self.BUFFER_TABLE)
 
@@ -57,7 +56,7 @@ class PlaceBuilder(object):
         """ Creates places from buffer
         """
         # Load temporary table definition
-        delete_table(self._conn, "buffer_table")
+        delete_table(self._conn, self.BUFFER_TABLE)
         execute_sql(self._conn, "buffers.sql", buffer_table=self.BUFFER_TABLE, input_table="vertices")
 
         SQLP = partial(SQL,buffer_table=self.BUFFER_TABLE, buffer_size=buffer_size, input_places=input_places)
@@ -81,12 +80,12 @@ class PlaceBuilder(object):
                 SELECT ST_Union(geom) AS GEOMETRY FROM (
                     SELECT ST_Buffer(GEOMETRY, {buffer_size}) AS geom FROM vertices
                     UNION ALL
-                    SELECT GEOMETRY AS geom FROM {input_places}) 
+                    SELECT GEOMETRY AS geom FROM {input_places})
             """))
           
         # Consistency check
-        rv = cur.execute(SQLP("SELECT Count(*) FROM {buffer_table}")).fetchall()
-        if rv[0][0] != 1:
+        rv = cur.execute(SQLP("SELECT Count(*) FROM {buffer_table}")).fetchone()[0]
+        if rv != 1:
             raise BuilderError("Place buffer error: expecting only one geometry")
 
         logging.info("Places: exploding buffer to elementary geometries")
@@ -94,22 +93,18 @@ class PlaceBuilder(object):
         # Explode buffer blob into elementary geometries
         cur.execute(SQLP("""
            INSERT INTO places(GEOMETRY)
-           SELECT GEOMETRY FROM ElementaryGeometries WHERE f_table_name='{buffer_table}' AND origin_rowid=1
+           SELECT ST_ConvexHull(GEOMETRY) FROM ElementaryGeometries WHERE f_table_name='{buffer_table}' AND origin_rowid=1
         """))
 
         # Checkout number of places
-        rv = cur.execute(SQLP("Select Count(*) FROM places")).fetchall()
-        rv = int(rv[0][0])
+        rv = cur.execute(SQLP("Select Count(*) FROM places")).fetchone()[0]
         if rv <= 0:
             raise BuilderError("No places created ! please check input data !")
         else:
            logging.info("Places: created {} places".format(rv))
          
-
-    def compute_angles(self):
-        """ Compute angles between couples of edges candidates
-
-            Edge candidates ares edges that have their end vertices in the same place
+    def compute_edges(self):
+        """ Compute edges between places
         """
-         
+        
 

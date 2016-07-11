@@ -95,7 +95,7 @@ class SpatialiteBuilder(object):
         # Compute edges, way, vertices
         logging.info("Builder: Computing vertices and edges")
 
-        self.execute_sql('edge_graph.sql', input_table=working_table)
+        self.execute_sql('graph.sql', input_table=working_table)
 
         # Copy attribute to graph edge 
         if way_attribute:

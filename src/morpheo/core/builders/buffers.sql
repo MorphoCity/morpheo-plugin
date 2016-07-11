@@ -20,11 +20,5 @@ SELECT AddGeometryColumn(
     )
 );
 
-SELECT CreateSpatialIndex('$buffer_table', 'GEOMETRY')
-
-
-
-
-
- 
+SELECT CreateSpatialIndex('$buffer_table', 'GEOMETRY');
 

@@ -36,8 +36,9 @@ def load_sql(name, **kwargs):
     if not os.path.exists(sqlfile):
         # If we are not in standard python installation,
         # try to get file locally
-        logging.info("Builder: looking for sql file in %s" % __file__)
-        sqlfile = os.path.join(os.path.dirname(__file__))
+        lookupdir = os.path.dirname(__file__)
+        logging.info("Builder: looking for sql file in %s" % lookupdir)
+        sqlfile = os.path.join(lookupdir)
 
     if not os.path.exists(sqlfile):
         raise SQLNotFoundError("Cannot find file %s" % sqlfile)

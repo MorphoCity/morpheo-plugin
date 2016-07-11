@@ -130,7 +130,7 @@ def morpheo_():
     # Places builder command
     places_cmd = sub.add_parser('places')
     places_cmd.add_argument("dbname", help="Database")
-    places_cmd.add_argument("--buffer"      , metavar='VALUE', type=float, default=5 , help="Buffer size")
+    places_cmd.add_argument("--buffer"      , metavar='VALUE', type=float, default=4 , help="Buffer size")
     places_cmd.add_argument("--places"      , metavar='PATH' , default=None, help="Default input polygons for places")
     places_cmd.add_argument("--loop-output" , metavar='PATH' , default=None, help="Output polygons shapefile")
     places_cmd.set_defaults(func=build_places)
