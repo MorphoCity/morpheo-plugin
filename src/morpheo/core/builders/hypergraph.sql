@@ -16,6 +16,12 @@ AND v.ROWID IN (
     WHERE f_table_name='vertices' AND search_frame=p.GEOMETRY)
 ;
 
+-- Update places with the number of vertices
+UPDATE places
+SET NB_VTX = (SELECT Count(*) FROM place_vtx AS p WHERE places.OGC_FID=p.PLACE)
+;
+
+
 -- Fill up place edge table
 
 INSERT INTO place_edges(EDGE, GEOMETRY, START_VTX, END_VTX)
@@ -51,6 +57,24 @@ WHERE OGC_FID IN (SELECT e.OGC_FID
         WHERE f_table_name='edges' AND search_frame=p.GEOMETRY))
 ;
 
+-- Mark invalid geometries
+-- Invalid geometries are geometries that crosses start or end places
+-- multiple times 
+
+UPDATE place_edges SET
+STATUS = (
+    SELECT Min(t.status) FROM (
+        SELECT CASE WHEN p.NB_VTX>1 THEN  ST_NumGeometries(ST_Difference(place_edges.GEOMETRY, p.GEOMETRY))=1
+        ELSE 1
+        END
+        AS status
+        FROM places as p
+        WHERE (p.OGC_FID=place_edges.START_PL OR p.OGC_FID=place_edges.END_PL)
+            AND place_edges.ROWID IN (
+            SELECT ROWID FROM Spatialindex
+            WHERE f_table_name='place_edges' AND search_frame=p.GEOMETRY)
+) AS t);
+
 -- Update geometries
 
 -- Cut geometry at start 
@@ -58,25 +82,28 @@ WHERE OGC_FID IN (SELECT e.OGC_FID
 UPDATE place_edges SET
 GEOMETRY = 
 (
-    SELECT ST_LineMerge(ST_Difference(place_edges.GEOMETRY, p.GEOMETRY))
+    SELECT CASE WHEN p.NB_VTX>1 THEN ST_Difference(place_edges.GEOMETRY, p.GEOMETRY)
+           ELSE place_edges.GEOMETRY
+           END
     FROM places as p 
         WHERE p.OGC_FID=place_edges.START_PL
         AND place_edges.ROWID IN (
         SELECT ROWID FROM Spatialindex
         WHERE f_table_name='place_edges' AND search_frame=p.GEOMETRY)
-);
+) WHERE STATUS=1;
 
 -- Cut geometry at end
 
 UPDATE place_edges SET
 GEOMETRY = 
 (
-    SELECT ST_LineMerge(ST_Difference(place_edges.GEOMETRY, p.GEOMETRY)) 
-    FROM places as p 
-    WHERE p.OGC_FID=place_edges.END_PL
-    AND place_edges.ROWID IN (
-        SELECT ROWID FROM Spatialindex
-        WHERE f_table_name='place_edges' AND search_frame=p.GEOMETRY)
-);
-
+  SELECT CASE WHEN p.NB_VTX>1 THEN ST_Difference(place_edges.GEOMETRY, p.GEOMETRY)
+         ELSE place_edges.GEOMETRY
+         END
+  FROM places as p 
+  WHERE p.OGC_FID=place_edges.END_PL
+  AND place_edges.ROWID IN (
+      SELECT ROWID FROM Spatialindex
+      WHERE f_table_name='place_edges' AND search_frame=p.GEOMETRY)
+) WHERE STATUS=1
 

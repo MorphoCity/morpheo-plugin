@@ -66,15 +66,6 @@ FROM $input_table
 
 -- Create the vertices of the graph
 
-INSERT INTO vertices(GEOMETRY)
-SELECT StartPoint( GEOMETRY ) AS GEOMETRY FROM edges
-UNION
-SELECT EndPoint( GEOMETRY ) AS GEOMETRY FROM edges
-;
-
-
--- Create the vertices of the graph
-
 -- Fill up vertices table
 
 INSERT INTO vertices(GEOMETRY)
@@ -155,7 +146,8 @@ SET DEGREE =
 
 CREATE TABLE places(
     OGC_FID integer primary key,
-    DEGREE integer default 0
+    DEGREE  integer default 0,
+    NB_VTX  integer 
 );
 
 SELECT AddGeometryColumn(
@@ -192,15 +184,16 @@ CREATE INDEX place_vtx_idx ON place_vtx(VERTEX);
 -- This will be the starting point for ways
 
 CREATE TABLE place_edges(
-   OGC_FID  integer PRIMARY KEY,
+   OGC_FID   integer PRIMARY KEY,
    EDGE      REFERENCES edges(OGC_FID),
    START_PL  REFERENCES places(OGC_FID),
    END_PL    REFERENCES places(OGC_FID),
    START_VTX REFERENCES vertices(OGC_FID),  -- for optimizing join 
-   END_VTX   REFERENCES vertices(OCG_FID), -- for optimizing join
-   START_AZ double,
-   END_AZ   double,
-   WAY      integer
+   END_VTX   REFERENCES vertices(OCG_FID),  -- for optimizing join
+   START_AZ  double,
+   END_AZ    double,
+   WAY       integer,
+   STATUS    integer DEFAULT 0
 );
 
 SELECT AddGeometryColumn(

@@ -138,14 +138,16 @@ class SpatialiteBuilder(object):
             :param places: path of an external shapefile containing places definitions
             :param loop_output: path of a shapefile to write computed places to.
         """
+        input_places_table = None
         if places is not None:
+            input_places_table = 'input_places'
             # Open the places shapefile and insert in as 'input_places' table
             from qgis.core import QGis
-            self.add_shapefile( places, 'input_places', (QGis.WKBPolygon25D, QGis.WKBPolygon))
+            self.add_shapefile( places, input_places_table, (QGis.WKBPolygon25D, QGis.WKBPolygon))
 
         from places import PlaceBuilder
         builder = PlaceBuilder(self._conn)
-        builder.build_places(buffer_size, 'input_places', loop_output=loop_output) 
+        builder.build_places(buffer_size, input_places_table, loop_output=loop_output) 
 
     def build_ways(self,  threshold, buffer_size, 
                    output=None,

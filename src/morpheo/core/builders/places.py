@@ -18,13 +18,6 @@ class PlaceBuilder(object):
     def __init__(self, conn):
        self._conn = conn
 
-    def apply_sql( self, statement, **kwarg ):
-        """ Apply immediate statement
-        """
-        cur = self._conn.cursor()
-        cur.execute(SQL(statement, **kwarg))
-        self._conn.commit()
-
     def build_places( self, buffer_size, input_places=None, loop_output=None):
         """ Build places
 
@@ -43,14 +36,14 @@ class PlaceBuilder(object):
         # Use a minimum buffer_size
         buffer_size = max(buffer_size or 0, 0.1)
 
-        # Clean up places
-        self.apply_sql("DELETE FROM places")
-
         try:
             logging.info("Places: building places from buffers (buffer size={})".format(buffer_size))
             self.creates_places_from_buffer(buffer_size, input_places )
+            self._conn.commit()
         finally:
-            delete_table(self._conn, self.BUFFER_TABLE)
+            pass
+            #delete_table(self._conn, self.BUFFER_TABLE)
+
 
     def creates_places_from_buffer(self, buffer_size, input_places ):
         """ Creates places from buffer
@@ -63,38 +56,43 @@ class PlaceBuilder(object):
 
         cur = self._conn.cursor()
 
+        cur.execute(SQLP("DELETE FROM places"))
+
         # Apply buffer to entities and merge them
         # This will make a one unique geometry that will be splitted into elementary
         # parts
 
         logging.info("Places: Creating buffers...")
 
-        if input_places is  None:
-            cur.execute(SQLP("""
-                INSERT INTO  {buffer_table}(GEOMETRY)
-                SELECT ST_Union(ST_Buffer( GEOMETRY, {buffer_size})) AS GEOMETRY FROM vertices 
-            """))
-        else:
-            cur.execute(SQLP("""
-                INSERT INTO {buffer_table}(GEOMETRY)
-                SELECT ST_Union(geom) AS GEOMETRY FROM (
-                    SELECT ST_Buffer(GEOMETRY, {buffer_size}) AS geom FROM vertices
-                    UNION ALL
-                    SELECT GEOMETRY AS geom FROM {input_places})
-            """))
-          
-        # Consistency check
-        rv = cur.execute(SQLP("SELECT Count(*) FROM {buffer_table}")).fetchone()[0]
-        if rv != 1:
-            raise BuilderError("Place buffer error: expecting only one geometry")
+        cur.execute(SQLP("""
+            INSERT INTO  {buffer_table}(GEOMETRY)
+            SELECT ST_Union(ST_Buffer( GEOMETRY, {buffer_size})) AS GEOMETRY FROM vertices 
+        """))
 
-        logging.info("Places: exploding buffer to elementary geometries")
-
-        # Explode buffer blob into elementary geometries
+         # Explode buffer blob into elementary geometries
         cur.execute(SQLP("""
            INSERT INTO places(GEOMETRY)
            SELECT ST_ConvexHull(GEOMETRY) FROM ElementaryGeometries WHERE f_table_name='{buffer_table}' AND origin_rowid=1
         """))
+
+        if input_places is not None:
+            # Add input_places using the same merge ands split strategie
+            # This will merge connexe input places as well as placse computed previously
+            cur.execute(SQLP("DELETE FROM {buffer_table}"))
+            cur.execute(SQLP("""
+                INSERT INTO {buffer_table}(GEOMETRY)
+                    SELECT ST_Union(geom) FROM (
+                        SELECT GEOMETRY AS geom FROM places
+                        UNION ALL
+                        SELECT GEOMETRY AS geom FROM {input_places})
+            """))
+            # Split geometries again
+            cur.execute(SQLP("DELETE FROM places"))
+            cur.execute(SQLP("""
+                INSERT INTO places(GEOMETRY)
+                SELECT ST_MakePolygon(ST_ExteriorRing(GEOMETRY))
+                FROM ElementaryGeometries WHERE f_table_name='{buffer_table}' AND origin_rowid=1
+            """))
 
         # Checkout number of places
         rv = cur.execute(SQLP("Select Count(*) FROM places")).fetchone()[0]
