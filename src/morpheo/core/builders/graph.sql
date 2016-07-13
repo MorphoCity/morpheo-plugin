@@ -1,3 +1,4 @@
+-- Table definitions
 -- Create topological graph from input data
 
 -- vertices
@@ -24,6 +25,7 @@ SELECT AddGeometryColumn(
 );
 
 SELECT CreateSpatialIndex('vertices', 'GEOMETRY');
+CREATE INDEX vertices_DEGREE_idx ON vertices(DEGREE);
 
 -- Edges
 
@@ -147,7 +149,8 @@ SET DEGREE =
 CREATE TABLE places(
     OGC_FID integer primary key,
     DEGREE  integer default 0,
-    NB_VTX  integer 
+    NB_VTX  integer,
+    CUL_DE_SAC REFERENCES vertices(OGC_FID)
 );
 
 SELECT AddGeometryColumn(
@@ -168,6 +171,7 @@ SELECT AddGeometryColumn(
 
 SELECT CreateSpatialIndex('places', 'GEOMETRY');
 
+CREATE INDEX places_cul_de_sac_idx  ON places(CUL_DE_SAC);
  
 -- Create an assoction table betwween vertices and places
 -- This table is faster to build than using subquery/join with 
@@ -177,8 +181,8 @@ CREATE TABLE place_vtx(
     PLACE  REFERENCES places(OGC_FID)
 );
 
-CREATE INDEX place_vtx_idx ON place_vtx(VERTEX);
-
+CREATE INDEX place_vtx_vtx_idx   ON place_vtx(VERTEX);
+CREATE INDEX place_vtx_place_idx ON place_vtx(PLACE);
 
 -- Create edge table computed between places intead of vertices
 -- This will be the starting point for ways
