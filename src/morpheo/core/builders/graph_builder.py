@@ -149,19 +149,15 @@ class SpatialiteBuilder(object):
         builder = PlaceBuilder(self._conn)
         builder.build_places(buffer_size, input_places_table, loop_output=loop_output) 
 
-    def build_ways(self,  threshold, buffer_size, 
-                   output=None,
-                   places=None,
-                   loop_output=None):
+    def build_ways(self,  threshold, output=None) :
         """ Build way's hypergraph
 
             :param threshold: 
-            :param buffer_size:
             :param output: output shapefile to store results
-            :param places: input polygon files for places
-            :param loop_output: file to store computed loop polygons
         """
-        raise NotImplementedError()
+        from places import PlaceBuilder
+        builder = PlaceBuilder(self._conn)
+        builder.build_ways(threshold)
         
 
     def build_ways_from_attribute(self, output=None):

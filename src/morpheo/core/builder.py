@@ -90,9 +90,6 @@ def build_ways( args ):
         builder_build_ways_from_attribute(output=args.output)
     else:
         builder.build_ways(threshold=args.threshold,
-                           buffer_size=args.buffer_size,
-                           places=args.places,
-                           loop_output=args.loop_output,
                            output=args.output)
 
 
@@ -141,9 +138,6 @@ def morpheo_():
     ways_cmd.add_argument("--street", action='store_true', default=False, help="Compute way using street name")
     ways_cmd.add_argument("--output"      , metavar='PATH' , default=None, help="Output ways shapefile")
     ways_cmd.add_argument("--treshold"    , metavar='VALUE', type=float, default=10, help="Treshold angle")
-    ways_cmd.add_argument("--buffer"      , metavar='VALUE', type=float, default=5 , help="Buffer size")
-    ways_cmd.add_argument("--places"      , metavar='PATH' , default=None, help="Default input polygons for places")
-    ways_cmd.add_argument("--loop-output" , metavar='PATH' , default=None, help="Output polygons shapefile")
     ways_cmd.set_defaults(func=build_ways)
 
     args = parser.parse_args()

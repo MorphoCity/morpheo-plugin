@@ -3,7 +3,6 @@
 
 DELETE FROM place_vtx;
 DELETE FROM place_edges;
-DELETE FROM angles;
 
 -- Create an association table between places and graph vertices
 -- This is much faster than using subqueries/join with edge table
@@ -38,14 +37,12 @@ UPDATE places
 SET NB_VTX = (SELECT Count(*) FROM place_vtx AS p WHERE places.OGC_FID=p.PLACE)
 ;
 
-
 -- Fill up place edge table
 
 INSERT INTO place_edges(EDGE, GEOMETRY, START_VTX, END_VTX)
 SELECT e.OGC_FID, e.GEOMETRY, e.START_VTX, e.END_VTX
 FROM edges AS e
 ;
-
 
 -- Update places
 
@@ -106,7 +103,8 @@ DELETE FROM places WHERE DEGREE=0
 
 -- Mark invalid geometries
 -- Invalid geometries are geometries that crosses start or end places
--- multiple times 
+-- multiple times - this may happends with places wich are not convex 
+-- such as digitalized places
 
 UPDATE place_edges SET
 STATUS = (
@@ -132,9 +130,9 @@ GEOMETRY =
     SELECT CASE WHEN p.NB_VTX>1 THEN ST_Difference(place_edges.GEOMETRY, p.GEOMETRY)
            ELSE place_edges.GEOMETRY
            END
-    FROM places as p 
-        WHERE p.OGC_FID=place_edges.START_PL
-        AND place_edges.ROWID IN (
+    FROM places AS p 
+    WHERE p.OGC_FID=place_edges.START_PL
+    AND place_edges.ROWID IN (
         SELECT ROWID FROM Spatialindex
         WHERE f_table_name='place_edges' AND search_frame=p.GEOMETRY)
 ) WHERE STATUS=1
@@ -148,7 +146,7 @@ GEOMETRY =
   SELECT CASE WHEN p.NB_VTX>1 THEN ST_Difference(place_edges.GEOMETRY, p.GEOMETRY)
          ELSE place_edges.GEOMETRY
          END
-  FROM places as p 
+  FROM places AS p 
   WHERE p.OGC_FID=place_edges.END_PL
   AND place_edges.ROWID IN (
       SELECT ROWID FROM Spatialindex
@@ -156,13 +154,45 @@ GEOMETRY =
 ) WHERE STATUS=1
 ;
 
+-- Handle invalid geometries
 
---Compute azimuth
---XXX SQLite does not come with ST_Azimuth by default
---UPDATE place_edges SET
---START_AZ = (SELECT ST_Azimuth( ST_StartPoint(GEOMETRY), ST_PointN(GEOMETRY,2))),
---END_AZ   = (SELECT ST_Azimuth( ST_EndPoint(GEOMETRY), ST_PointN(GEOMETRY, ST_NumPoint(GEOMETRY)-1)))
---;
+UPDATE place_edges SET
+GEOMETRY = (
+  SELECT CASE WHEN ST_NumGeometries(geom)>1 THEN  ST_GeometryN(geom, ST_NumGeometries(geom))
+         ELSE geom
+         END
+  FROM (
+    SELECT CASE WHEN p.NB_VTX>1 THEN ST_Difference(place_edges.GEOMETRY, p.GEOMETRY)
+           ELSE place_edges.GEOMETRY
+           END
+    AS geom
+    FROM places AS p
+    WHERE p.OGC_FID=place_edges.START_PL
+    AND place_edges.ROWID IN (
+          SELECT ROWID FROM Spatialindex
+          WHERE f_table_name='place_edges' AND search_frame=p.GEOMETRY)
+  )
+) WHERE STATUS=0
+;
 
+UPDATE place_edges SET
+GEOMETRY = (
+  SELECT CASE WHEN ST_NumGeometries(geom)>1 THEN ST_GeometryN(geom, 1)
+         ELSE geom
+         END
+  FROM (
+    SELECT CASE WHEN p.NB_VTX>1 THEN ST_Difference(place_edges.GEOMETRY, p.GEOMETRY)
+           ELSE place_edges.GEOMETRY
+           END
+    AS geom
+    FROM places AS p
+    WHERE p.OGC_FID=place_edges.END_PL
+    AND place_edges.ROWID IN (
+        SELECT ROWID FROM Spatialindex
+        WHERE f_table_name='place_edges' AND search_frame=p.GEOMETRY)
+  )
+) WHERE STATUS=0
+;
 
+ 
 
