@@ -1,10 +1,13 @@
 # -*- encoding=utf-8 -*-
 """ Place builder helper
 """
+from __future__ import print_function
+
 import os
 import logging
 
 from functools import partial
+from itertools import takewhile
 from ..logger import log_progress
 
 from .errors import BuilderError
@@ -38,6 +41,8 @@ class PlaceBuilder(object):
 
         try:
             self.creates_places_from_buffer(buffer_size, input_places )
+            logging.info("Building edges between places")
+            execute_sql(self._conn, "places.sql")
             self._conn.commit()
         finally:
             delete_table(self._conn, self.BUFFER_TABLE)
@@ -112,13 +117,10 @@ class PlaceBuilder(object):
         """
         import numpy as np
         from qgis.core import QgsPoint
-        from .angles import (create_partition, resolve, update,
-                             create_matrix, pop_argmin, 
+        from .angles import (create_partition, resolve, update, num_partitions, get_index_table,
+                             create_matrix, pop_argmin, get_value, 
                              angle_from_azimuth)
                                  
-        logging.info("Building edges between places")
-        execute_sql(self._conn, "places.sql")
-
         cur  = self._conn.cursor()
 
         # Get the (max) number of edges and places
@@ -160,20 +162,20 @@ class PlaceBuilder(object):
         def distance(x1,y1,x2,y2):
             p1.set(x1,y1)
             p2.set(x2,y2)
-            return np.sqrt(p1.sqrtDist(p2))
+            return np.sqrt(p1.sqrDist(p2))
 
         def deviation( az1, x1, y1, az2, x2, y2 ):
             """ Computei deviation  coefficient 
 
                 C.Lagesse, ph.d thesis, p. 151
             """
-            a1 = azimuth(x1,y1,x2.y2)
+            a1 = azimuth(x1,y1,x2,y2)
             a2 = azimuth(x2,y2,x1,y1)
-            d  = distance(x1,y1,x2.y2)
+            d  = distance(x1,y1,x2,y2)
             return (abs( np.sin(angle_from_azimuth(az1,a1))) +
                     abs( np.sin(angle_from_azimuth(az2,a2)))) * d 
 
-        edge_az = [(r[0],r[1],azimuth(*r[2:]),r[2],r[3]) for r in rows]
+        edges_az = [(r[0],r[1],azimuth(*r[2:]),r[2],r[3]) for r in rows]
 
         def compute_angles( edges ):
             return create_matrix(edges, lambda e1,e2: angle_from_azimuth(e1[2],e2[2]))
@@ -190,17 +192,19 @@ class PlaceBuilder(object):
             s = 0
             while s<len(rows):
                 p = edges_az[s][0]
-                l = takewhile(lambda x: x==p, edges_az[s:]) 
-                s = len(l)
+                l = list(takewhile(lambda x: x[0]==p, edges_az[s:]))
+                s = s+len(l)
                 yield p,l
        
         # Way partition
-        ways = create_partition(max_edges)
+        ways = create_partition(max_edges+1)
         def add_pair( e1, e2 ):
-            resolve(e1[1],e2[1])
+            resolve(ways,e1[1],e2[1])
 
-        for place, edges in places:
+        num_places = 0
+        for place, edges in places():
             n = len(edges)
+            num_places = num_places+1
             if n>2:
                 # Compute pairing
                 # Compute angles between edges
@@ -214,19 +218,33 @@ class PlaceBuilder(object):
                 else:
                     # compute coeffs between edges
                     coeffs = compute_coeffs(edges)
-                    for e1,e2 in pop_argmin(coeffs):
+                    for e1,e2,_ in pop_argmin(coeffs):
                         if get_value(angles,e1,e2) < threshold: 
                             add_pair(e1,e2)
             elif n==2:
-                # pair those 2 edges
-                add_pair(edges[0][1],edges[1][1]) 
+                # pair those 2 edge
+                add_pair(edges[0],edges[1]) 
             else:
-                # No pairing Place has only on edge.
+                # No pairing: place has only one edge.
                 pass
                   
         # Update partition
         update(ways)
+        num_ways = num_partitions(ways)
 
+        logging.info("Computed {} ways (num places={}, num edges={})".format(num_ways,num_places,max_edges))
+       
+        # Write back ways
+        cur.execute(SQL("DELETE FROM way_partition"))
+        cur.executemany(SQL("INSERT INTO way_partition(PEDGE,WAY) SELECT ?,?"),
+                [(fid,way) for fid,way in enumerate(ways)])
+
+        cur.execute(SQL("""UPDATE place_edges
+            SET WAY = (SELECT WAY FROM way_partition WHERE PEDGE=place_edges.OGC_FID)
+        """))
+
+        self._conn.commit()
+        return num_ways
         
     
 

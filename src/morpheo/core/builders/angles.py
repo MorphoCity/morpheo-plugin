@@ -4,6 +4,9 @@
 from collections import namedtuple
 import numpy as np
 
+#-------------------------------
+# Partition
+#-------------------------------
 
 def create_partition( size ):
     """ Init a partition table
@@ -52,10 +55,33 @@ def num_partitions( table ):
     return n
 
 
+def get_index_table( table ):
+    """ Create a mapping index table
+    """
+    sz = len(table)
+    itable = np.full(sz,0,dtype=int)
+    m = table[0]
+    n = 0
+    for j in range(sz):
+        if m < table[j]:
+            m = table[j]
+            n = n+1
+            itable[j] = n
+        elif m > table[j]:
+            itable[j] = itable[table[j]]
+        else:
+            itable[j] = n
+
+    return itable
+
+#-------------------------------
+# Pair matrix 
+#-------------------------------
+
 Matrix = namedtuple('Matrix', ('elems','values','nullvalue'))
 
 
-def create_matrix( elems, fun, nullvalue=9999999):
+def create_matrix( elems, fun, nullvalue=9999999.0):
     """ Create a matrix object
 
         :param elems: array of elements
@@ -73,27 +99,28 @@ def create_matrix( elems, fun, nullvalue=9999999):
     return Matrix(elems, values, nullvalue)
 
 
-def get_argmin_index( matrix ):
+def get_argmin_index( m ):
     """ Return the indices of element that hold the
         minimum value
 
-        :param matrix: A Matrix object 
+        :param m: A Matrix object 
     """
-    idx = np.argmin(matrix.values) 
-    return np.unravel(np.argmin(y), y.shape)
+    idx = np.argmin(m.values) 
+    return np.unravel_index(idx, m.values.shape)
 
 
 def pop_argmin( m ):
     """ Return the pair of elements that hold the
         minimum value and remove that pair of elements
     """
-    n = len(m.elemes)
+    n = len(m.elems)
     while n > 1:
         i,j = get_argmin_index(m)
-        e1,e2,v = m.elems[i],m.elems[j]
+        value = m.values[i,j]
+        e1,e2 = m.elems[i],m.elems[j]
         m.values[i,:] = m.nullvalue
         m.values[:,j] = m.nullvalue
-        yield e1, e2, v
+        yield e1, e2, value
         n = n-2
         
 
@@ -112,6 +139,4 @@ def angle_from_azimuth( az1, az2 ):
     if angle > np.pi:
         angle = 2*np.pi - angle
     return abs( angle - np.pi )
-
-   
 

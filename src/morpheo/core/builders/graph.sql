@@ -220,6 +220,16 @@ CREATE INDEX place_edges_end_pl_idx     ON place_edges(END_PL);
 CREATE INDEX place_edges_edge_idx       ON place_edges(EDGE);
 CREATE INDEX place_edges_start_vtx_idx  ON place_edges(START_VTX);
 CREATE INDEX place_edges_end_vtx_idx    ON place_edges(END_VTX);
+CREATE INDEX place_edges_end_way_idx    ON place_edges(WAY);
+
+CREATE TABLE way_partition(
+    PEDGE REFERENCES place_edges(OGC_FID),
+    WAY   integer
+);
+
+CREATE INDEX way_partition_PEDGE_idx  ON way_partition(PEDGE);
+CREATE INDEX way_partition_WAY_idx    ON way_partition(WAY);
+
 
 
 
