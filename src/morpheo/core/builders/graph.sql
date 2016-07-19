@@ -231,6 +231,40 @@ CREATE INDEX way_partition_PEDGE_idx  ON way_partition(PEDGE);
 CREATE INDEX way_partition_WAY_idx    ON way_partition(WAY);
 
 
+CREATE TABLE ways(
+    OCG_FID integer PRIMARY KEY,
+    WAY_ID  integer,
+    START_PL REFERENCES places(OGC_FID),
+    END_PL   REFERENCES places(OGC_FID),
+    DEGREE        integer,
+    LENGTH        real,
+    CONNECTIVITY  real,
+    CLOSENESS     real,
+    SPACING       real,
+    ORTOGONALITY  real
+);
+
+
+SELECT AddGeometryColumn(
+    'ways',
+    'GEOMETRY',
+    (
+        SELECT CAST(srid AS integer)
+        FROM geometry_columns
+        WHERE f_table_name='$input_table'
+    ),
+    'MULTILINESTRING',
+    (
+        SELECT coord_dimension
+        FROM geometry_columns
+        WHERE f_table_name='$input_table'
+    )
+);
+
+SELECT CreateSpatialIndex('ways', 'GEOMETRY');
+CREATE INDEX ways_WAY_ID_idx   ON ways(WAY_ID);
+CREATE INDEX ways_START_PL_idx ON ways(START_PL);
+CREATE INDEX ways_END_PL_idx   ON ways(END_PL);
 
 
 

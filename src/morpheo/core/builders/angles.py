@@ -118,10 +118,30 @@ def pop_argmin( m ):
         i,j = get_argmin_index(m)
         value = m.values[i,j]
         e1,e2 = m.elems[i],m.elems[j]
-        m.values[i,:] = m.nullvalue
-        m.values[:,j] = m.nullvalue
+        m.values[[i,j],:] = m.nullvalue
+        m.values[:,[i,j]] = m.nullvalue
         yield e1, e2, value
         n = n-2
+
+
+def next_argmin( m ):
+    """ iterate through indices in ascending order
+    """
+    while True:
+        i, j = get_argmin_index(m)
+        v = m.values[i,j]
+        if v == m.nullvalue: break
+        m.values[i,j] = m.nullvalue
+        yield m.elems[i],m.elems[j]
+
+
+def pop_args( m, e1, e2 ):
+    """ Pop a pair of element
+    """
+    i1 = m.elems.index(e1)
+    i2 = m.elems.index(e2)
+    m.values[[i1,i2],:] = m.nullvalue
+    m.values[:,[i1,i2]] = m.nullvalue
         
 
 def get_value( m, e1, e2 ):

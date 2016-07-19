@@ -118,7 +118,7 @@ class PlaceBuilder(object):
         import numpy as np
         from qgis.core import QgsPoint
         from .angles import (create_partition, resolve, update, num_partitions, get_index_table,
-                             create_matrix, pop_argmin, get_value, 
+                             create_matrix, pop_argmin, next_argmin, get_value, pop_args,
                              angle_from_azimuth)
                                  
         cur  = self._conn.cursor()
@@ -218,9 +218,10 @@ class PlaceBuilder(object):
                 else:
                     # compute coeffs between edges
                     coeffs = compute_coeffs(edges)
-                    for e1,e2,_ in pop_argmin(coeffs):
+                    for e1,e2 in next_argmin(coeffs):
                         if get_value(angles,e1,e2) < threshold: 
                             add_pair(e1,e2)
+                            pop_args(coeffs,e1,e2)
             elif n==2:
                 # pair those 2 edge
                 add_pair(edges[0],edges[1]) 
@@ -239,9 +240,13 @@ class PlaceBuilder(object):
         cur.executemany(SQL("INSERT INTO way_partition(PEDGE,WAY) SELECT ?,?"),
                 [(fid,way) for fid,way in enumerate(ways)])
 
+        logging.info("Updating place edges with way id") 
         cur.execute(SQL("""UPDATE place_edges
             SET WAY = (SELECT WAY FROM way_partition WHERE PEDGE=place_edges.OGC_FID)
         """))
+
+        logging.info("Build ways table")
+        execute_sql(self._conn, "ways.sql")
 
         self._conn.commit()
         return num_ways
