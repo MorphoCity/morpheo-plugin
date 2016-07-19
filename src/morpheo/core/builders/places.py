@@ -153,6 +153,9 @@ class PlaceBuilder(object):
             ORDER BY pl
         """)).fetchall()
 
+        # Array to store distance corrections for ways
+        distances = np.zeros(max_edges+1)
+
         p1,p2 = QgsPoint(), QgsPoint()
         def azimuth(x1,y1,x2,y2):
             p1.set(x1,y1)
@@ -200,6 +203,12 @@ class PlaceBuilder(object):
         ways = create_partition(max_edges+1)
         def add_pair( e1, e2 ):
             resolve(ways,e1[1],e2[1])
+            # Compute distance correction
+            # Split the distance between the two paired edges
+            # The correction will be the sum of all values for the same way
+            d = distance(e1[3],e1[4],e2[3],e2[4])
+            distances[e1[1]] = distances[e1[1]] + d/2.0
+            distances[e2[1]] = distances[e2[1]] + d/2.0
 
         num_places = 0
         for place, edges in places():
@@ -227,11 +236,11 @@ class PlaceBuilder(object):
         num_ways = num_partitions(ways)
 
         logging.info("Computed {} ways (num places={}, num edges={})".format(num_ways,num_places,max_edges))
-       
+      
         # Write back ways
         cur.execute(SQL("DELETE FROM way_partition"))
-        cur.executemany(SQL("INSERT INTO way_partition(PEDGE,WAY) SELECT ?,?"),
-                [(fid,way) for fid,way in enumerate(ways)])
+        cur.executemany(SQL("INSERT INTO way_partition(PEDGE,WAY,DIST) SELECT ?,?,?"),
+                [(fid,way,distances[fid]) for fid,way in enumerate(ways)])
 
         logging.info("Updating place edges with way id") 
         cur.execute(SQL("""UPDATE place_edges
