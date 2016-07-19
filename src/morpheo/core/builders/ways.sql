@@ -21,4 +21,9 @@ END_PL   = (SELECT p.END_PL   FROM way_partition AS p WHERE p.WAY=ways.WAY_ID AN
 ;
 
 
+-- Update length 
+UPDATE ways SET LENGTH = (
+    SELECT ST_Length(ways.GEOMETRY) + Sum(p.DIST) FROM way_partition AS p WHERE p.WAY=ways.WAY_ID
+)
+;
 
