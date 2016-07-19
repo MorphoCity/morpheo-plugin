@@ -118,21 +118,14 @@ class PlaceBuilder(object):
         import numpy as np
         from qgis.core import QgsPoint
         from .angles import (create_partition, resolve, update, num_partitions, get_index_table,
-                             create_matrix, pop_argmin, next_argmin, get_value, pop_args,
+                             create_matrix, next_argmin, get_value, pop_args, get_remaining_elements,
                              angle_from_azimuth)
                                  
-        cur  = self._conn.cursor()
+        cur = self._conn.cursor()
 
         # Get the (max) number of edges and places
         max_edges  = cur.execute("SELECT Max(OGC_FID) from place_edges").fetchone()[0]
         max_places = cur.execute("SELECT Max(OGC_FID) from places").fetchone()[0] 
-
-        # Get the nb_vertices for places
-        # We use an index array instead of a dictionnary
-        # This will hold as long as fid is a auto-incremented index 
-        vertices = np.zeros(max_places+1, dtype=int)
-        rows     = cur.execute("SELECT OGC_FID, NB_VTX from places").fetchall()
-        vertices[[r[0] for r in rows]] = [r[1] for r in rows]   
 
         rows = cur.execute(SQL("""SELECT 
             pl, fid, ST_X(p1), ST_Y(p1), ST_X(p2), ST_Y(p2)
@@ -152,9 +145,6 @@ class PlaceBuilder(object):
                 FROM place_edges)
             ORDER BY pl
         """)).fetchall()
-
-        # Array to store distance corrections for ways
-        distances = np.zeros(max_edges+1)
 
         p1,p2 = QgsPoint(), QgsPoint()
         def azimuth(x1,y1,x2,y2):
@@ -178,7 +168,7 @@ class PlaceBuilder(object):
             return (abs( np.sin(angle_from_azimuth(az1,a1))) +
                     abs( np.sin(angle_from_azimuth(az2,a2)))) * d 
 
-        edges_az = [(r[0],r[1],azimuth(*r[2:]),r[2],r[3]) for r in rows]
+        edges_az = [(r[0],r[1],azimuth(*r[2:6]),r[2],r[3]) for r in rows]
 
         def compute_angles( edges ):
             return create_matrix(edges, lambda e1,e2: angle_from_azimuth(e1[2],e2[2]))
@@ -198,7 +188,24 @@ class PlaceBuilder(object):
                 l = list(takewhile(lambda x: x[0]==p, edges_az[s:]))
                 s = s+len(l)
                 yield p,l
+ 
+        # Array to store distance corrections for ways
+        distances = np.zeros(max_edges+1)
        
+        # Array to store starting places
+        startplaces = np.zeros(max_edges+1, dtype=int)
+        endplaces   = np.zeros(max_edges+1, dtype=int)
+
+        def add_end( e, place ):
+            fid = e[1]
+            if startplaces[fid] == 0: 
+                startplaces[fid] = place
+            else:
+                if endplaces[fid] != 0:
+                    logging.error("build_way: extraneous end place for edge {}".format(fid))
+                    raise BuilderError("Cannot set more than two ends for one way") 
+                endplaces[fid] = place
+
         # Way partition
         ways = create_partition(max_edges+1)
         def add_pair( e1, e2 ):
@@ -224,23 +231,32 @@ class PlaceBuilder(object):
                     if get_value(angles,e1,e2) < threshold: 
                         add_pair(e1,e2)
                         pop_args(coeffs,e1,e2)
+                # Store end places from lonely edges
+                for e in get_remaining_elements(coeffs):
+                    add_end(e,place)
             elif n==2:
                 # pair those 2 edge
                 add_pair(edges[0],edges[1]) 
             else:
                 # No pairing: place has only one edge.
-                pass
-                  
+                add_end(edges[0],place)
+
         # Update partition
         update(ways)
         num_ways = num_partitions(ways)
 
         logging.info("Computed {} ways (num places={}, num edges={})".format(num_ways,num_places,max_edges))
-      
-        # Write back ways
+        
+        self._build_way_table(cur, ways, distances, startplaces, endplaces)
+        self._conn.commit()
+        return num_ways
+        
+    def _build_way_table( self, cur, ways, distances, startplaces, endplaces ):
+        """ Write back ways
+        """
         cur.execute(SQL("DELETE FROM way_partition"))
-        cur.executemany(SQL("INSERT INTO way_partition(PEDGE,WAY,DIST) SELECT ?,?,?"),
-                [(fid,way,distances[fid]) for fid,way in enumerate(ways)])
+        cur.executemany(SQL("INSERT INTO way_partition(PEDGE,WAY,DIST,START_PL,END_PL) SELECT ?,?,?,?,?"),
+                [(fid,way,distances[fid],startplaces[fid],endplaces[fid]) for fid,way in enumerate(ways)])
 
         logging.info("Updating place edges with way id") 
         cur.execute(SQL("""UPDATE place_edges
@@ -250,8 +266,4 @@ class PlaceBuilder(object):
         logging.info("Build ways table")
         execute_sql(self._conn, "ways.sql")
 
-        self._conn.commit()
-        return num_ways
-        
-    
-
+       

@@ -225,7 +225,9 @@ CREATE INDEX place_edges_end_way_idx    ON place_edges(WAY);
 CREATE TABLE way_partition(
     PEDGE REFERENCES place_edges(OGC_FID),
     WAY   integer,
-    DIST  real
+    DIST  real,
+    START_PL REFERENCES places(OGC_FID),
+    END_PL   REFERENCES places(OGC_FID)
 );
 
 CREATE INDEX way_partition_PEDGE_idx  ON way_partition(PEDGE);

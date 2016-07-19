@@ -109,21 +109,6 @@ def get_argmin_index( m ):
     return np.unravel_index(idx, m.values.shape)
 
 
-def pop_argmin( m ):
-    """ Return the pair of elements that hold the
-        minimum value and remove that pair of elements
-    """
-    n = len(m.elems)
-    while n > 1:
-        i,j = get_argmin_index(m)
-        value = m.values[i,j]
-        e1,e2 = m.elems[i],m.elems[j]
-        m.values[[i,j],:] = m.nullvalue
-        m.values[:,[i,j]] = m.nullvalue
-        yield e1, e2, value
-        n = n-2
-
-
 def next_argmin( m ):
     """ iterate through indices in ascending order
     """
@@ -140,9 +125,16 @@ def pop_args( m, e1, e2 ):
     """
     i1 = m.elems.index(e1)
     i2 = m.elems.index(e2)
+    m.elems[i1] = None
+    m.elems[i2] = None
     m.values[[i1,i2],:] = m.nullvalue
     m.values[:,[i1,i2]] = m.nullvalue
         
+
+def get_remaining_elements( m ):
+    """ Return remaining elements (not paired)
+    """
+    return filter(None, m.elems)
 
 def get_value( m, e1, e2 ):
     """ Return the value of a pair of element
