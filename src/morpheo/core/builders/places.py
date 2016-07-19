@@ -209,19 +209,12 @@ class PlaceBuilder(object):
                 # Compute pairing
                 # Compute angles between edges
                 angles = compute_angles(edges)
-                if vertices[place]==1:
-                    for e1, e2, v in pop_argmin(angles):
-                        if v < threshold:
-                            add_pair(e1,e2)
-                        else:
-                            break  
-                else:
-                    # compute coeffs between edges
-                    coeffs = compute_coeffs(edges)
-                    for e1,e2 in next_argmin(coeffs):
-                        if get_value(angles,e1,e2) < threshold: 
-                            add_pair(e1,e2)
-                            pop_args(coeffs,e1,e2)
+                # compute coeffs between edges
+                coeffs = compute_coeffs(edges)
+                for e1,e2 in next_argmin(coeffs):
+                    if get_value(angles,e1,e2) < threshold: 
+                        add_pair(e1,e2)
+                        pop_args(coeffs,e1,e2)
             elif n==2:
                 # pair those 2 edge
                 add_pair(edges[0],edges[1]) 

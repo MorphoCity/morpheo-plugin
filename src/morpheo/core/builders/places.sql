@@ -1,6 +1,5 @@
 -- Build edges between places
 
-
 DELETE FROM place_vtx;
 DELETE FROM place_edges;
 
@@ -109,9 +108,7 @@ DELETE FROM places WHERE DEGREE=0
 UPDATE place_edges SET
 STATUS = (
     SELECT Min(t.status) FROM (
-        SELECT CASE WHEN p.NB_VTX>1 THEN  ST_NumGeometries(ST_Difference(place_edges.GEOMETRY, p.GEOMETRY))=1
-        ELSE 1
-        END
+        SELECT ST_NumGeometries(ST_Difference(place_edges.GEOMETRY, p.GEOMETRY))=1
         AS status
         FROM places as p
         WHERE (p.OGC_FID=place_edges.START_PL OR p.OGC_FID=place_edges.END_PL)
@@ -127,7 +124,7 @@ STATUS = (
 UPDATE place_edges SET
 GEOMETRY = 
 (
-    SELECT CASE WHEN p.NB_VTX>1 THEN ST_Difference(place_edges.GEOMETRY, p.GEOMETRY)
+    SELECT CASE WHEN p.DEGREE>1 THEN ST_Difference(place_edges.GEOMETRY, p.GEOMETRY)
            ELSE place_edges.GEOMETRY
            END
     FROM places AS p 
@@ -143,7 +140,7 @@ GEOMETRY =
 UPDATE place_edges SET
 GEOMETRY = 
 (
-  SELECT CASE WHEN p.NB_VTX>1 THEN ST_Difference(place_edges.GEOMETRY, p.GEOMETRY)
+  SELECT CASE WHEN p.DEGREE>1 THEN ST_Difference(place_edges.GEOMETRY, p.GEOMETRY)
          ELSE place_edges.GEOMETRY
          END
   FROM places AS p 
@@ -162,7 +159,7 @@ GEOMETRY = (
          ELSE geom
          END
   FROM (
-    SELECT CASE WHEN p.NB_VTX>1 THEN ST_Difference(place_edges.GEOMETRY, p.GEOMETRY)
+    SELECT CASE WHEN p.DEGREE>1 THEN ST_Difference(place_edges.GEOMETRY, p.GEOMETRY)
            ELSE place_edges.GEOMETRY
            END
     AS geom
@@ -181,7 +178,7 @@ GEOMETRY = (
          ELSE geom
          END
   FROM (
-    SELECT CASE WHEN p.NB_VTX>1 THEN ST_Difference(place_edges.GEOMETRY, p.GEOMETRY)
+    SELECT CASE WHEN p.DEGREE>1 THEN ST_Difference(place_edges.GEOMETRY, p.GEOMETRY)
            ELSE place_edges.GEOMETRY
            END
     AS geom
