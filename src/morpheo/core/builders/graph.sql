@@ -173,7 +173,7 @@ SELECT CreateSpatialIndex('places', 'GEOMETRY');
 
 CREATE INDEX places_cul_de_sac_idx  ON places(CUL_DE_SAC);
  
--- Create an assoction table betwween vertices and places
+-- Create an assoction table between vertices and places
 -- This table is faster to build than using subquery/join with 
 
 CREATE TABLE place_vtx(
@@ -239,12 +239,12 @@ CREATE TABLE ways(
     WAY_ID  integer,
     START_PL REFERENCES places(OGC_FID),
     END_PL   REFERENCES places(OGC_FID),
-    DEGREE        integer,
-    LENGTH        real,
-    CONNECTIVITY  real,
-    CLOSENESS     real,
-    SPACING       real,
-    ORTOGONALITY  real
+    DEGREE        integer DEFAULT 0, 
+    LENGTH        real    DEFAULT 0.0,
+    CONNECTIVITY  real    DEFAULT 0.0,
+    CLOSENESS     real    DEFAULT 0.0,
+    SPACING       real    DEFAULT 0.0,
+    ORTHOGONALITY real    DEFAULT 0.0
 );
 
 
@@ -270,5 +270,15 @@ CREATE INDEX ways_START_PL_idx ON ways(START_PL);
 CREATE INDEX ways_END_PL_idx   ON ways(END_PL);
 
 
+-- Create an association table between places and ways
+
+CREATE TABLE way_places(
+    WAY_ID integer,
+    PLACE  REFERENCES places(OGC_FID)
+)
+;
+
+CREATE INDEX way_places_WAY_ID_idx ON way_places(WAY_ID);
+CREATE INDEX way_places_PLACE_idx  ON way_places(PLACE);
 
 

@@ -136,6 +136,7 @@ def get_remaining_elements( m ):
     """
     return filter(None, m.elems)
 
+
 def get_value( m, e1, e2 ):
     """ Return the value of a pair of element
     """

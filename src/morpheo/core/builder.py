@@ -94,6 +94,17 @@ def build_ways( args ):
                            output=args.output)
 
 
+def compute_way_attributes( args ):
+    """ Compute way attributes
+    """
+    builder = Builder.from_database( args.dbname )
+    builder.compute_way_attributes( 
+            orthogonality = args.orthogonality,
+            betweenness   = args.betweenness,
+            closeness     = args.closeness,
+            stress        = args.stress)
+
+
 def build_places( args ):
     """ Build places
     """
@@ -140,6 +151,15 @@ def morpheo_():
     ways_cmd.add_argument("--output"    , metavar='PATH' , default=None, help="Output ways shapefile")
     ways_cmd.add_argument("--threshold" , metavar='VALUE', type=float, default=30, help="Treshold angle (in degree)")
     ways_cmd.set_defaults(func=build_ways)
+
+    # Way attributes command
+    ways_cmd = sub.add_parser('way_attributes')
+    ways_cmd.add_argument("dbname", help="Database")
+    ways_cmd.add_argument("--orthogonality", action='store_true', default=False, help="Compute orthoganality")
+    ways_cmd.add_argument("--betweenness"  , action='store_true', default=False, help="Compute betweenness centrality")
+    ways_cmd.add_argument("--closeness"    , action='store_true', default=False, help="Compute closeness centrality")
+    ways_cmd.add_argument("--stress"       , action='store_true', default=False, help="Compute stress centrality")
+    ways_cmd.set_defaults(func=compute_way_attributes)
 
     args = parser.parse_args()
     

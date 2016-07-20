@@ -5,6 +5,7 @@
 -- Check that there is no missing START_PL/END_PL on table ways
 
 DELETE FROM ways;
+DELETE FROM way_places;
 
 -- Compute Way geometry (as MULTILINESTRING)
 
@@ -20,10 +21,14 @@ START_PL = (SELECT p.START_PL FROM way_partition AS p WHERE p.WAY=ways.WAY_ID AN
 END_PL   = (SELECT p.END_PL   FROM way_partition AS p WHERE p.WAY=ways.WAY_ID AND END_PL<>0)
 ;
 
+-- Build way/places association
 
--- Update length 
-UPDATE ways SET LENGTH = (
-    SELECT ST_Length(ways.GEOMETRY) + Sum(p.DIST) FROM way_partition AS p WHERE p.WAY=ways.WAY_ID
+INSERT INTO way_places(WAY_ID,PLACE)
+SELECT way, pl
+FROM (
+    SELECT WAY as way, START_PL AS pl FROM place_edges
+    UNION
+    SELECT WAY as way, END_PL AS pl FROM place_edges
 )
 ;
 

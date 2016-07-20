@@ -87,6 +87,17 @@ class SpatialiteBuilder(object):
             logging.info("Builder: sanitizing graph")
             working_table = sanitize(self._conn, self._input_table, snap_distance, min_edge_length, 
                                      attribute=way_attribute)
+            # Because we still have rounding errors 
+            # We need to round coordinates using
+            
+            precision = snap_distance/2.0
+  
+            logging.info("Builder: rounding coordinates to {} m precision".format(precision)) 
+            cur = self._conn.cursor()
+            cur.execute(SQL("UPDATE {table} SET"
+                            " GEOMETRY = (SELECT ST_SnapToGrid({table}.GEOMETRY,{prec}))",
+                            table=working_table,
+                            prec=precision))
         else:
             working_table = self._input_table
        
@@ -155,11 +166,27 @@ class SpatialiteBuilder(object):
             :param threshold: 
             :param output: output shapefile to store results
         """
-        from places import PlaceBuilder
-        builder = PlaceBuilder(self._conn)
+        from ways import WayBuilder
+        builder = WayBuilder(self._conn)
         builder.build_ways(threshold)
-        
 
+    def compute_way_attributes( self, orthogonality, betweenness, closeness, stress):
+        """ Compute attributes for ways:
+
+            :param orthogonality: If True, compute orthogonality.
+            :param betweenness:   If True, compute betweenness centrality.
+
+            :param stress:        If True, compute stress centrality.
+        """
+        from ways import WayBuilder
+        builder = WayBuilder(self._conn)
+        builder.compute_local_attributes(orthogonality = orthogonality)
+        if any((betweenness, closeness, stress)):
+            buldier.compute_global_attributes(
+                    betweenness = betweenness,
+                    closeness   = closeness,
+                    stress      = stress)
+       
     def build_ways_from_attribute(self, output=None):
         """ Build way's hypergraph from street names.
 
