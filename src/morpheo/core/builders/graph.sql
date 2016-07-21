@@ -286,12 +286,16 @@ CREATE INDEX way_places_PLACE_idx  ON way_places(PLACE);
 CREATE TABLE way_angles(
     PLACE REFERENCES places(OGC_FID),
     ANGLE real,
-    WAY1 integer,
-    WAY2 integer
+    WAY1  integer,
+    EDGE1 REFERENCES places_edges(OGC_FID),
+    WAY2  integer,
+    EDGE2 REFERENCES places_edges(OGC_FID)
 )
 ;
 
 CREATE INDEX way_angles_PLACE_idx ON way_angles(PLACE);
 CREATE INDEX way_angles_WAY1_idx  ON way_angles(WAY1);
 CREATE INDEX way_angles_WAY2_idx  ON way_angles(WAY2);
+CREATE INDEX way_angles_EDGE1_idx ON way_angles(EDGE1);
+CREATE INDEX way_angles_EDGE2_idx ON way_angles(EDGE2);
 

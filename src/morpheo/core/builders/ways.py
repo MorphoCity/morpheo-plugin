@@ -225,11 +225,12 @@ class WayBuilder(object):
 
         cur  = self._conn.cursor()
         rows = cur.execute(SQL("""SELECT 
-            pl, way, ST_X(p1), ST_Y(p1), ST_X(p2), ST_Y(p2)
+            pl, way, edge,  ST_X(p1), ST_Y(p1), ST_X(p2), ST_Y(p2)
             FROM (
                 SELECT 
                 START_PL AS pl,
                 WAY AS way,
+                OGC_FID AS edge,
                 ST_StartPoint(GEOMETRY) AS p1, 
                 ST_PointN(GEOMETRY,2) AS p2
                 FROM place_edges
@@ -237,6 +238,7 @@ class WayBuilder(object):
                 SELECT
                 END_PL AS pl,
                 WAY AS way,
+                OGC_FID AS edge,
                 ST_EndPoint(GEOMETRY) AS p1, 
                 ST_PointN(GEOMETRY, ST_NumPoints(GEOMETRY)-1) AS p2
                 FROM place_edges)
@@ -244,7 +246,7 @@ class WayBuilder(object):
         """)).fetchall()
 
         # compute azimuths
-        way_places = [(r[0],r[1],f_azimuth(*r[2:])) for r in rows]
+        way_places = [(r[0],r[1],r[2], f_azimuth(*r[3:])) for r in rows]
 
         # Compute all angles for each pairs of way 
         # for each places
@@ -269,23 +271,23 @@ class WayBuilder(object):
                         w2 = ways[j]
                         i2 = w2[1]  
                         if i1 != i2:
-                            angle = sin( angle_from_azimuth(w1[2],w2[2]) )
-                            yield (place,angle,min(i1,i2),max(i1,i2))
+                            angle = sin( angle_from_azimuth(w1[3],w2[3]) )
+                            yield (place,angle,i1,w1[2],i2,w2[2])
 
         # Build way_angles table
         cur.execute(SQL("DELETE FROM way_angles"))
-        cur.executemany(SQL("INSERT INTO way_angles(PLACE,ANGLE,WAY1,WAY2) SELECT ?,?,?,?"),
-                [(pl,angle,way1,way2) for pl,angle,way1,way2 in compute_angles()])
+        cur.executemany(SQL("INSERT INTO way_angles(PLACE,ANGLE,WAY1,EDGE1,WAY2,EDGE2) SELECT ?,?,?,?,?,?"),
+                [(pl,angle,way1,e1,way2,e2) for pl,angle,way1,e1,way2,e2 in compute_angles()])
 
         # Update orthogonality
         cur.execute(SQL("""UPDATE ways SET ORTHOGONALITY = (
             SELECT Sum(inner)/ways.CONNECTIVITY FROM (
             SELECT Min(a) AS inner FROM (
-                SELECT PLACE AS p, ANGLE AS a, WAY2 AS w
+                SELECT PLACE AS p, ANGLE AS a, WAY2 AS w, EDGE2 AS e
                 FROM way_angles WHERE WAY1=ways.WAY_ID
                 UNION ALL
-                SELECT PLACE AS p, ANGLE AS a, WAY1 AS w
+                SELECT PLACE AS p, ANGLE AS a, WAY1 AS w, EDGE1 AS e
                 FROM way_angles WHERE WAY2=ways.WAY_ID)
-                GROUP BY p,w)
-           ) WHERE ways.CONNECTIVITY > 0"""))
+                GROUP BY p,e
+           ))"""))
 
