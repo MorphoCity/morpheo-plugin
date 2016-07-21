@@ -2,6 +2,7 @@
 """ Partition tools 
 """
 from collections import namedtuple
+from numpy import pi
 import numpy as np
 
 #-------------------------------
@@ -149,7 +150,7 @@ def angle_from_azimuth( az1, az2 ):
     """ Compute angle between two azimuths
     """
     angle = abs(az1-az2)
-    if angle > np.pi:
-        angle = 2*np.pi - angle
-    return abs( angle - np.pi )
+    if angle > pi:
+        angle = 2*pi - angle
+    return abs( angle - pi )
 

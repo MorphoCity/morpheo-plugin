@@ -1,4 +1,7 @@
 -- Compute local way attributes
+-- TODO CHECK:
+-- DEGREE > 0
+-- CONNECTIVITY > 0
 
 
 -- Length
@@ -18,22 +21,22 @@ UPDATE ways SET DEGREE = (
 
 -- Connectivity
 -- Number of arcs in the viary graph intersected by a way wich are
--- not part of that way. 
-
+-- not part of that way (sum by place)
+ 
 UPDATE ways SET CONNECTIVITY = (SELECT Count(1) FROM (
-    SELECT e.OGC_FID FROM place_edges AS e
-    WHERE e.START_PL IN (SELECT PLACE FROM way_places WHERE WAY_ID=ways.WAY_ID)
-    AND e.WAY<>ways.WAY_ID
+    SELECT OGC_FID, START_PL FROM place_edges
+    WHERE START_PL IN (SELECT PLACE FROM way_places WHERE WAY_ID=ways.WAY_ID)
+    AND WAY<>ways.WAY_ID
     UNION
-    SELECT e.OGC_FID FROM place_edges AS e
-    WHERE e.END_PL IN (SELECT PLACE FROM way_places WHERE WAY_ID=ways.WAY_ID)
-    AND e.WAY<>ways.WAY_ID)
+    SELECT OGC_FID, END_PL FROM place_edges
+    WHERE END_PL IN (SELECT PLACE FROM way_places WHERE WAY_ID=ways.WAY_ID)
+    AND WAY<>ways.WAY_ID)
 )
 ;
 
 
 -- Spacing
-UPDATE ways SET SPACING = (SELECT ways.LENGTH/ways.CONNECTIVITY)
+UPDATE ways SET SPACING = (SELECT ways.LENGTH/ways.CONNECTIVITY WHERE ways.CONNECTIVITY>0)
 
 
 

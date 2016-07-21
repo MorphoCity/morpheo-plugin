@@ -281,4 +281,17 @@ CREATE TABLE way_places(
 CREATE INDEX way_places_WAY_ID_idx ON way_places(WAY_ID);
 CREATE INDEX way_places_PLACE_idx  ON way_places(PLACE);
 
+-- Create way_angles table for computing orthogonality
+
+CREATE TABLE way_angles(
+    PLACE REFERENCES places(OGC_FID),
+    ANGLE real,
+    WAY1 integer,
+    WAY2 integer
+)
+;
+
+CREATE INDEX way_angles_PLACE_idx ON way_angles(PLACE);
+CREATE INDEX way_angles_WAY1_idx  ON way_angles(WAY1);
+CREATE INDEX way_angles_WAY2_idx  ON way_angles(WAY2);
 
