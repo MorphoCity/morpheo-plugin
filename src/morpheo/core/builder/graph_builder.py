@@ -149,7 +149,7 @@ class SpatialiteBuilder(object):
         builder.build_ways(threshold)
 
         if attributes:
-            self.compute_way_attributes( *kwargs )
+            self.compute_way_attributes( **kwargs )
 
         self._ways_output = output
         self.export_ways()

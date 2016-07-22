@@ -35,7 +35,16 @@ CREATE TABLE edges(
     END_VTX integer REFERENCES vertices(OGC_FID),
     LENGTH real,
     DEGREE integer DEFAULT 0,
-    NAME text default NULL
+    NAME text default NULL,
+    CONNECTIVITY  real    DEFAULT 0.0,
+    CLOSENESS     real    DEFAULT 0.0,
+    SPACING       real    DEFAULT 0.0,
+    ORTHOGONALITY real    DEFAULT 0.0,
+    BETWEENNESS   real    DEFAULT 0.0,
+    USE           real    DEFAULT 0.0,
+    RTOPO         real    DEFAULT 0.0,
+    ACCES         real    DEFAULT 0.0,
+    WAY_ID        integer 
 );
 
 SELECT AddGeometryColumn( -- to ease update, because joins are not allowed
@@ -58,6 +67,7 @@ SELECT CreateSpatialIndex('edges', 'GEOMETRY');
 CREATE INDEX edges_start_vtx_idx ON edges(START_VTX);
 CREATE INDEX edges_end_vtx_idx ON edges(END_VTX);
 CREATE INDEX edges_name_idx ON edges(NAME);
+CREATE INDEX edges_WAY_ID_idx ON edges(WAY_ID);
 
 -- Copy edges from origin table
 
@@ -246,7 +256,9 @@ CREATE TABLE ways(
     SPACING       real    DEFAULT 0.0,
     ORTHOGONALITY real    DEFAULT 0.0,
     BETWEENNESS   real    DEFAULT 0.0,
-    USE           real    DEFAULT 0.0
+    USE           real    DEFAULT 0.0,
+    RTOPO         real    DEFAULT 0.0,
+    ACCES         real    DEFAULT 0.0
 );
 
 

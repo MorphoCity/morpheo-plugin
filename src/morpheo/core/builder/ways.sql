@@ -32,3 +32,9 @@ FROM (
 )
 ;
 
+-- Update edge with ways id
+
+UPDATE edges SET WAY_ID = (SELECT WAY FROM place_edges WHERE EDGE=edges.OGC_FID);
+
+
+

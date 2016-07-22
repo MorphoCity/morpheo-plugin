@@ -6,6 +6,7 @@ from __future__ import print_function
 import os
 import logging
 
+import networkx as nx
 import numpy as np
 
 from numpy import sin
@@ -61,18 +62,23 @@ class WayBuilder(object):
        self.azimuth  = azimuth
        self.distance = distance
 
+       self._line_graph = None
+
     def build_ways(self, threshold):
         """ Compute ways
 
             Pair edges for each place then resolve pairing as a partitioning
             set: each resulting classes will be a way.
 
-            :params threshold: The angle threshold (in radian) for pairing edges at each place.
+            :param threshold: The angle threshold (in radian) for pairing edges at each place.
         """
         from .angles import (create_partition, resolve, update, num_partitions, get_index_table,
                              create_matrix, next_argmin, get_value, pop_args, get_remaining_elements,
                              angle_from_azimuth)
-       
+      
+        # Invalidate current line graph
+        self._line_graph = None
+
         # Dereference helper functions
         azimuth  = self.azimuth
         distance = self.distance
@@ -296,8 +302,8 @@ class WayBuilder(object):
 
 
     def compute_global_attributes(self, betweenness=False, closeness=False, stress=False):
-        """ Compute global attributes
-
+        r""" Compute global attributes
+        
             :param closeness:   If True, compute closeness.
             :param betweenness: If True, compute betweenness centrality.
             :param stress:      If True, compute stress centrality.
@@ -307,29 +313,97 @@ class WayBuilder(object):
 
             Note that the closeness is defined as 
 
-            ..math::
+            .. math::
+
                 C(u) = \frac{n - 1}{\sum_{v=1}^{n-1} d(v, u)},
 
             where `d(v, u)` is the shortest-path distance between `v` and `u`,
             and `n` is the number of nodes in the graph.
         """
-        import networkx as nx
-
-        g = self.create_line_graph()
-
         cur = self._conn.cursor()
-
         with attr_table(cur, "global_attributes") as attrs:
                
             if betweenness:
                 logging.info("Ways: computing betweenness centrality")
-                attrs.update('ways', 'WAY_ID', 'BETWEENNESS', nx.betweenness_centrality(g).items())
+                attrs.update('ways', 'WAY_ID', 'BETWEENNESS', self.compute_betweenness().items())
 
             if closeness:
                 logging.info("Ways: computing closeness centrality")
-                attrs.update('ways', 'WAY_ID', 'CLOSENESS', nx.closeness_centrality(g).items())
+                attrs.update('ways', 'WAY_ID', 'CLOSENESS', self.compute_closeness().items())
 
+            if stress:
+                logging.info("Ways: computing stress centrality")
+                attrs.update('ways', 'WAY_ID', 'USE', self.compute_use().items())
 
+    def compute_betweenness(self):
+        """ Compute betweeness for each way
+        """
+        G = self.get_line_graph()
+        return nx.betweenness_centrality(G)
+
+    def compute_closeness(self):
+        """ Compute closeness for each way
+        """
+        G = self.get_line_graph()
+        return nx.closeness_centrality(G)
+
+    def compute_use(self):
+        """ Compute stress centrality
+        """
+        # TODO Implement me !!
+        raise NotImplementedError("Stress Centrality")
+
+    def compute_topological_radius(self):
+        """ Compute the topological radius for all ways
+           
+            The toplogical radius will be also assigned to the edges of the
+            viary graph.
+
+            The topological radius is defined as:
+
+            .. math::
+                
+                r_{topo}(u) = \sum_{v=1}^{n-1} d(v, u)},
+
+            where `d(v, u)` is the shortest-path distance between `v` and `u`,
+            and `n` is the number of nodes in the graph.
+        """
+        G = self.get_line_graph()
+        path_length = nx.single_source_shortest_path_length
+ 
+        logging.info("Ways: computing topological radius")
+        
+        nodes = G.nodes()
+        cur   = self._conn.cursor()
+
+        # Get the length for each ways
+        lengths = cur.execute("SELECT WAY_ID,LENGTH FROM ways").fetchall()
+
+        def compute( v ):
+            sp = path_length(G,v)
+            r = sum(sp.values())
+            a = sum(sp[k]*l for k,l in lengths)
+            return v,r,a
+
+        r_topo = [compute(v) for v in G.nodes()]
+
+        # Update ways and edges with topological radius
+        with attr_table(cur, "topo_radius") as attrs:
+            attrs.update('ways', 'WAY_ID', 'RTOPO',[(r[0],r[1]) for r in r_topo])
+            attrs.update('ways', 'WAY_ID', 'ACCES',[(r[0],r[2]) for r in r_topo])
+
+        # Update edges
+        cur.execute(SQL("""
+            UPDATE edges SET
+                RTOPO = (SELECT RTOPO FROM ways WHERE WAY_ID=edges.WAY_ID),
+                ACCES = (SELECT ACCES FROM ways WHERE WAY_ID=edges.WAY_ID)
+        """))
+        
+
+    def get_line_graph(self):
+        if self._line_graph is None:
+            self._line_graph = self.create_line_graph()
+        return self._line_graph
 
     def create_line_graph(self):
         """ Create a line graph from ways

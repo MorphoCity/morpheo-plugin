@@ -8,17 +8,19 @@ from .errors import BuilderError
 class Sanitizer(object):
     """ Helper for sanitizing geometries to a valid topological
         graph representation
+ 
+        :param conn: spatialite connection
+        :param input_table: name of the input raw data
     """
+
     def __init__(self, conn, input_table):
-        """ 
-            :param conn: spatialite connection
-            :param input_table: name of the input raw data
-        """
         self._table  = input_table
         self._conn   = conn
 
     @property
     def work_table(self):
+        """ The name of the table containing 'sanitized' data
+        """
         return "sanitized"
 
 
@@ -32,9 +34,9 @@ class Sanitizer(object):
                 - Resolve intersection
                 - Remove small edges
 
-                :param snap_distance: snap minimum distance
-                :param min_edge_length: minimum length for small edges
-                :param attribute: attribute to import from original data
+           :param snap_distance: Snap minimum distance
+           :param min_edge_length: Minimum length for small edges
+           :param attribute: Attribute to import from original data
         """
         if snap_distance <= 0:
             raise BuilderError("Invalid snap distance {}".format(snap_distance))
@@ -73,7 +75,7 @@ class Sanitizer(object):
                 """))
 
     def snap_geometries(self, cur, snap_distance):
-        """ Snap close goametries 
+        """ Snap close geometries 
 
             :param snap_distance: minimum snap distance
         """
