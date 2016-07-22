@@ -13,7 +13,6 @@ from ..logger import log_progress
 from .errors import BuilderError
 from .sql import SQL, execute_sql, delete_table
 
-
 class PlaceBuilder(object):
 
     BUFFER_TABLE='temp_buffer'
@@ -21,7 +20,7 @@ class PlaceBuilder(object):
     def __init__(self, conn):
        self._conn = conn
 
-    def build_places( self, buffer_size, input_places=None, loop_output=None):
+    def build_places( self, buffer_size, input_places=None):
         """ Build places
 
             Build places from buffer and/or external places definition.
@@ -33,19 +32,30 @@ class PlaceBuilder(object):
 
             :param buffer_size: buffer size applied to vertices
             :param input_places: path of an external shapefile containing places definitions
-            :param loop_output: path of a shapefile to write computed places to.
         """
 
         # Use a minimum buffer_size
-        buffer_size = max(buffer_size or 0, 0.1)
+        buffer_size = buffer_size or 0
 
         try:
-            self.creates_places_from_buffer(buffer_size, input_places )
+            if buffer_size > 0:
+                self.creates_places_from_buffer(buffer_size, input_places )
+            else:
+                self.creates_places_from_file(input_places)
             logging.info("Building edges between places")
             execute_sql(self._conn, "places.sql")
             self._conn.commit()
         finally:
             delete_table(self._conn, self.BUFFER_TABLE)
+
+
+    def creates_places_from_file(self, input_places):
+        """ Create places from input  file
+        """
+        cur = self._conn.cursor()
+        cur.execute(SQL("DELETE FROM places"))
+        cur.execute(SQL("INSERT INTO places(GEOMETRY) SELECT GEOMETRY FROM {input_table}",
+                    input_table=input_places))
 
 
     def creates_places_from_buffer(self, buffer_size, input_places ):
@@ -109,4 +119,5 @@ class PlaceBuilder(object):
         else:
            logging.info("Places: created {} places".format(rv))
          
-       
+           
+

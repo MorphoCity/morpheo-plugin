@@ -16,7 +16,7 @@ def get_requirements(filename):
         return []
 
 setup(
-    name='morpheo-plugin',
+    name='morpheo',
     version=version_tag,
     author='3Liz',
     author_email='infos@3liz.org',
@@ -28,7 +28,7 @@ setup(
     package_dir={'': 'src'},
     package_data={'morpheo.core.builders':['*.sql'], },
     entry_points={
-        'console_scripts': ['morpheo = morpheo.core.builder:morpheo_']
+        'console_scripts': ['morpheo = morpheo.core.morpheo_cli:main']
     },
     install_requires=get_requirements('requirements.txt'),
     classifiers=[

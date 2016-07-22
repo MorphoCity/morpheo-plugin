@@ -9,6 +9,7 @@ from ..logger import log_progress
 
 from .errors import BuilderError
 from .sql import SQL, execute_sql, delete_table
+from .layers import check_layer, open_shapefile, import_shapefile, export_shapefile
 from .sanitize import sanitize
 
 
@@ -20,32 +21,6 @@ class FileNotFoundError(BuilderError):
 
 class DatabaseNotFound(BuilderError):
     pass
-
-
-def check_layer(layer, wkbtypes):
-    """ Check layer validity
-    """
-    if wkbtypes and layer.wkbType() not in wkbtypes:
-        raise InvalidLayerError("Invalid geometry type for layer {}".format(layer.wkbType()))
-
-    if layer.crs().geographicFlag():
-       raise InvalidLayerError("Invalid CRS (lat/long) for layer")
-
-
-def open_shapefile( path, name ):
-    """ Open a shapefile as a qgis layer
-    """
-    from qgis.core import QgsVectorLayer
-
-    path = os.path.abspath(path)
-    if not os.path.exists(path):
-        raise FileNotFoundError("Shapefile not found: %s" % path)
-
-    layer = QgsVectorLayer(path, name, 'ogr' )
-    if not layer.isValid():
-        raise InvalidLayerError("Failed to load layer %s" % path)
-
-    return layer
 
 
 class SpatialiteBuilder(object):
@@ -63,12 +38,14 @@ class SpatialiteBuilder(object):
 
         logging.info("Opening database %s" % dbname)
         self._conn = db.connect(dbname)
-        self._dbname = dbname
+        self._dbname   = dbname
+        self._basename = os.path.basename(os.path.splitext(dbname)[0])
 
-        self._input_table   = table or os.path.basename(os.path.splitext(dbname)[0]).lower()
-        self._way_attribute = None
+        self._input_table   = table or self._basename.lower()
+        self._ways_output   = None
+        self._way_build_attribute = None
 
-    def build_graph( self, snap_distance, min_edge_length, way_attribute=None ):
+    def build_graph( self, snap_distance, min_edge_length, way_attribute=None, output=None ):
         """ Build morpheo topological graph
 
             This method will build the topological graph
@@ -98,10 +75,14 @@ class SpatialiteBuilder(object):
                             " GEOMETRY = (SELECT ST_SnapToGrid({table}.GEOMETRY,{prec}))",
                             table=working_table,
                             prec=precision))
+
+            if output is not None:
+                logging.info("Builder saving sanitized graph")
+                export_shapefile(self._dbname, working_table, output)
         else:
             working_table = self._input_table
        
-        self._way_attribute = way_attribute
+        self._way_build_attribute = way_attribute
 
         # Compute edges, way, vertices
         logging.info("Builder: Computing vertices and edges")
@@ -118,24 +99,7 @@ class SpatialiteBuilder(object):
                                 attribute=way_attribute))
         self._conn.commit()
 
-    def add_shapefile( self, path, name, wkbtypes ):
-        """ Add shapefile as new table in database
-        """
-        from subprocess import call
-
-        # Delete table it it exists
-        delete_table( self._conn, name )
-
-        layer = open_shapefile(path, name)
-        check_layer(layer, wkbtypes)
-
-        # Append layer to  database
-        ogr2ogr = os.environ['OGR2OGR']
-        rc = call([ogr2ogr,'-update', self._dbname, path, '-nln', name]) 
-        if rc != 0:
-            raise IOError("Failed to add layer to database '{}'".format(self._dbname))
-
-    def build_places(self, buffer_size, places=None, loop_output=None):
+    def build_places(self, buffer_size, places=None, output=None):
         """ Build places
             
             Build places from buffer and/or external places definition.
@@ -147,46 +111,67 @@ class SpatialiteBuilder(object):
 
             :param buffer_size: buffer size applied to vertices
             :param places: path of an external shapefile containing places definitions
-            :param loop_output: path of a shapefile to write computed places to.
+            :param output: path of a shapefile to write computed places to.
         """
         input_places_table = None
         if places is not None:
             input_places_table = 'input_places'
             # Open the places shapefile and insert in as 'input_places' table
             from qgis.core import QGis
-            self.add_shapefile( places, input_places_table, (QGis.WKBPolygon25D, QGis.WKBPolygon))
+            # Delete table it it exists
+            delete_table( self._conn, input_places_table )
+            # Add shapefile
+            import_shapefile( self._dbname, places, input_places_table, (QGis.WKBPolygon25D, QGis.WKBPolygon))
 
         from places import PlaceBuilder
         builder = PlaceBuilder(self._conn)
-        builder.build_places(buffer_size, input_places_table, loop_output=loop_output) 
+        builder.build_places(buffer_size, input_places_table) 
 
-    def build_ways(self,  threshold, output=None) :
+        if output is not None:
+            logging.info("Builder: Saving places to %s" % output)
+            export_shapefile(self._dbname, 'places', output)
+
+    def export_ways(self):
+        """ Export ways to shapefile
+        """
+        if self._ways_output is not None:
+            export_shapefile(self._dbname, 'ways', self._ways_output)
+
+    def build_ways(self,  threshold, output=None, attributes=False, **kwargs) :
         """ Build way's hypergraph
 
-            :param threshold: 
+            :param threshold: Angle treshold
             :param output: output shapefile to store results
+            :param attributes: compute attributes
         """
         from ways import WayBuilder
         builder = WayBuilder(self._conn)
         builder.build_ways(threshold)
+
+        if attributes:
+            self.compute_way_attributes( *kwargs )
+
+        self._ways_output = output
+        self.export_ways()
 
     def compute_way_attributes( self, orthogonality, betweenness, closeness, stress):
         """ Compute attributes for ways:
 
             :param orthogonality: If True, compute orthogonality.
             :param betweenness:   If True, compute betweenness centrality.
-
             :param stress:        If True, compute stress centrality.
+            :param closeness:     If True, compute closeness.
         """
         from ways import WayBuilder
         builder = WayBuilder(self._conn)
         builder.compute_local_attributes(orthogonality = orthogonality)
         if any((betweenness, closeness, stress)):
-            buldier.compute_global_attributes(
+            builder.compute_global_attributes(
                     betweenness = betweenness,
                     closeness   = closeness,
                     stress      = stress)
-       
+
+
     def build_ways_from_attribute(self, output=None):
         """ Build way's hypergraph from street names.
 
@@ -210,6 +195,7 @@ class SpatialiteBuilder(object):
         """ Build graph from shapefile definition
 
             :param path: The path of the shapefile
+            :param dbname: Optional name of the output database (default to file basename)
             :returns: A Builder object
         """
         basename = os.path.basename(os.path.splitext(path)[0])

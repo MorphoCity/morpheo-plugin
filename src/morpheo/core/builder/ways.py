@@ -6,16 +6,37 @@ from __future__ import print_function
 import os
 import logging
 
-
 import numpy as np
 
 from numpy import sin
+from numpy import pi
 from functools import partial
 from itertools import takewhile
 from ..logger import log_progress
 
 from .errors import BuilderError
-from .sql import SQL, execute_sql, delete_table
+from .sql import SQL, execute_sql, attr_table
+
+
+def iter_places(rows):
+    """ Generator for iterating throught places 
+
+        :param rows: A ordered list of squences whose first element
+                     is an place index which is the sort 
+                     criteria. Thus, element which have the same index
+                     are all adjacent in the list.
+
+        At each invocation, the iterator return a tuple (place,list)
+        where place is the place index and list the list of elements
+        for the same index.
+    """
+    s = 0
+    while s<len(rows):
+        p = rows[s][0]
+        l = list(takewhile(lambda x: x[0]==p,  rows[s:]))
+        s = s+len(l)
+        yield p,l
+ 
 
 
 class WayBuilder(object):
@@ -30,7 +51,7 @@ class WayBuilder(object):
        def azimuth(x1,y1,x2,y2):
            p1.set(x1,y1)
            p2.set(x2,y2)
-           return p1.azimuth(p2) / 180.0 * np.pi
+           return p1.azimuth(p2) / 180.0 * pi
 
        def distance(x1,y1,x2,y2):
            p1.set(x1,y1)
@@ -106,16 +127,6 @@ class WayBuilder(object):
         # Each edge is given a way number, 
         # Places with degree=2 are automatically paired together
 
-        # Iterate through places, returning the set of edges/vector for
-        # that place
-        def places():
-            s = 0
-            while s<len(rows):
-                p = edges_az[s][0]
-                l = list(takewhile(lambda x: x[0]==p, edges_az[s:]))
-                s = s+len(l)
-                yield p,l
- 
         # Array to store distance corrections for ways
         distances = np.zeros(max_edges+1)
        
@@ -129,7 +140,7 @@ class WayBuilder(object):
                 startplaces[fid] = place
             else:
                 if endplaces[fid] != 0:
-                    logging.error("build_way: extraneous end place for edge {}".format(fid))
+                    logging.error("Ways: extraneous end place for edge {}".format(fid))
                     raise BuilderError("Cannot set more than two ends for one way") 
                 endplaces[fid] = place
 
@@ -147,7 +158,7 @@ class WayBuilder(object):
             distances[e2[1]] = distances[e2[1]] + d/2.0
 
         num_places = 0
-        for place, edges in places():
+        for place, edges in iter_places(edges_az):
             n = len(edges)
             num_places = num_places+1
             if n>2:
@@ -173,7 +184,7 @@ class WayBuilder(object):
         update(ways)
         num_ways = num_partitions(ways)
 
-        logging.info("Computed {} ways (num places={}, num edges={})".format(num_ways,num_places,max_edges))
+        logging.info("Ways: computed {} ways (num places={}, num edges={})".format(num_ways,num_places,max_edges))
         
         self._build_way_table(cur, ways, distances, startplaces, endplaces)
         self._conn.commit()
@@ -189,12 +200,12 @@ class WayBuilder(object):
         cur.executemany(SQL("INSERT INTO way_partition(PEDGE,WAY,DIST,START_PL,END_PL) SELECT ?,?,?,?,?"),
                 [(fid,way,distances[fid],startplaces[fid],endplaces[fid]) for fid,way in enumerate(ways)])
 
-        logging.info("Updating place edges with way id") 
+        logging.info("Ways: updating place edges with way id") 
         cur.execute(SQL("""UPDATE place_edges
             SET WAY = (SELECT WAY FROM way_partition WHERE PEDGE=place_edges.OGC_FID)
         """))
 
-        logging.info("Build ways table")
+        logging.info("Ways: build ways table")
         execute_sql(self._conn, "ways.sql")
 
     def compute_local_attributes(self,  orthogonality=False ):
@@ -205,8 +216,8 @@ class WayBuilder(object):
             :param orthogonality: If set to True, compute orthogonality;
                                   default to False.
         """
-        logging.info("Computing local attributes")
-        execute_sql(self._conn, "way_local.sql")
+        logging.info("Ways: computing local attributes")
+        execute_sql(self._conn, "ways_local.sql")
 
         # Compute orthogonality
         if orthogonality:
@@ -219,7 +230,7 @@ class WayBuilder(object):
         """
         from .angles import angle_from_azimuth
 
-        logging.info("Computing orthogonality")
+        logging.info("Ways: computing orthogonality")
 
         f_azimuth = self.azimuth
 
@@ -250,17 +261,9 @@ class WayBuilder(object):
 
         # Compute all angles for each pairs of way 
         # for each places
-
-        def places():
-            s = 0
-            while s<len(rows):
-                p = way_places[s][0]
-                l = list(takewhile(lambda x: x[0]==p, way_places[s:]))
-                s = s+len(l)
-                yield p,l
         
         def compute_angles():
-            for place, ways in places():
+            for place, ways in iter_places(way_places):
                 n = len(ways)
                 if n==1:
                     continue
@@ -290,4 +293,67 @@ class WayBuilder(object):
                 FROM way_angles WHERE WAY2=ways.WAY_ID)
                 GROUP BY p,e
            ))"""))
+
+
+    def compute_global_attributes(self, betweenness=False, closeness=False, stress=False):
+        """ Compute global attributes
+
+            :param closeness:   If True, compute closeness.
+            :param betweenness: If True, compute betweenness centrality.
+            :param stress:      If True, compute stress centrality.
+
+            These attributes with networkx package
+            see: http://networkx.readthedocs.io/en/networkx-1.10/reference/algorithms.html
+
+            Note that the closeness is defined as 
+
+            ..math::
+                C(u) = \frac{n - 1}{\sum_{v=1}^{n-1} d(v, u)},
+
+            where `d(v, u)` is the shortest-path distance between `v` and `u`,
+            and `n` is the number of nodes in the graph.
+        """
+        import networkx as nx
+
+        g = self.create_line_graph()
+
+        cur = self._conn.cursor()
+
+        with attr_table(cur, "global_attributes") as attrs:
+               
+            if betweenness:
+                logging.info("Ways: computing betweenness centrality")
+                attrs.update('ways', 'WAY_ID', 'BETWEENNESS', nx.betweenness_centrality(g).items())
+
+            if closeness:
+                logging.info("Ways: computing closeness centrality")
+                attrs.update('ways', 'WAY_ID', 'CLOSENESS', nx.closeness_centrality(g).items())
+
+
+
+    def create_line_graph(self):
+        """ Create a line graph from ways
+
+            Each node is way,
+            Each edge is connection between two intersecting ways
+        """ 
+        import networkx as nx
+        
+        # Build an adjacency matrix 
+        cur  = self._conn.cursor()
+        rows = cur.execute(SQL("SELECT PLACE,WAY_ID FROM way_places ORDER BY PLACE")).fetchall()
+
+        # Undirected, simple (not multi-) graph 
+        g = nx.Graph()
+
+        for p,ways in iter_places(rows):
+            n = len(ways)
+            if n==1: continue
+            for i in xrange(n-1):
+                w1 = ways[i][1]
+                for j in xrange(i+1,n):
+                    w2 = ways[j][1]
+                    g.add_edge(w1,w2)
+
+        return g
 

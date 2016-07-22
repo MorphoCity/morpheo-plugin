@@ -244,7 +244,9 @@ CREATE TABLE ways(
     CONNECTIVITY  real    DEFAULT 0.0,
     CLOSENESS     real    DEFAULT 0.0,
     SPACING       real    DEFAULT 0.0,
-    ORTHOGONALITY real    DEFAULT 0.0
+    ORTHOGONALITY real    DEFAULT 0.0,
+    BETWEENNESS   real    DEFAULT 0.0,
+    USE           real    DEFAULT 0.0
 );
 
 

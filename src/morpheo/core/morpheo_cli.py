@@ -7,8 +7,8 @@ import sys
 import logging
 
 from math import pi
-from builders.errors import BuilderError
-from builders.graph_builder import SpatialiteBuilder
+from builder.errors import BuilderError
+from builder.graph_builder import SpatialiteBuilder
 
 Builder = SpatialiteBuilder
 
@@ -80,18 +80,28 @@ def build_graph( args ):
     """ Build a graph from a shapefile
     """
     builder = Builder.from_shapefile( args.shapefile, args.dbname )
-    builder.build_graph(args.snap_distance, args.min_edge_length, args.attribute)
+    builder.build_graph(args.snap_distance, args.min_edge_length, args.attribute,
+                        output=args.output)
 
 
 def build_ways( args ):
     """ Build ways
     """
     builder = Builder.from_database( args.dbname )
+    if args.attributes:
+        kwargs = dict(attributes=True,
+                      orthogonality = args.orthogonality,
+                      betweenness   = args.betweenness,
+                      closeness     = args.closeness,
+                      stress        = args.stress)
+    else:
+        kwargs = {}
+                     
     if args.street:
-        builder_build_ways_from_attribute(output=args.output)
+        builder_build_ways_from_attribute(output=args.output, **kwargs)
     else:
         builder.build_ways(threshold=args.threshold /180.0 * pi,
-                           output=args.output)
+                           output=args.output, **kwargs)
 
 
 def compute_way_attributes( args ):
@@ -111,10 +121,10 @@ def build_places( args ):
     builder = Builder.from_database( args.dbname )
     builder.build_places(buffer_size=args.buffer,
                          places=args.places,
-                         loop_output=args.loop_output)
+                         output=args.output)
 
     
-def morpheo_():
+def main():
     """ Run 'build_graph' from command line
     """
     import argparse
@@ -125,7 +135,7 @@ def morpheo_():
     parser = argparse.ArgumentParser(description=version)
     parser.add_argument("--logging"  , choices=('debug','info','warning','error'), default='info', help="set log level")
 
-    sub = parser.add_subparsers(title='commands', help='type morpheo <command> help')
+    sub = parser.add_subparsers(title='commands', help='type morpheo <command> --help')
 
     # Graph Builder command
     builder_cmd = sub.add_parser('graph')
@@ -133,15 +143,16 @@ def morpheo_():
     builder_cmd.add_argument("--snap-distance"  , metavar='VALUE', type=float, default=0.2, help="Snap distance")
     builder_cmd.add_argument("--min-edge-length", metavar='VALUE', type=float, default=4, help="Min edge length")
     builder_cmd.add_argument("--attribute",       metavar='NAME', default=None, help="Attribute for building street ways")
-    builder_cmd.add_argument("--dbname"   , default=None, help="Database name")
+    builder_cmd.add_argument("--dbname", default=None, help="Database name")
+    builder_cmd.add_argument("--output", default=None, help="Output sanitized data")
     builder_cmd.set_defaults(func=build_graph)
 
     # Places builder command
     places_cmd = sub.add_parser('places')
     places_cmd.add_argument("dbname", help="Database")
-    places_cmd.add_argument("--buffer"      , metavar='VALUE', type=float, default=4 , help="Buffer size")
-    places_cmd.add_argument("--places"      , metavar='PATH' , default=None, help="Default input polygons for places")
-    places_cmd.add_argument("--loop-output" , metavar='PATH' , default=None, help="Output polygons shapefile")
+    places_cmd.add_argument("--buffer" , metavar='VALUE', type=float, default=4 , help="Buffer size")
+    places_cmd.add_argument("--places" , metavar='PATH' , default=None, help="Default input polygons for places")
+    places_cmd.add_argument("--output" , metavar='PATH' , default=None, help="Output polygons shapefile")
     places_cmd.set_defaults(func=build_places)
 
     # Way builder command
@@ -150,6 +161,11 @@ def morpheo_():
     ways_cmd.add_argument("--street", action='store_true', default=False, help="Compute way using street name")
     ways_cmd.add_argument("--output"    , metavar='PATH' , default=None, help="Output ways shapefile")
     ways_cmd.add_argument("--threshold" , metavar='VALUE', type=float, default=30, help="Treshold angle (in degree)")
+    ways_cmd.add_argument("--attributes"   , action='store_true', default=False, help="Compute attributes")
+    ways_cmd.add_argument("--orthogonality", action='store_true', default=False, help="Compute orthogonality (require --attributes)")
+    ways_cmd.add_argument("--betweenness"  , action='store_true', default=False, help="Compute betweenness centrality (require --attributes)")
+    ways_cmd.add_argument("--closeness"    , action='store_true', default=False, help="Compute closeness centrality (require --attributes)")
+    ways_cmd.add_argument("--stress"       , action='store_true', default=False, help="Compute stress centrality (require --attributes)")
     ways_cmd.set_defaults(func=build_ways)
 
     # Way attributes command
