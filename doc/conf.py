@@ -21,7 +21,7 @@ VER = load_source("version","../src/morpheo/version.py")
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
-sys.path.insert(0, os.path.abspath('../src/morpheo/core'))
+sys.path.insert(0, os.path.abspath('../src/morpheo'))
 
 # -- General configuration -----------------------------------------------------
 
@@ -30,7 +30,7 @@ sys.path.insert(0, os.path.abspath('../src/morpheo/core'))
 
 # Add any Sphinx extension module names here, as strings. They can be extensions
 # coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
-extensions = ['sphinx.ext.autodoc', 'sphinx.ext.viewcode']
+extensions = ['sphinx.ext.autodoc', 'sphinx.ext.viewcode','sphinx.ext.mathjax']
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -192,7 +192,7 @@ latex_elements = {
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title, author, documentclass [howto/manual]).
 latex_documents = [
-    ('index', 'src.tex', u'Serveur de carte EDB',
+    ('index', 'src.tex', u'Morpheo plugin',
      u'3Liz', 'manual'),
 ]
 
