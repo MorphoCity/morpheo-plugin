@@ -137,7 +137,7 @@ class SpatialiteBuilder(object):
         if self._ways_output is not None:
             export_shapefile(self._dbname, 'ways', self._ways_output)
 
-    def build_ways(self,  threshold, output=None, attributes=False, **kwargs) :
+    def build_ways(self,  threshold, output=None, attributes=False, rtopo=False, **kwargs) :
         """ Build way's hypergraph
 
             :param threshold: Angle treshold
@@ -148,13 +148,16 @@ class SpatialiteBuilder(object):
         builder = WayBuilder(self._conn)
         builder.build_ways(threshold)
 
+        if rtopo:
+            builder.compute_topological_radius()
+
         if attributes:
             self.compute_way_attributes( **kwargs )
 
         self._ways_output = output
         self.export_ways()
 
-    def compute_way_attributes( self, orthogonality, betweenness, closeness, stress):
+    def compute_way_attributes( self, orthogonality, betweenness, closeness, stress, rtopo=False):
         """ Compute attributes for ways:
 
             :param orthogonality: If True, compute orthogonality.
@@ -165,6 +168,10 @@ class SpatialiteBuilder(object):
         from ways import WayBuilder
         builder = WayBuilder(self._conn)
         builder.compute_local_attributes(orthogonality = orthogonality)
+        
+        if rtopo:
+            builder.compute_topological_radius()
+
         if any((betweenness, closeness, stress)):
             builder.compute_global_attributes(
                     betweenness = betweenness,

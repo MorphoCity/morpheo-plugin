@@ -204,7 +204,7 @@ CREATE TABLE place_edges(
    END_PL    REFERENCES places(OGC_FID),
    START_VTX REFERENCES vertices(OGC_FID),  -- for optimizing join 
    END_VTX   REFERENCES vertices(OCG_FID),  -- for optimizing join
-   WAY       integer DEFAULT 0,
+   WAY       integer,
    STATUS    integer DEFAULT 0
 );
 

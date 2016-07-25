@@ -96,7 +96,10 @@ def build_ways( args ):
                       stress        = args.stress)
     else:
         kwargs = {}
-                     
+
+    if args.rtopo:
+        kwargs.update(rtopo=True)
+
     if args.street:
         builder_build_ways_from_attribute(output=args.output, **kwargs)
     else:
@@ -108,11 +111,12 @@ def compute_way_attributes( args ):
     """ Compute way attributes
     """
     builder = Builder.from_database( args.dbname )
-    builder.compute_way_attributes( 
+    builder.compute_way_attributes(
             orthogonality = args.orthogonality,
             betweenness   = args.betweenness,
             closeness     = args.closeness,
-            stress        = args.stress)
+            stress        = args.stress,
+            rtopo         = args.rtopo)
 
 
 def build_places( args ):
@@ -161,6 +165,7 @@ def main():
     ways_cmd.add_argument("--street", action='store_true', default=False, help="Compute way using street name")
     ways_cmd.add_argument("--output"    , metavar='PATH' , default=None, help="Output ways shapefile")
     ways_cmd.add_argument("--threshold" , metavar='VALUE', type=float, default=30, help="Treshold angle (in degree)")
+    ways_cmd.add_argument("--rtopo"        , action='store_true', default=False, help="Compute topological radius")
     ways_cmd.add_argument("--attributes"   , action='store_true', default=False, help="Compute attributes")
     ways_cmd.add_argument("--orthogonality", action='store_true', default=False, help="Compute orthogonality (require --attributes)")
     ways_cmd.add_argument("--betweenness"  , action='store_true', default=False, help="Compute betweenness centrality (require --attributes)")
@@ -175,6 +180,7 @@ def main():
     ways_cmd.add_argument("--betweenness"  , action='store_true', default=False, help="Compute betweenness centrality")
     ways_cmd.add_argument("--closeness"    , action='store_true', default=False, help="Compute closeness centrality")
     ways_cmd.add_argument("--stress"       , action='store_true', default=False, help="Compute stress centrality")
+    ways_cmd.add_argument("--rtopo"        , action='store_true', default=False, help="Compute topological radius")
     ways_cmd.set_defaults(func=compute_way_attributes)
 
     args = parser.parse_args()

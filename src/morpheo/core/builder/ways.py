@@ -85,9 +85,12 @@ class WayBuilder(object):
 
         cur = self._conn.cursor()
 
+        # Clean up way id on edges
+        cur.execute(SQL("UPDATE place_edges SET WAY = NULL"))
+
         # Get the (max) number of edges and places
-        max_edges  = cur.execute("SELECT Max(OGC_FID) from place_edges").fetchone()[0]
-        max_places = cur.execute("SELECT Max(OGC_FID) from places").fetchone()[0] 
+        max_edges  = cur.execute(SQL("SELECT Max(OGC_FID) from place_edges")).fetchone()[0]
+        max_places = cur.execute(SQL("SELECT Max(OGC_FID) from places")).fetchone()[0] 
 
         # Get the entry vector for edges in each place
         rows = cur.execute(SQL("""SELECT 
@@ -217,14 +220,12 @@ class WayBuilder(object):
     def compute_local_attributes(self,  orthogonality=False ):
         """ Compute local way attributes
 
-            See ways.sql for other attributes computed
+            Note that length, degree, connectivity and spacing are 
+            Computed 
 
             :param orthogonality: If set to True, compute orthogonality;
                                   default to False.
         """
-        logging.info("Ways: computing local attributes")
-        execute_sql(self._conn, "ways_local.sql")
-
         # Compute orthogonality
         if orthogonality:
             self.compute_orthogonality()
@@ -289,6 +290,7 @@ class WayBuilder(object):
                 [(pl,angle,way1,e1,way2,e2) for pl,angle,way1,e1,way2,e2 in compute_angles()])
 
         # Update orthogonality
+        cur.execute(SQL("UPDATE ways SET ORTHOGONALITY = (SELECT 0)"))
         cur.execute(SQL("""UPDATE ways SET ORTHOGONALITY = (
             SELECT Sum(inner)/ways.CONNECTIVITY FROM (
             SELECT Min(a) AS inner FROM (
@@ -311,15 +313,7 @@ class WayBuilder(object):
             These attributes with networkx package
             see: http://networkx.readthedocs.io/en/networkx-1.10/reference/algorithms.html
 
-            Note that the closeness is defined as 
-
-            .. math::
-
-                C(u) = \frac{n - 1}{\sum_{v=1}^{n-1} d(v, u)},
-
-            where `d(v, u)` is the shortest-path distance between `v` and `u`,
-            and `n` is the number of nodes in the graph.
-        """
+       """
         cur = self._conn.cursor()
         with attr_table(cur, "global_attributes") as attrs:
                
@@ -342,7 +336,16 @@ class WayBuilder(object):
         return nx.betweenness_centrality(G)
 
     def compute_closeness(self):
-        """ Compute closeness for each way
+        r""" Compute closeness for each way
+ 
+            Note that the closeness is defined as 
+
+            .. math::
+
+                C(u) = \frac{n - 1}{\sum_{v=1}^{n-1} d(v, u)},
+
+            where `d(v, u)` is the shortest-path distance between `v` and `u`,
+            and `n` is the number of nodes in the graph.
         """
         G = self.get_line_graph()
         return nx.closeness_centrality(G)
@@ -368,21 +371,23 @@ class WayBuilder(object):
             where `d(v, u)` is the shortest-path distance between `v` and `u`,
             and `n` is the number of nodes in the graph.
         """
+
+        logging.info("Ways: computing topological radius and accessibility")
+
         G = self.get_line_graph()
         path_length = nx.single_source_shortest_path_length
  
-        logging.info("Ways: computing topological radius")
-        
         nodes = G.nodes()
         cur   = self._conn.cursor()
 
         # Get the length for each ways
         lengths = cur.execute("SELECT WAY_ID,LENGTH FROM ways").fetchall()
 
+        # Compute topological radius and accessibility
         def compute( v ):
             sp = path_length(G,v)
             r = sum(sp.values())
-            a = sum(sp[k]*l for k,l in lengths)
+            a = sum(sp[r[0]]*r[1] for r in lengths)
             return v,r,a
 
         r_topo = [compute(v) for v in G.nodes()]
