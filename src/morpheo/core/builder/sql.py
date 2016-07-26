@@ -65,8 +65,7 @@ def execute_sql(conn, name, **kwargs):
     for i, statement in enumerate(statements):
         log_progress(i+1,count) 
         if statement:
-            logging.debug(statement)
-            cur.execute(statement)
+            cur.execute(SQL(statement))
     conn.commit()
 
 

@@ -88,22 +88,18 @@ def build_ways( args ):
     """ Build ways
     """
     builder = Builder.from_database( args.dbname )
+
+    kwargs = dict(classes=args.classes, rtopo=args.rtopo)
     if args.attributes:
-        kwargs = dict(attributes=True,
+        kwargs.update(attributes=True,
                       orthogonality = args.orthogonality,
                       betweenness   = args.betweenness,
                       closeness     = args.closeness,
                       stress        = args.stress)
-    else:
-        kwargs = {}
-
-    if args.rtopo:
-        kwargs.update(rtopo=True)
-
     if args.street:
         builder_build_ways_from_attribute(output=args.output, **kwargs)
     else:
-        builder.build_ways(threshold=args.threshold /180.0 * pi,
+        builder.build_ways(threshold=args.threshold/180.0 * pi,
                            output=args.output, **kwargs)
 
 
@@ -171,6 +167,7 @@ def main():
     ways_cmd.add_argument("--betweenness"  , action='store_true', default=False, help="Compute betweenness centrality (require --attributes)")
     ways_cmd.add_argument("--closeness"    , action='store_true', default=False, help="Compute closeness centrality (require --attributes)")
     ways_cmd.add_argument("--stress"       , action='store_true', default=False, help="Compute stress centrality (require --attributes)")
+    ways_cmd.add_argument("--classes"      , metavar='NUM', default=10, help="Number of classes")
     ways_cmd.set_defaults(func=build_ways)
 
     # Way attributes command
@@ -181,6 +178,7 @@ def main():
     ways_cmd.add_argument("--closeness"    , action='store_true', default=False, help="Compute closeness centrality")
     ways_cmd.add_argument("--stress"       , action='store_true', default=False, help="Compute stress centrality")
     ways_cmd.add_argument("--rtopo"        , action='store_true', default=False, help="Compute topological radius")
+    ways_cmd.add_argument("--classes"      , metavar='NUM', default=10, help="Number of classes")
     ways_cmd.set_defaults(func=compute_way_attributes)
 
     args = parser.parse_args()

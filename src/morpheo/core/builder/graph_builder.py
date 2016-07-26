@@ -157,7 +157,8 @@ class SpatialiteBuilder(object):
         self._ways_output = output
         self.export_ways()
 
-    def compute_way_attributes( self, orthogonality, betweenness, closeness, stress, rtopo=False):
+    def compute_way_attributes( self, orthogonality, betweenness, closeness, stress, 
+                                classes=10, rtopo=False):
         """ Compute attributes for ways:
 
             :param orthogonality: If True, compute orthogonality.
@@ -167,7 +168,7 @@ class SpatialiteBuilder(object):
         """
         from ways import WayBuilder
         builder = WayBuilder(self._conn)
-        builder.compute_local_attributes(orthogonality = orthogonality)
+        builder.compute_local_attributes(orthogonality = orthogonality, classes=classes)
         
         if rtopo:
             builder.compute_topological_radius()
@@ -176,7 +177,8 @@ class SpatialiteBuilder(object):
             builder.compute_global_attributes(
                     betweenness = betweenness,
                     closeness   = closeness,
-                    stress      = stress)
+                    stress      = stress,
+                    classes     = classes)
 
 
     def build_ways_from_attribute(self, output=None):

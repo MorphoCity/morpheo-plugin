@@ -17,6 +17,7 @@ from ..logger import log_progress
 
 from .errors import BuilderError
 from .sql import SQL, execute_sql, attr_table
+from .classes import compute_classes
 
 
 def iter_places(rows):
@@ -37,7 +38,15 @@ def iter_places(rows):
         l = list(takewhile(lambda x: x[0]==p,  rows[s:]))
         s = s+len(l)
         yield p,l
- 
+
+
+def compute_way_classes(attr_table, cur, attribute, classes):
+    """ Helper for computing classes
+    """
+    if classes > 0:
+        logging.info("Ways: computing classes for %s" % attribute)
+        rows = list(compute_classes(cur,'ways','WAY_ID', attribute, classes))
+        attr_table.update('ways','WAY_ID', attribute+'_CL',rows)
 
 
 class WayBuilder(object):
@@ -111,7 +120,7 @@ class WayBuilder(object):
                 FROM place_edges)
             ORDER BY pl
         """)).fetchall()
-
+        
         def deviation( az1, x1, y1, az2, x2, y2 ):
             """ Computei deviation  coefficient 
 
@@ -139,19 +148,12 @@ class WayBuilder(object):
         # Array to store distance corrections for ways
         distances = np.zeros(max_edges+1)
        
-        # Array to store starting places
-        startplaces = np.zeros(max_edges+1, dtype=int)
-        endplaces   = np.zeros(max_edges+1, dtype=int)
-
         def add_end( e, place ):
+            # TODO Collert start/end places 
+            # for ways
             fid = e[1]
-            if startplaces[fid] == 0: 
-                startplaces[fid] = place
-            else:
-                if endplaces[fid] != 0:
-                    logging.error("Ways: extraneous end place for edge {}".format(fid))
-                    raise BuilderError("Cannot set more than two ends for one way") 
-                endplaces[fid] = place
+
+
 
         # Way partition: resolve each pair by assigning them
         # to the same equivalent class. Partition are computed 
@@ -195,11 +197,11 @@ class WayBuilder(object):
 
         logging.info("Ways: computed {} ways (num places={}, num edges={})".format(num_ways,num_places,max_edges))
         
-        self._build_way_table(cur, ways, distances, startplaces, endplaces)
+        self._build_way_table(cur, ways, distances)
         self._conn.commit()
         return num_ways
         
-    def _build_way_table( self, cur, ways, distances, startplaces, endplaces ):
+    def _build_way_table( self, cur, ways, distances ):
         """ Write back way partition
 
             Create a table holding the partition mapping for edges. The table
@@ -207,7 +209,7 @@ class WayBuilder(object):
         """
         cur.execute(SQL("DELETE FROM way_partition"))
         cur.executemany(SQL("INSERT INTO way_partition(PEDGE,WAY,DIST,START_PL,END_PL) SELECT ?,?,?,?,?"),
-                [(fid,way,distances[fid],startplaces[fid],endplaces[fid]) for fid,way in enumerate(ways)])
+                [(fid,way,distances[fid],0,0) for fid,way in enumerate(ways)])
 
         logging.info("Ways: updating place edges with way id") 
         cur.execute(SQL("""UPDATE place_edges
@@ -217,7 +219,7 @@ class WayBuilder(object):
         logging.info("Ways: build ways table")
         execute_sql(self._conn, "ways.sql")
 
-    def compute_local_attributes(self,  orthogonality=False ):
+    def compute_local_attributes(self,  orthogonality=False, classes=0 ):
         """ Compute local way attributes
 
             Note that length, degree, connectivity and spacing are 
@@ -225,10 +227,19 @@ class WayBuilder(object):
 
             :param orthogonality: If set to True, compute orthogonality;
                                   default to False.
+            :param classes: Number of equal length classes
         """
-        # Compute orthogonality
-        if orthogonality:
-            self.compute_orthogonality()
+        cur = self._conn.cursor()
+        #with attr_table(cur, "local_classes") as cl_attrs:
+        with attr_table(cur, "local_attributes") as attrs:
+
+           for attr in ('DEGREE','LENGTH','CONNECTIVITY','SPACING'):
+                compute_way_classes(attrs, cur, attr, classes)
+           
+           # Compute orthogonality
+           if orthogonality:
+                self.compute_orthogonality()
+                compute_way_classes(attrs, cur, 'ORTHOGONALITY', classes)
 
         self._conn.commit()
     
@@ -290,7 +301,7 @@ class WayBuilder(object):
                 [(pl,angle,way1,e1,way2,e2) for pl,angle,way1,e1,way2,e2 in compute_angles()])
 
         # Update orthogonality
-        cur.execute(SQL("UPDATE ways SET ORTHOGONALITY = (SELECT 0)"))
+        cur.execute(SQL("UPDATE ways SET ORTHOGONALITY = NULL"))
         cur.execute(SQL("""UPDATE ways SET ORTHOGONALITY = (
             SELECT Sum(inner)/ways.CONNECTIVITY FROM (
             SELECT Min(a) AS inner FROM (
@@ -303,12 +314,13 @@ class WayBuilder(object):
            ))"""))
 
 
-    def compute_global_attributes(self, betweenness=False, closeness=False, stress=False):
+    def compute_global_attributes(self, betweenness=False, closeness=False, stress=False, classes=0):
         r""" Compute global attributes
         
             :param closeness:   If True, compute closeness.
             :param betweenness: If True, compute betweenness centrality.
             :param stress:      If True, compute stress centrality.
+            :param classes: Number of classes of equals length
 
             These attributes with networkx package
             see: http://networkx.readthedocs.io/en/networkx-1.10/reference/algorithms.html
@@ -320,14 +332,17 @@ class WayBuilder(object):
             if betweenness:
                 logging.info("Ways: computing betweenness centrality")
                 attrs.update('ways', 'WAY_ID', 'BETWEENNESS', self.compute_betweenness().items())
+                compute_way_classes(attrs, cur, 'BETWEENNESS', classes)
 
             if closeness:
                 logging.info("Ways: computing closeness centrality")
                 attrs.update('ways', 'WAY_ID', 'CLOSENESS', self.compute_closeness().items())
+                compute_way_classes(attrs, cur, 'CLOSENESS', classes)
 
             if stress:
                 logging.info("Ways: computing stress centrality")
-                attrs.update('ways', 'WAY_ID', 'USE', self.compute_use().items())
+                attrs.update('ways', 'WAY_ID', 'USE'   , self.compute_use().items())
+                compute_way_classes(attrs, cur, 'USE', classes)
 
     def compute_betweenness(self):
         """ Compute betweeness for each way
@@ -366,7 +381,7 @@ class WayBuilder(object):
 
             .. math::
                 
-                r_{topo}(u) = \sum_{v=1}^{n-1} d(v, u)},
+                r_{topo}(u) = \sum_{v=1}^{n-1} d(v, u),
 
             where `d(v, u)` is the shortest-path distance between `v` and `u`,
             and `n` is the number of nodes in the graph.
@@ -403,7 +418,6 @@ class WayBuilder(object):
                 RTOPO = (SELECT RTOPO FROM ways WHERE WAY_ID=edges.WAY_ID),
                 ACCES = (SELECT ACCES FROM ways WHERE WAY_ID=edges.WAY_ID)
         """))
-        
 
     def get_line_graph(self):
         if self._line_graph is None:

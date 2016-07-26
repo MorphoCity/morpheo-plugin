@@ -37,14 +37,22 @@ CREATE TABLE edges(
     DEGREE integer DEFAULT 0,
     NAME text default NULL,
     CONNECTIVITY  real    DEFAULT 0.0,
-    CLOSENESS     real    DEFAULT 0.0,
-    SPACING       real    DEFAULT 0.0,
-    ORTHOGONALITY real    DEFAULT 0.0,
-    BETWEENNESS   real    DEFAULT 0.0,
-    USE           real    DEFAULT 0.0,
-    RTOPO         real    DEFAULT 0.0,
-    ACCES         real    DEFAULT 0.0,
-    WAY_ID        integer 
+    WAY_ID           integer,
+    CLOSENESS        real,
+    SPACING          real,
+    ORTHOGONALITY    real,
+    BETWEENNESS      real,
+    USE              real,
+    RTOPO            real,
+    ACCES            real,
+    DEGREE_CL        integer,
+    LENGTH_CL        integer,
+    CONNECTIVITY_CL  integer,
+    CLOSENESS_CL     integer,
+    SPACING_CL       integer,
+    ORTHOGONALITY_CL integer,
+    BETWEENNESS_CL   integer,
+    USE_CL           integer
 );
 
 SELECT AddGeometryColumn( -- to ease update, because joins are not allowed
@@ -245,20 +253,28 @@ CREATE INDEX way_partition_WAY_idx    ON way_partition(WAY);
 
 
 CREATE TABLE ways(
-    OCG_FID integer PRIMARY KEY,
+    OGC_FID integer PRIMARY KEY,
     WAY_ID  integer,
     START_PL REFERENCES places(OGC_FID),
     END_PL   REFERENCES places(OGC_FID),
-    DEGREE        integer DEFAULT 0, 
-    LENGTH        real    DEFAULT 0.0,
-    CONNECTIVITY  real    DEFAULT 0.0,
-    CLOSENESS     real    DEFAULT 0.0,
-    SPACING       real    DEFAULT 0.0,
-    ORTHOGONALITY real    DEFAULT 0.0,
-    BETWEENNESS   real    DEFAULT 0.0,
-    USE           real    DEFAULT 0.0,
-    RTOPO         real    DEFAULT 0.0,
-    ACCES         real    DEFAULT 0.0
+    DEGREE           integer DEFAULT 0, 
+    LENGTH           real,
+    CONNECTIVITY     real,
+    CLOSENESS        real,
+    SPACING          real,
+    ORTHOGONALITY    real,
+    BETWEENNESS      real,
+    USE              real,
+    RTOPO            real,
+    ACCES            real,
+    DEGREE_CL        integer,
+    LENGTH_CL        integer,
+    CONNECTIVITY_CL  integer,
+    CLOSENESS_CL     integer,
+    SPACING_CL       integer,
+    ORTHOGONALITY_CL integer,
+    BETWEENNESS_CL   integer,
+    USE_CL           integer
 );
 
 
