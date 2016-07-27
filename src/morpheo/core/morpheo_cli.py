@@ -120,7 +120,7 @@ def build_places( args ):
     """
     builder = Builder.from_database( args.dbname )
     builder.build_places(buffer_size=args.buffer,
-                         places=args.places,
+                         places=args.input,
                          output=args.output)
 
     
@@ -151,7 +151,7 @@ def main():
     places_cmd = sub.add_parser('places')
     places_cmd.add_argument("dbname", help="Database")
     places_cmd.add_argument("--buffer" , metavar='VALUE', type=float, default=4 , help="Buffer size")
-    places_cmd.add_argument("--places" , metavar='PATH' , default=None, help="Default input polygons for places")
+    places_cmd.add_argument("--input"  , metavar='PATH' , default=None, help="Default input polygons for places")
     places_cmd.add_argument("--output" , metavar='PATH' , default=None, help="Output polygons shapefile")
     places_cmd.set_defaults(func=build_places)
 

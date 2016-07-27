@@ -233,13 +233,13 @@ class WayBuilder(object):
         #with attr_table(cur, "local_classes") as cl_attrs:
         with attr_table(cur, "local_attributes") as attrs:
 
-           for attr in ('DEGREE','LENGTH','CONNECTIVITY','SPACING'):
+           for attr in ('DEGREE','LENGTH','CONN','SPACING'):
                 compute_way_classes(attrs, cur, attr, classes)
            
            # Compute orthogonality
            if orthogonality:
                 self.compute_orthogonality()
-                compute_way_classes(attrs, cur, 'ORTHOGONALITY', classes)
+                compute_way_classes(attrs, cur, 'ORTHOG', classes)
 
         self._conn.commit()
     
@@ -301,9 +301,9 @@ class WayBuilder(object):
                 [(pl,angle,way1,e1,way2,e2) for pl,angle,way1,e1,way2,e2 in compute_angles()])
 
         # Update orthogonality
-        cur.execute(SQL("UPDATE ways SET ORTHOGONALITY = NULL"))
-        cur.execute(SQL("""UPDATE ways SET ORTHOGONALITY = (
-            SELECT Sum(inner)/ways.CONNECTIVITY FROM (
+        cur.execute(SQL("UPDATE ways SET ORTHOG = NULL"))
+        cur.execute(SQL("""UPDATE ways SET ORTHOG = (
+            SELECT Sum(inner)/ways.CONN FROM (
             SELECT Min(a) AS inner FROM (
                 SELECT PLACE AS p, ANGLE AS a, WAY2 AS w, EDGE2 AS e
                 FROM way_angles WHERE WAY1=ways.WAY_ID
@@ -331,13 +331,13 @@ class WayBuilder(object):
                
             if betweenness:
                 logging.info("Ways: computing betweenness centrality")
-                attrs.update('ways', 'WAY_ID', 'BETWEENNESS', self.compute_betweenness().items())
-                compute_way_classes(attrs, cur, 'BETWEENNESS', classes)
+                attrs.update('ways', 'WAY_ID', 'BETWEE', self.compute_betweenness().items())
+                compute_way_classes(attrs, cur, 'BETWEE', classes)
 
             if closeness:
                 logging.info("Ways: computing closeness centrality")
-                attrs.update('ways', 'WAY_ID', 'CLOSENESS', self.compute_closeness().items())
-                compute_way_classes(attrs, cur, 'CLOSENESS', classes)
+                attrs.update('ways', 'WAY_ID', 'CLOSEN', self.compute_closeness().items())
+                compute_way_classes(attrs, cur, 'CLOSEN', classes)
 
             if stress:
                 logging.info("Ways: computing stress centrality")

@@ -36,22 +36,23 @@ CREATE TABLE edges(
     LENGTH real,
     DEGREE integer DEFAULT 0,
     NAME text default NULL,
-    CONNECTIVITY  real    DEFAULT 0.0,
     WAY_ID           integer,
-    CLOSENESS        real,
-    SPACING          real,
-    ORTHOGONALITY    real,
-    BETWEENNESS      real,
-    USE              real,
-    RTOPO            real,
-    ACCES            real,
+    CONN             real, -- connectivity
+    CLOSEN           real, -- closeness
+    SPACING          real, -- spacing
+    ORTHOG           real, -- orthogonality
+    BETWEE           real, -- betweeness
+    USE              real, -- stress centrality
+    RTOPO            real, -- topological radius (from ways)
+    ACCES            real, -- accessibility      (from ways)
+    -- Classes 
     DEGREE_CL        integer,
     LENGTH_CL        integer,
-    CONNECTIVITY_CL  integer,
-    CLOSENESS_CL     integer,
+    CONN_CL          integer,
+    CLOSEN_CL        integer,
     SPACING_CL       integer,
-    ORTHOGONALITY_CL integer,
-    BETWEENNESS_CL   integer,
+    ORTHOG_CL        integer,
+    BETWEE_CL        integer,
     USE_CL           integer
 );
 
@@ -259,21 +260,22 @@ CREATE TABLE ways(
     END_PL   REFERENCES places(OGC_FID),
     DEGREE           integer DEFAULT 0, 
     LENGTH           real,
-    CONNECTIVITY     real,
-    CLOSENESS        real,
-    SPACING          real,
-    ORTHOGONALITY    real,
-    BETWEENNESS      real,
-    USE              real,
-    RTOPO            real,
-    ACCES            real,
+    CONN             real, -- connectivity
+    CLOSEN           real, -- closeness
+    SPACING          real, -- spacing
+    ORTHOG           real, -- orthogonality
+    BETWEE           real, -- betweeness
+    USE              real, -- stress centrality
+    RTOPO            real, -- topological radius
+    ACCES            real, -- accessibility
+    -- Classes
     DEGREE_CL        integer,
     LENGTH_CL        integer,
-    CONNECTIVITY_CL  integer,
-    CLOSENESS_CL     integer,
+    CONN_CL          integer,
+    CLOSEN_CL        integer,
     SPACING_CL       integer,
-    ORTHOGONALITY_CL integer,
-    BETWEENNESS_CL   integer,
+    ORTHOG_CL        integer,
+    BETWEE_CL        integer,
     USE_CL           integer
 );
 

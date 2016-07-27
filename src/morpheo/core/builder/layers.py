@@ -38,7 +38,7 @@ def import_shapefile( dbname, path, name, wkbtypes ):
         :param dbname: Path of the database 
         :param path: Path of the shapefile
         :param name: Name of the table
-        :wkbtypes: Required types for geometries 
+        :param wkbtypes: Required types for geometries
     """
     from subprocess import call
 
@@ -62,7 +62,7 @@ def export_shapefile( dbname, table, output ):
     """
     from subprocess import call
     ogr2ogr = os.environ['OGR2OGR']
-    rc = call([ogr2ogr,'-f','ESRI Shapefile','-overwrite',output,dbname,table])
+    rc = call([ogr2ogr,'-f','ESRI Shapefile','-overwrite',output,dbname,table,'-nln',"%s_%s" % (table,output)])
     if rc != 0:
         raise IOError("Failed to save '{}:{}' as  '{}'".format(dbname, table, output))
 

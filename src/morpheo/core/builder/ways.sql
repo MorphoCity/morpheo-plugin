@@ -1,6 +1,5 @@
 -- Build ways as geometric objects
 -- TESTS TODO
--- Check that there is no more that two edges that have the same way on each place 
 -- Check that there two places and only two for way on table way_partition
 -- Check that there is no missing START_PL/END_PL on table ways
 
@@ -20,6 +19,7 @@ GROUP BY e.WAY
 ;
 
 -- Update start/end places
+
 UPDATE ways SET
 START_PL = (SELECT p.START_PL FROM way_partition AS p WHERE p.WAY=ways.WAY_ID AND START_PL<>0),
 END_PL   = (SELECT p.END_PL   FROM way_partition AS p WHERE p.WAY=ways.WAY_ID AND END_PL<>0)
@@ -67,7 +67,7 @@ UPDATE ways SET DEGREE = (
 -- Number of arcs in the viary graph intersected by a way wich are
 -- not part of that way (sum by place)
  
-UPDATE ways SET CONNECTIVITY = (SELECT Count(1) FROM (
+UPDATE ways SET CONN = (SELECT Count(1) FROM (
     SELECT OGC_FID, START_PL FROM place_edges
     WHERE START_PL IN (SELECT PLACE FROM way_places WHERE WAY_ID=ways.WAY_ID)
     AND WAY<>ways.WAY_ID
@@ -80,7 +80,7 @@ UPDATE ways SET CONNECTIVITY = (SELECT Count(1) FROM (
 
 -- Spacing
 
-UPDATE ways SET SPACING = (SELECT ways.LENGTH/ways.CONNECTIVITY WHERE ways.CONNECTIVITY>0)
+UPDATE ways SET SPACING = (SELECT ways.LENGTH/ways.CONN WHERE ways.CONN>0)
 
 
 
