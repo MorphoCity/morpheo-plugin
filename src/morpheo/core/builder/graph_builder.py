@@ -8,7 +8,7 @@ import logging
 from ..logger import log_progress
 
 from .errors import BuilderError
-from .sql import SQL, execute_sql, delete_table
+from .sql import SQL, execute_sql, delete_table, connect_database
 from .layers import check_layer, open_shapefile, import_shapefile, export_shapefile
 from .sanitize import sanitize
 
@@ -34,10 +34,8 @@ class SpatialiteBuilder(object):
             :param dbname: the path of the database
             :param table: name of the table containing input data
         """
-        from pyspatialite import dbapi2 as db
-
         logging.info("Opening database %s" % dbname)
-        self._conn = db.connect(dbname)
+        self._conn     = connect_database(dbname)
         self._dbname   = dbname
         self._basename = os.path.basename(os.path.splitext(dbname)[0])
 
@@ -124,7 +122,7 @@ class SpatialiteBuilder(object):
             import_shapefile( self._dbname, places, input_places_table, (QGis.WKBPolygon25D, QGis.WKBPolygon))
 
         from places import PlaceBuilder
-        builder = PlaceBuilder(self._conn)
+        builder = PlaceBuilder(self._conn, self._dbname)
         builder.build_places(buffer_size, input_places_table) 
 
         if output is not None:

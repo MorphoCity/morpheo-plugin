@@ -14,6 +14,13 @@ class SQLNotFoundError(BuilderError):
     pass
 
 
+def connect_database( dbname ):
+    """ Connect to database 'dbname'
+    """
+    from pyspatialite import dbapi2 as db
+    return db.connect(dbname, check_same_thread=False)
+
+
 def SQL( sql, **kwargs):
     """ Wrap SQL statement 
     """
@@ -50,7 +57,7 @@ def load_sql(name, **kwargs):
     return sql
 
 
-def execute_sql(conn, name, **kwargs):
+def execute_sql(conn, name, quiet=False, **kwargs):
     """ Execute statements from sql file
 
         All extra named arguments will be used as substitution parameters
@@ -63,7 +70,8 @@ def execute_sql(conn, name, **kwargs):
     count = len(statements)
     cur   = conn.cursor()
     for i, statement in enumerate(statements):
-        log_progress(i+1,count) 
+        if not quiet:
+            log_progress(i+1,count) 
         if statement:
             cur.execute(SQL(statement))
     conn.commit()

@@ -6,19 +6,21 @@ from __future__ import print_function
 import os
 import logging
 
-from functools import partial
-from itertools import takewhile
 from ..logger import log_progress
 
 from .errors import BuilderError
-from .sql import SQL, execute_sql, delete_table
+from .sql import SQL, execute_sql, delete_table, connect_database
+
+BUFFER_TABLE='temp_buffer'
+
 
 class PlaceBuilder(object):
 
-    BUFFER_TABLE='temp_buffer'
 
-    def __init__(self, conn):
-       self._conn = conn
+    def __init__(self, conn, dbname, chunks=100):
+       self._conn   = conn
+       self._dbname = dbname
+       self._chunks = chunks
 
     def build_places( self, buffer_size, input_places=None):
         """ Build places
@@ -46,7 +48,8 @@ class PlaceBuilder(object):
             execute_sql(self._conn, "places.sql")
             self._conn.commit()
         finally:
-            delete_table(self._conn, self.BUFFER_TABLE)
+            pass
+            #delete_table(self._conn, BUFFER_TABLE)
 
 
     def creates_places_from_file(self, input_places):
@@ -64,14 +67,12 @@ class PlaceBuilder(object):
         logging.info("Places: building places from buffers (buffer size={})".format(buffer_size))
 
         # Load temporary table definition
-        delete_table(self._conn, self.BUFFER_TABLE)
-        execute_sql(self._conn, "buffers.sql", buffer_table=self.BUFFER_TABLE, input_table="vertices")
-
-        SQLP = partial(SQL,buffer_table=self.BUFFER_TABLE, buffer_size=buffer_size, input_places=input_places)
+        delete_table(self._conn, BUFFER_TABLE)
+        execute_sql(self._conn, "buffers.sql", quiet=True, buffer_table=BUFFER_TABLE, input_table="vertices")
 
         cur = self._conn.cursor()
 
-        cur.execute(SQLP("DELETE FROM places"))
+        cur.execute(SQL("DELETE FROM places"))
 
         # Apply buffer to entities and merge them
         # This will make a one unique geometry that will be splitted into elementary
@@ -81,39 +82,72 @@ class PlaceBuilder(object):
 
         # Note that we exclude 'cul-de-sac' vertices from aggregation
 
-        cur.execute(SQLP("""
-            INSERT INTO  {buffer_table}(GEOMETRY)
-            SELECT ST_Union(ST_Buffer( GEOMETRY, {buffer_size})) AS GEOMETRY FROM vertices
-            WHERE DEGREE > 1
-        """))
+        cur.execute(SQL("""
+                INSERT INTO {buffer_table}(GEOMETRY)
+                SELECT ST_Multi(ST_Buffer( GEOMETRY, {buffer_size})) FROM vertices
+                WHERE DEGREE > 1
+            """, buffer_table=BUFFER_TABLE, buffer_size=buffer_size))
 
-         # Explode buffer blob into elementary geometries
-        cur.execute(SQLP("""
+        def union_buffers( input_table ):
+            table = 'temp_buffer_table' 
+            # Create temporary buffer table
+
+            delete_table(self._conn, table)
+            execute_sql(self._conn, "buffers.sql", quiet=True, buffer_table=table, input_table=input_table)
+        
+            count = cur.execute(SQL("SELECT Max(OGC_FID) FROM {input_table}", input_table=input_table)).fetchone()[0]
+            size  = count / self._chunks
+            def iter_chunks():
+                start = 1
+                while start <= count:
+                    yield (start, start+size)
+                    start = start+size
+
+            for start, end in iter_chunks():
+                cur.execute(SQL("""
+                    INSERT INTO  {tmp_table}(GEOMETRY)
+                    SELECT ST_Union(GEOMETRY) AS GEOMETRY FROM {input_table}
+                    WHERE OGC_FID>={start} AND OGC_FID < {end}
+                """, tmp_table=table, input_table=input_table, buffer_size=buffer_size, start=start, end=end))
+                log_progress( end, count )
+            # Final merge into buffer_table
+            cur.execute(SQL("DELETE FROM {buffer_table}", buffer_table=BUFFER_TABLE))
+            cur.execute(SQL("""
+                INSERT INTO  {buffer_table}(GEOMETRY)
+                SELECT ST_Union(GEOMETRY)  FROM {tmp_table}
+            """, tmp_table=table, buffer_table=BUFFER_TABLE))
+           
+        union_buffers(BUFFER_TABLE)
+
+        # Explode buffer blob into elementary geometries
+        logging.info("Places: computing convex hulls")
+        cur.execute(SQL("""
            INSERT INTO places(GEOMETRY)
            SELECT ST_ConvexHull(GEOMETRY) FROM ElementaryGeometries WHERE f_table_name='{buffer_table}' AND origin_rowid=1
-        """))
+        """, buffer_table=BUFFER_TABLE))
 
         if input_places is not None:
             # Add input_places using the same merge ands split strategie
             # This will merge connexe input places as well as placse computed previously
-            cur.execute(SQLP("DELETE FROM {buffer_table}"))
-            cur.execute(SQLP("""
+            cur.execute(SQL("DELETE FROM {buffer_table}", buffer_table=BUFFER_TABLE))
+            cur.execute(SQL("""
                 INSERT INTO {buffer_table}(GEOMETRY)
-                    SELECT ST_Union(geom) FROM (
+                    SELECT geom FROM (
                         SELECT GEOMETRY AS geom FROM places
                         UNION ALL
                         SELECT GEOMETRY AS geom FROM {input_places})
-            """))
+            """, buffer_table=BUFFER_TABLE, input_places=input_places))
+            union_buffers(BUFFER_TABLE)
             # Split geometries again
-            cur.execute(SQLP("DELETE FROM places"))
-            cur.execute(SQLP("""
+            cur.execute(SQL("DELETE FROM places"))
+            cur.execute(SQL("""
                 INSERT INTO places(GEOMETRY)
                 SELECT ST_MakePolygon(ST_ExteriorRing(GEOMETRY))
                 FROM ElementaryGeometries WHERE f_table_name='{buffer_table}' AND origin_rowid=1
-            """))
+            """, buffer_table=BUFFER_TABLE))
 
         # Checkout number of places
-        rv = cur.execute(SQLP("Select Count(*) FROM places")).fetchone()[0]
+        rv = cur.execute(SQL("Select Count(*) FROM places")).fetchone()[0]
         if rv <= 0:
             raise BuilderError("No places created ! please check input data !")
         else:

@@ -32,9 +32,21 @@ SELECT CUL_DE_SAC, OGC_FID FROM places WHERE CUL_DE_SAC IS NOT NULL
 
 -- Update places with the number of vertices
 
-UPDATE places
-SET NB_VTX = (SELECT Count(*) FROM place_vtx AS p WHERE places.OGC_FID=p.PLACE)
-;
+-- Create temporary table
+CREATE TABLE IF NOT EXISTS nb_vtx(ID integer, VALUE integer);
+CREATE INDEX IF NOT EXISTS nb_vtx_idx ON nb_vtx(ID);
+
+DELETE FROM nb_vtx;
+
+INSERT INTO nb_vtx(ID,VALUE) SELECT pl.OGC_FID, Count(pl.OGC_FID) FROM place_vtx AS p, places AS pl WHERE pl.OGC_FID=p.PLACE
+        GROUP BY pl.OGC_FID;
+
+-- Update table
+UPDATE places SET NB_VTX = (SELECT VALUE FROM nb_vtx WHERE ID=places.OGC_FID);
+
+-- Clean up
+DROP INDEX nb_vtx_idx;
+DROP TABLE nb_vtx;
 
 -- Fill up place edge table
 
@@ -75,35 +87,44 @@ WHERE OGC_FID IN (SELECT e.OGC_FID
 
 -- Compute place's degree
 
-UPDATE places 
-SET DEGREE = 
-(
-    SELECT COUNT(1) FROM place_edges
-    WHERE place_edges.START_PL=places.OGC_FID 
-    OR place_edges.END_PL=places.OGC_FID
-)
-;
+-- Create temporary table
+CREATE TABLE IF NOT EXISTS place_degree(ID integer, VALUE integer);
+CREATE INDEX IF NOT EXISTS place_degree_idx ON place_degree(ID);
+
+DELETE FROM place_degree;
+
+INSERT INTO place_degree(ID,VALUE) SELECT pl.OGC_FID, Count(pl.OGC_FID) FROM place_edges AS pe, places AS pl 
+        WHERE pl.OGC_FID=pe.START_PL OR pl.OGC_FID=pe.END_PL
+        GROUP BY pl.OGC_FID;
+
+
+UPDATE places SET DEGREE = (SELECT VALUE FROM place_degree WHERE ID=places.OGC_FID);
 
 -- Add one for each loop
-UPDATE places 
-SET DEGREE = places.DEGREE + 
-(
-    SELECT COUNT(1) FROM place_edges
-    WHERE place_edges.START_PL=places.OGC_FID 
-    AND place_edges.END_PL=places.OGC_FID
-)
-;
+DELETE FROM place_degree;
+
+INSERT INTO place_degree(ID,VALUE) SELECT pl.OGC_FID, Count(pl.OGC_FID) FROM place_edges AS pe, places AS pl 
+        WHERE pl.OGC_FID=pe.START_PL AND pl.OGC_FID=pe.END_PL
+        GROUP BY pl.OGC_FID;
+ 
+UPDATE places SET DEGREE = places.DEGREE + (SELECT VALUE FROM place_degree WHERE ID=places.OGC_FID) 
+WHERE OGC_FID IN (SELECT ID FROM place_degree);
+
+-- Clean up
+DROP INDEX place_degree_idx;
+DROP TABLE place_degree;
 
 -- Remove all places with DEGREE=0 
 
 DELETE FROM places WHERE DEGREE=0
 ;
 
-
 -- Mark invalid geometries
 -- Invalid geometries are geometries that crosses start or end places
 -- multiple times - this may happends with places wich are not convex 
 -- such as digitalized places
+
+-- Create temporary table
 
 UPDATE place_edges SET
 STATUS = (
@@ -136,6 +157,7 @@ GEOMETRY =
 ;
 
 -- Cut geometry at end
+-- Exclude loop because they have already been handlel in the previous statement
 
 UPDATE place_edges SET
 GEOMETRY = 
@@ -144,7 +166,7 @@ GEOMETRY =
          ELSE place_edges.GEOMETRY
          END
   FROM places AS p 
-  WHERE p.OGC_FID=place_edges.END_PL
+  WHERE p.OGC_FID=place_edges.END_PL AND place_edges.END_PL<>place_edges.START_PL
   AND place_edges.ROWID IN (
       SELECT ROWID FROM Spatialindex
       WHERE f_table_name='place_edges' AND search_frame=p.GEOMETRY)

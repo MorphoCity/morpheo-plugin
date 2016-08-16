@@ -37,6 +37,10 @@ CREATE TABLE edges(
     DEGREE integer DEFAULT 0,
     NAME text default NULL,
     WAY_ID           integer,
+    -- Indicators
+    -- Note: because data will be exported to 
+    -- shapefile our names have to be compliant
+    -- to the limition of the dbf format (less than 10 chars)
     CONN             real, -- connectivity
     CLOSEN           real, -- closeness
     SPACING          real, -- spacing
@@ -260,6 +264,7 @@ CREATE TABLE ways(
     END_PL   REFERENCES places(OGC_FID),
     DEGREE           integer DEFAULT 0, 
     LENGTH           real,
+    -- Indicators
     CONN             real, -- connectivity
     CLOSEN           real, -- closeness
     SPACING          real, -- spacing
