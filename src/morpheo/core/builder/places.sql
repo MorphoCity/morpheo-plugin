@@ -157,16 +157,17 @@ GEOMETRY =
 ;
 
 -- Cut geometry at end
--- Exclude loop because they have already been handlel in the previous statement
+-- Exclude loop because they have already been handled in the previous statement
 
 UPDATE place_edges SET
 GEOMETRY = 
 (
-  SELECT CASE WHEN p.DEGREE>1 THEN ST_Difference(place_edges.GEOMETRY, p.GEOMETRY)
+    SELECT CASE WHEN (p.DEGREE>1 AND place_edges.END_PL<>place_edges.START_PL)
+         THEN ST_Difference(place_edges.GEOMETRY, p.GEOMETRY)
          ELSE place_edges.GEOMETRY
          END
   FROM places AS p 
-  WHERE p.OGC_FID=place_edges.END_PL AND place_edges.END_PL<>place_edges.START_PL
+  WHERE p.OGC_FID=place_edges.END_PL
   AND place_edges.ROWID IN (
       SELECT ROWID FROM Spatialindex
       WHERE f_table_name='place_edges' AND search_frame=p.GEOMETRY)
@@ -213,5 +214,14 @@ GEOMETRY = (
 ) WHERE STATUS=0
 ;
 
- 
+-- In some cases, convex hull overlaps non-connected places
+-- This leads in situation where place edges geometries are null when 
+-- computed from differences from places geometries
+-- In those case restore the original edge geometry
+
+UPDATE place_edges SET
+GEOMETRY = (SELECT e.GEOMETRY FROM edges AS e WHERE place_edges.EDGE=e.OGC_FID),
+STATUS   = 2
+WHERE GEOMETRY IS NULL
+
 
