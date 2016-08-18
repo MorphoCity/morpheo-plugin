@@ -18,9 +18,24 @@ def setup_log_handler(log_level, formatstr='%(levelname)s\t%(message)s', logger=
         logger.addHandler(channel)
 
 
-def log_progress( value, max_value=100, logger=None ):
+def log_progress( value, max_value=100, lastv=None, logger=None ):
     """ Log PROGRESS value
     """
-    logger   = logger or logging
     progress = int(100*float(min(value,max_value))/max_value)
-    logger.log(PROGRESS, msg="{}%".format(progress), extra={'progress': progress})
+    if lastv != progress:
+        logger = logger or logging
+        logger.log(PROGRESS, msg="{}%".format(progress), extra={'progress': progress})
+    return progress
+
+
+class Progress(object):
+    def __init__(self, total):
+        self._total = total
+        self._count = 0
+        self._progr = -1
+    
+    def __call__(self, inc=1):
+        self._count = self._count+inc
+        self._progr = log_progress(self._count, self._total, lastv=self._progr)
+
+

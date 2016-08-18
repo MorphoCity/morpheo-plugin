@@ -118,14 +118,12 @@ def next_argmin( m ):
         v = m.values[i,j]
         if v == m.nullvalue: break
         m.values[i,j] = m.nullvalue
-        yield m.elems[i],m.elems[j]
+        yield i,j
 
 
-def pop_args( m, e1, e2 ):
+def pop_args( m, i1, i2 ):
     """ Pop a pair of element
     """
-    i1 = m.elems.index(e1)
-    i2 = m.elems.index(e2)
     m.elems[i1] = None
     m.elems[i2] = None
     m.values[[i1,i2],:] = m.nullvalue
@@ -138,11 +136,9 @@ def get_remaining_elements( m ):
     return filter(None, m.elems)
 
 
-def get_value( m, e1, e2 ):
+def get_value( m, i1, i2 ):
     """ Return the value of a pair of element
     """
-    i1 = m.elems.index(e1)
-    i2 = m.elems.index(e2)
     return m.values[min(i1,i2),max(i1,i2)] 
 
 

@@ -39,10 +39,12 @@ CREATE INDEX IF NOT EXISTS nb_vtx_idx ON nb_vtx(ID);
 DELETE FROM nb_vtx;
 
 INSERT INTO nb_vtx(ID,VALUE) SELECT pl.OGC_FID, Count(pl.OGC_FID) FROM place_vtx AS p, places AS pl WHERE pl.OGC_FID=p.PLACE
-        GROUP BY pl.OGC_FID;
+        GROUP BY pl.OGC_FID
+;
 
 -- Update table
-UPDATE places SET NB_VTX = (SELECT VALUE FROM nb_vtx WHERE ID=places.OGC_FID);
+UPDATE places SET NB_VTX = (SELECT VALUE FROM nb_vtx WHERE ID=places.OGC_FID)
+;
 
 -- Clean up
 DROP INDEX nb_vtx_idx;
@@ -50,7 +52,7 @@ DROP TABLE nb_vtx;
 
 -- Fill up place edge table
 
-INSERT INTO place_edges(EDGE, GEOMETRY, START_VTX, END_VTX)
+INSERT INTO place_edges(OGC_FID, GEOMETRY, START_VTX, END_VTX)
 SELECT e.OGC_FID, e.GEOMETRY, e.START_VTX, e.END_VTX
 FROM edges AS e
 ;
@@ -93,22 +95,28 @@ CREATE INDEX IF NOT EXISTS place_degree_idx ON place_degree(ID);
 
 DELETE FROM place_degree;
 
-INSERT INTO place_degree(ID,VALUE) SELECT pl.OGC_FID, Count(pl.OGC_FID) FROM place_edges AS pe, places AS pl 
+INSERT INTO place_degree(ID,VALUE) 
+    SELECT pl.OGC_FID, Count(pl.OGC_FID) FROM place_edges AS pe, places AS pl 
         WHERE pl.OGC_FID=pe.START_PL OR pl.OGC_FID=pe.END_PL
-        GROUP BY pl.OGC_FID;
+        GROUP BY pl.OGC_FID
+;
 
-
-UPDATE places SET DEGREE = (SELECT VALUE FROM place_degree WHERE ID=places.OGC_FID);
+UPDATE places SET DEGREE = (SELECT VALUE FROM place_degree WHERE place_degree.ID=places.OGC_FID)
+WHERE OGC_FID IN (SELECT ID FROM place_degree)
+;
 
 -- Add one for each loop
 DELETE FROM place_degree;
 
-INSERT INTO place_degree(ID,VALUE) SELECT pl.OGC_FID, Count(pl.OGC_FID) FROM place_edges AS pe, places AS pl 
+INSERT INTO place_degree(ID,VALUE) 
+    SELECT pl.OGC_FID, Count(pl.OGC_FID) FROM place_edges AS pe, places AS pl 
         WHERE pl.OGC_FID=pe.START_PL AND pl.OGC_FID=pe.END_PL
         GROUP BY pl.OGC_FID;
  
-UPDATE places SET DEGREE = places.DEGREE + (SELECT VALUE FROM place_degree WHERE ID=places.OGC_FID) 
-WHERE OGC_FID IN (SELECT ID FROM place_degree);
+UPDATE places SET DEGREE = 
+    places.DEGREE + (SELECT VALUE FROM place_degree WHERE place_degree.ID=places.OGC_FID) 
+WHERE OGC_FID IN (SELECT ID FROM place_degree)
+;
 
 -- Clean up
 DROP INDEX place_degree_idx;
@@ -220,8 +228,13 @@ GEOMETRY = (
 -- In those case restore the original edge geometry
 
 UPDATE place_edges SET
-GEOMETRY = (SELECT e.GEOMETRY FROM edges AS e WHERE place_edges.EDGE=e.OGC_FID),
+GEOMETRY = (SELECT e.GEOMETRY FROM edges AS e WHERE place_edges.OGC_FID=e.OGC_FID),
 STATUS   = 2
 WHERE GEOMETRY IS NULL
+;
+
+-- Clean up
+VACUUM
+;
 
 

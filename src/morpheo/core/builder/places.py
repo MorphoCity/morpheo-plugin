@@ -103,6 +103,8 @@ class PlaceBuilder(object):
                     yield (start, start+size)
                     start = start+size
 
+            logging.info("Places: Building union of buffers")
+
             for start, end in iter_chunks():
                 cur.execute(SQL("""
                     INSERT INTO  {tmp_table}(GEOMETRY)
@@ -111,6 +113,7 @@ class PlaceBuilder(object):
                 """, tmp_table=table, input_table=input_table, buffer_size=buffer_size, start=start, end=end))
                 log_progress( end, count )
             # Final merge into buffer_table
+            logging.info("Places: finalizing union...")
             cur.execute(SQL("DELETE FROM {buffer_table}", buffer_table=BUFFER_TABLE))
             cur.execute(SQL("""
                 INSERT INTO  {buffer_table}(GEOMETRY)
@@ -126,16 +129,19 @@ class PlaceBuilder(object):
            SELECT ST_ConvexHull(GEOMETRY) FROM ElementaryGeometries WHERE f_table_name='{buffer_table}' AND origin_rowid=1
         """, buffer_table=BUFFER_TABLE))
 
+        self._conn.commit()
+
         if input_places is not None:
             # Add input_places using the same merge ands split strategie
-            # This will merge connexe input places as well as placse computed previously
+            # This will merge connexe input places as well as places computed previously
+            logging.info("Places: adding external places geometries") 
             cur.execute(SQL("DELETE FROM {buffer_table}", buffer_table=BUFFER_TABLE))
             cur.execute(SQL("""
                 INSERT INTO {buffer_table}(GEOMETRY)
-                    SELECT geom FROM (
+                    SELECT ST_Multi(geom) FROM (
                         SELECT GEOMETRY AS geom FROM places
                         UNION ALL
-                        SELECT GEOMETRY AS geom FROM {input_places})
+                        SELECT CastToXYZ(GEOMETRY) AS geom FROM {input_places})
             """, buffer_table=BUFFER_TABLE, input_places=input_places))
             union_buffers(BUFFER_TABLE)
             # Split geometries again

@@ -74,7 +74,9 @@ class SpatialiteBuilder(object):
                             table=working_table,
                             prec=precision))
 
+            cur.close()
             if output is not None:
+                self._conn.commit()
                 logging.info("Builder saving sanitized graph")
                 export_shapefile(self._dbname, working_table, output)
         else:
@@ -91,11 +93,16 @@ class SpatialiteBuilder(object):
         if way_attribute:
             cur = self._conn.cursor()
             cur.execute(SQL("UPDATE edges SET NAME = ("
-                                "SELECT {attribute} FROM {input_table} AS b "
-                                "WHERE edges.OGC_FID = b.OGC_GID)",
-                                input_table=working_table,
-                                attribute=way_attribute))
+                            "SELECT {attribute} FROM {input_table} AS b "
+                            "WHERE edges.OGC_FID = b.OGC_GID)",
+                            input_table=working_table,
+                            attribute=way_attribute))
+            cur.close()
         self._conn.commit()
+        if output is not None:
+            logging.info("Builder: saving edges and vertices")
+            export_shapefile(self._dbname, 'edges'   , output)
+            export_shapefile(self._dbname, 'vertices', output)
 
     def build_places(self, buffer_size, places=None, output=None):
         """ Build places
@@ -221,7 +228,8 @@ class SpatialiteBuilder(object):
        
         check_layer(layer, (QGis.WKBLineString25D, QGis.WKBLineString))
 
-        dbname = dbname or 'morpheo_'+layer.name().replace(" ", "_") + '.sqlite'
+        dbname = dbname or 'morpheo_'+layer.name().replace(" ", "_")
+        dbname = dbname + '.sqlite'
         if os.path.isfile(dbname):
             logging.info("Removing existing database %s" % dbname)
             os.remove(dbname)

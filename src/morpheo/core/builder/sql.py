@@ -18,8 +18,11 @@ def connect_database( dbname ):
     """ Connect to database 'dbname'
     """
     from pyspatialite import dbapi2 as db
-    return db.connect(dbname, check_same_thread=False)
-
+    conn = db.connect(dbname)
+    cur  = conn.cursor()
+    cur.execute("PRAGMA temp_store=MEMORY")
+    cur.close()
+    return conn
 
 def SQL( sql, **kwargs):
     """ Wrap SQL statement 
@@ -96,8 +99,9 @@ def delete_table( conn, table ):
 def create_attribute_table( cur, name,  dtype='real'):
     """ Create a table for storing temporary results 
     """
-    cur.execute(SQL("CREATE TABLE {name}(ID integer,VALUE {dtype})",name=name,dtype=dtype))
-    cur.execute(SQL("CREATE INDEX {name}_ID_idx ON {name}(ID)",name=name))
+    cur.execute(SQL("CREATE TABLE IF NOT EXISTS {name}(ID integer,VALUE {dtype})",name=name,dtype=dtype))
+    cur.execute(SQL("CREATE INDEX IF NOT EXISTS {name}_ID_idx ON {name}(ID)",name=name))
+    cur.execute(SQL("DELETE FROM {name}",name=name))
     return name
 
 

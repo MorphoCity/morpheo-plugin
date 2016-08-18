@@ -30,9 +30,9 @@ CREATE INDEX vertices_DEGREE_idx ON vertices(DEGREE);
 -- Edges
 
 CREATE TABLE edges(
-    OGC_FID integer PRIMARY KEY REFERENCES $input_table(OGC_FID),
-    START_VTX integer REFERENCES vertices(OGC_FID),
-    END_VTX integer REFERENCES vertices(OGC_FID),
+    OGC_FID integer PRIMARY KEY,
+    START_VTX integer, -- REFERENCES vertices(OGC_FID),
+    END_VTX integer,   -- REFERENCES vertices(OGC_FID),
     LENGTH real,
     DEGREE integer DEFAULT 0,
     NAME text default NULL,
@@ -84,8 +84,8 @@ CREATE INDEX edges_WAY_ID_idx ON edges(WAY_ID);
 
 -- Copy edges from origin table
 
-INSERT INTO edges(GEOMETRY, LENGTH)
-SELECT GEOMETRY, GLength(GEOMETRY)
+INSERT INTO edges(OGC_FID, GEOMETRY, LENGTH)
+SELECT OGC_FID, GEOMETRY, GLength(GEOMETRY)
 FROM $input_table
 ;
 
@@ -170,10 +170,10 @@ SET DEGREE =
 -- Places are created from buffers and from external geometries
 
 CREATE TABLE places(
-    OGC_FID integer primary key,
-    DEGREE  integer default 0,
+    OGC_FID integer PRIMARY KEY,
+    DEGREE  integer DEFAULT 0,
     NB_VTX  integer,
-    CUL_DE_SAC REFERENCES vertices(OGC_FID)
+    CUL_DE_SAC integer -- REFERENCES vertices(OGC_FID)
 );
 
 SELECT AddGeometryColumn(
@@ -200,8 +200,8 @@ CREATE INDEX places_cul_de_sac_idx  ON places(CUL_DE_SAC);
 -- This table is faster to build than using subquery/join with 
 
 CREATE TABLE place_vtx(
-    VERTEX REFERENCES vertices(OGC_FID),
-    PLACE  REFERENCES places(OGC_FID)
+    VERTEX integer, -- REFERENCES vertices(OGC_FID),
+    PLACE  integer  -- REFERENCES places(OGC_FID)
 );
 
 CREATE INDEX place_vtx_vtx_idx   ON place_vtx(VERTEX);
@@ -212,11 +212,10 @@ CREATE INDEX place_vtx_place_idx ON place_vtx(PLACE);
 
 CREATE TABLE place_edges(
    OGC_FID   integer PRIMARY KEY,
-   EDGE      REFERENCES edges(OGC_FID),
-   START_PL  REFERENCES places(OGC_FID),
-   END_PL    REFERENCES places(OGC_FID),
-   START_VTX REFERENCES vertices(OGC_FID),  -- for optimizing join 
-   END_VTX   REFERENCES vertices(OCG_FID),  -- for optimizing join
+   START_PL  integer, -- REFERENCES places(OGC_FID),
+   END_PL    integer, -- REFERENCES places(OGC_FID),
+   START_VTX integer, -- REFERENCES vertices(OGC_FID),  -- for optimizing join 
+   END_VTX   integer, -- REFERENCES vertices(OCG_FID),  -- for optimizing join
    WAY       integer,
    STATUS    integer DEFAULT 0
 );
@@ -240,28 +239,25 @@ SELECT AddGeometryColumn(
 SELECT CreateSpatialIndex('place_edges', 'GEOMETRY');
 CREATE INDEX place_edges_start_pl_idx   ON place_edges(START_PL);
 CREATE INDEX place_edges_end_pl_idx     ON place_edges(END_PL);
-CREATE INDEX place_edges_edge_idx       ON place_edges(EDGE);
 CREATE INDEX place_edges_start_vtx_idx  ON place_edges(START_VTX);
 CREATE INDEX place_edges_end_vtx_idx    ON place_edges(END_VTX);
 CREATE INDEX place_edges_end_way_idx    ON place_edges(WAY);
 
 CREATE TABLE way_partition(
-    PEDGE REFERENCES place_edges(OGC_FID),
+    EDGE  integer,
     WAY   integer,
-    DIST  real,
-    START_PL REFERENCES places(OGC_FID),
-    END_PL   REFERENCES places(OGC_FID)
+    DIST  real
 );
 
-CREATE INDEX way_partition_PEDGE_idx  ON way_partition(PEDGE);
-CREATE INDEX way_partition_WAY_idx    ON way_partition(WAY);
+CREATE INDEX way_partition_EDGE_idx  ON way_partition(EDGE);
+CREATE INDEX way_partition_WAY_idx   ON way_partition(WAY);
 
 
 CREATE TABLE ways(
     OGC_FID integer PRIMARY KEY,
     WAY_ID  integer,
-    START_PL REFERENCES places(OGC_FID),
-    END_PL   REFERENCES places(OGC_FID),
+    START_PL integer, -- REFERENCES places(OGC_FID),
+    END_PL   integer, -- REFERENCES places(OGC_FID),
     DEGREE           integer DEFAULT 0, 
     LENGTH           real,
     -- Indicators
@@ -311,7 +307,7 @@ CREATE INDEX ways_END_PL_idx   ON ways(END_PL);
 
 CREATE TABLE way_places(
     WAY_ID integer,
-    PLACE  REFERENCES places(OGC_FID)
+    PLACE  integer -- REFERENCES places(OGC_FID)
 )
 ;
 
@@ -321,12 +317,12 @@ CREATE INDEX way_places_PLACE_idx  ON way_places(PLACE);
 -- Create way_angles table for computing orthogonality
 
 CREATE TABLE way_angles(
-    PLACE REFERENCES places(OGC_FID),
+    PLACE integer, -- REFERENCES places(OGC_FID),
     ANGLE real,
     WAY1  integer,
-    EDGE1 REFERENCES places_edges(OGC_FID),
+    EDGE1 integer, -- REFERENCES places_edges(OGC_FID),
     WAY2  integer,
-    EDGE2 REFERENCES places_edges(OGC_FID)
+    EDGE2 integer  -- REFERENCES places_edges(OGC_FID)
 )
 ;
 
@@ -335,4 +331,8 @@ CREATE INDEX way_angles_WAY1_idx  ON way_angles(WAY1);
 CREATE INDEX way_angles_WAY2_idx  ON way_angles(WAY2);
 CREATE INDEX way_angles_EDGE1_idx ON way_angles(EDGE1);
 CREATE INDEX way_angles_EDGE2_idx ON way_angles(EDGE2);
+
+-- Clean up
+VACUUM
+;
 

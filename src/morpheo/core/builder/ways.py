@@ -13,7 +13,7 @@ from numpy import sin
 from numpy import pi
 from functools import partial
 from itertools import takewhile
-from ..logger import log_progress
+from ..logger import Progress
 
 from .errors import BuilderError
 from .sql import SQL, execute_sql, attr_table
@@ -98,8 +98,8 @@ class WayBuilder(object):
         cur.execute(SQL("UPDATE place_edges SET WAY = NULL"))
 
         # Get the (max) number of edges and places
-        max_edges  = cur.execute(SQL("SELECT Max(OGC_FID) from place_edges")).fetchone()[0]
-        max_places = cur.execute(SQL("SELECT Max(OGC_FID) from places")).fetchone()[0] 
+        max_edges  = cur.execute(SQL("SELECT Max(OGC_FID) FROM place_edges")).fetchone()[0]
+        max_places = cur.execute(SQL("SELECT Max(OGC_FID) FROM places")).fetchone()[0] 
 
         # Get the entry vector for edges in each place
         rows = cur.execute(SQL("""SELECT 
@@ -132,6 +132,7 @@ class WayBuilder(object):
             return (abs( sin(angle_from_azimuth(az1,a1))) +
                     abs( sin(angle_from_azimuth(az2,a2)))) * d 
 
+        logging.info("Ways: computing azimuth")
         edges_az = [(r[0],r[1],azimuth(*r[2:6]),r[2],r[3]) for r in rows]
 
         def compute_angles( edges ):
@@ -147,14 +148,7 @@ class WayBuilder(object):
 
         # Array to store distance corrections for ways
         distances = np.zeros(max_edges+1)
-       
-        def add_end( e, place ):
-            # TODO Collert start/end places 
-            # for ways
-            fid = e[1]
-
-
-
+  
         # Way partition: resolve each pair by assigning them
         # to the same equivalent class. Partition are computed 
         # by resolving transitive relationship. 
@@ -168,10 +162,14 @@ class WayBuilder(object):
             distances[e1[1]] = distances[e1[1]] + d/2.0
             distances[e2[1]] = distances[e2[1]] + d/2.0
 
-        num_places = 0
+        logging.info("Ways: Pairing edges")
+
+        progress     = Progress(len(edges_az))
+        count_places = 0
         for place, edges in iter_places(edges_az):
+            count_places = count_places+1
             n = len(edges)
-            num_places = num_places+1
+            progress(n)
             if n>2:
                 # Compute angles between edges
                 angles = compute_angles(edges)
@@ -179,23 +177,24 @@ class WayBuilder(object):
                 coeffs = compute_coeffs(edges)
                 for e1,e2 in next_argmin(coeffs):
                     if get_value(angles,e1,e2) < threshold: 
-                        add_pair(e1,e2)
+                        add_pair(edges[e1],edges[e2])
                         pop_args(coeffs,e1,e2)
                 # Store end places from lonely edges
                 for e in get_remaining_elements(coeffs):
-                    add_end(e,place)
+                    pass
             elif n==2:
                 # pair those 2 edge
                 add_pair(edges[0],edges[1]) 
             else:
                 # No pairing: place has only one edge.
-                add_end(edges[0],place)
+                pass
 
         # Update partition
+        logging.info("Ways: updating partition")
         update(ways)
         num_ways = num_partitions(ways)
 
-        logging.info("Ways: computed {} ways (num places={}, num edges={})".format(num_ways,num_places,max_edges))
+        logging.info("Ways: computed {} ways (num places={}, num edges={})".format(num_ways,count_places,max_edges))
         
         self._build_way_table(cur, ways, distances)
         self._conn.commit()
@@ -208,12 +207,12 @@ class WayBuilder(object):
             also contains the distance corrections.
         """
         cur.execute(SQL("DELETE FROM way_partition"))
-        cur.executemany(SQL("INSERT INTO way_partition(PEDGE,WAY,DIST,START_PL,END_PL) SELECT ?,?,?,?,?"),
-                [(fid,way,distances[fid],0,0) for fid,way in enumerate(ways)])
+        cur.executemany(SQL("INSERT INTO way_partition(EDGE,WAY,DIST) SELECT ?,?,?"),
+                [(fid,way,distances[fid]) for fid,way in enumerate(ways)])
 
         logging.info("Ways: updating place edges with way id") 
         cur.execute(SQL("""UPDATE place_edges
-            SET WAY = (SELECT WAY FROM way_partition WHERE PEDGE=place_edges.OGC_FID)
+            SET WAY = (SELECT WAY FROM way_partition WHERE way_partition.EDGE=place_edges.OGC_FID)
         """))
 
         logging.info("Ways: build ways table")
@@ -223,7 +222,7 @@ class WayBuilder(object):
         """ Compute local way attributes
 
             Note that length, degree, connectivity and spacing are 
-            Computed 
+            computed 
 
             :param orthogonality: If set to True, compute orthogonality;
                                   default to False.
@@ -279,16 +278,19 @@ class WayBuilder(object):
 
         # Compute all angles for each pairs of way 
         # for each places
-        
+
+        progress = Progress(len(way_places))
+
         def compute_angles():
             for place, ways in iter_places(way_places):
                 n = len(ways)
+                progress(n)
                 if n==1:
                     continue
-                for i in xrange(n-1):
+                for i in range(n-1):
                     w1 = ways[i]
                     i1 = w1[1]
-                    for j in xrange(i+1,n):
+                    for j in range(i+1,n):
                         w2 = ways[j]
                         i2 = w2[1]  
                         if i1 != i2:
@@ -296,11 +298,13 @@ class WayBuilder(object):
                             yield (place,angle,i1,w1[2],i2,w2[2])
 
         # Build way_angles table
+        logging.info("Ways: computing angles")
         cur.execute(SQL("DELETE FROM way_angles"))
         cur.executemany(SQL("INSERT INTO way_angles(PLACE,ANGLE,WAY1,EDGE1,WAY2,EDGE2) SELECT ?,?,?,?,?,?"),
                 [(pl,angle,way1,e1,way2,e2) for pl,angle,way1,e1,way2,e2 in compute_angles()])
 
         # Update orthogonality
+        logging.info("Ways: computing orthogonality")
         cur.execute(SQL("UPDATE ways SET ORTHOG = NULL"))
         cur.execute(SQL("""UPDATE ways SET ORTHOG = (
             SELECT Sum(inner)/ways.CONN FROM (
@@ -328,19 +332,16 @@ class WayBuilder(object):
        """
         cur = self._conn.cursor()
         with attr_table(cur, "global_attributes") as attrs:
-               
+                
             if betweenness:
-                logging.info("Ways: computing betweenness centrality")
                 attrs.update('ways', 'WAY_ID', 'BETWEE', self.compute_betweenness().items())
                 compute_way_classes(attrs, cur, 'BETWEE', classes)
 
             if closeness:
-                logging.info("Ways: computing closeness centrality")
                 attrs.update('ways', 'WAY_ID', 'CLOSEN', self.compute_closeness().items())
                 compute_way_classes(attrs, cur, 'CLOSEN', classes)
 
             if stress:
-                logging.info("Ways: computing stress centrality")
                 attrs.update('ways', 'WAY_ID', 'USE'   , self.compute_use().items())
                 compute_way_classes(attrs, cur, 'USE', classes)
 
@@ -348,6 +349,7 @@ class WayBuilder(object):
         """ Compute betweeness for each way
         """
         G = self.get_line_graph()
+        logging.info("Ways: computing betweenness centrality")
         return nx.betweenness_centrality(G)
 
     def compute_closeness(self):
@@ -363,12 +365,14 @@ class WayBuilder(object):
             and `n` is the number of nodes in the graph.
         """
         G = self.get_line_graph()
+        logging.info("Ways: computing closeness centrality")
         return nx.closeness_centrality(G)
 
     def compute_use(self):
         """ Compute stress centrality
         """
         # TODO Implement me !!
+        logging.info("Ways: computing stress centrality")
         raise NotImplementedError("Stress Centrality")
 
     def compute_topological_radius(self):
@@ -387,36 +391,40 @@ class WayBuilder(object):
             and `n` is the number of nodes in the graph.
         """
 
-        logging.info("Ways: computing topological radius and accessibility")
-
         G = self.get_line_graph()
         path_length = nx.single_source_shortest_path_length
- 
+        
         nodes = G.nodes()
         cur   = self._conn.cursor()
 
         # Get the length for each ways
         lengths = cur.execute("SELECT WAY_ID,LENGTH FROM ways").fetchall()
 
-        # Compute topological radius and accessibility
+        logging.info("Ways: computing topological radius and accessibility")
+
+        progress = Progress(len(nodes))
+
         def compute( v ):
             sp = path_length(G,v)
             r = sum(sp.values())
             a = sum(sp[r[0]]*r[1] for r in lengths)
+            progress()
             return v,r,a
 
-        r_topo = [compute(v) for v in G.nodes()]
+        r_topo = [compute(v) for v in nodes]
 
         # Update ways and edges with topological radius
+        logging.info("Ways: Updating ways with topological radius")
         with attr_table(cur, "topo_radius") as attrs:
             attrs.update('ways', 'WAY_ID', 'RTOPO',[(r[0],r[1]) for r in r_topo])
             attrs.update('ways', 'WAY_ID', 'ACCES',[(r[0],r[2]) for r in r_topo])
 
         # Update edges
+        logging.info("Ways: Updating edges with topological radius")
         cur.execute(SQL("""
             UPDATE edges SET
-                RTOPO = (SELECT RTOPO FROM ways WHERE WAY_ID=edges.WAY_ID),
-                ACCES = (SELECT ACCES FROM ways WHERE WAY_ID=edges.WAY_ID)
+                RTOPO = (SELECT RTOPO FROM ways WHERE ways.WAY_ID=edges.WAY_ID),
+                ACCES = (SELECT ACCES FROM ways WHERE ways.WAY_ID=edges.WAY_ID)
         """))
 
     def get_line_graph(self):
@@ -439,8 +447,13 @@ class WayBuilder(object):
         # Undirected, simple (not multi-) graph 
         g = nx.Graph()
 
+        logging.info("Ways: creating line graph")    
+
+        progress = Progress(len(rows))
+
         for p,ways in iter_places(rows):
             n = len(ways)
+            progress(n)
             if n==1: continue
             for i in xrange(n-1):
                 w1 = ways[i][1]

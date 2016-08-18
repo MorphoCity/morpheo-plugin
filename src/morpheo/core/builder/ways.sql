@@ -6,6 +6,10 @@
 DELETE FROM ways;
 DELETE FROM way_places;
 
+-- Update place edges with way index
+
+
+
 -- Cleanup ways attributes on edge
 
 UPDATE edges SET RTOPO = 0, ACCES = 0, WAY_ID = NULL;
@@ -18,12 +22,6 @@ FROM place_edges as e
 GROUP BY e.WAY
 ;
 
--- Update start/end places
-
-UPDATE ways SET
-START_PL = (SELECT p.START_PL FROM way_partition AS p WHERE p.WAY=ways.WAY_ID AND START_PL<>0),
-END_PL   = (SELECT p.END_PL   FROM way_partition AS p WHERE p.WAY=ways.WAY_ID AND END_PL<>0)
-;
 
 -- Build way/places association
 
@@ -38,8 +36,9 @@ FROM (
 
 -- Update edge with ways id
 
-UPDATE edges SET WAY_ID = (SELECT WAY FROM place_edges WHERE EDGE=edges.OGC_FID);
-
+UPDATE edges SET WAY_ID = 
+    (SELECT WAY FROM place_edges WHERE place_edges.OGC_FID=edges.OGC_FID)
+;
 
 -- Compute basic way attributes
 
@@ -80,10 +79,12 @@ UPDATE ways SET CONN = (SELECT Count(1) FROM (
 
 -- Spacing
 
-UPDATE ways SET SPACING = (SELECT ways.LENGTH/ways.CONN WHERE ways.CONN>0)
+UPDATE ways SET SPACING = (SELECT ways.LENGTH/ways.CONN)
+WHERE CONN>0
+;
 
-
-
-
+-- Clean up
+VACUUM
+;
 
 
