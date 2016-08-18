@@ -112,7 +112,8 @@ def compute_way_attributes( args ):
             betweenness   = args.betweenness,
             closeness     = args.closeness,
             stress        = args.stress,
-            rtopo         = args.rtopo)
+            rtopo         = args.rtopo,
+            output        = args.output)
 
 
 def build_places( args ):
@@ -173,6 +174,7 @@ def main():
     # Way attributes command
     ways_cmd = sub.add_parser('way_attributes')
     ways_cmd.add_argument("dbname", help="Database")
+    ways_cmd.add_argument("--output"       , metavar='PATH' , default=None, help="Output ways shapefile")
     ways_cmd.add_argument("--orthogonality", action='store_true', default=False, help="Compute orthoganality")
     ways_cmd.add_argument("--betweenness"  , action='store_true', default=False, help="Compute betweenness centrality")
     ways_cmd.add_argument("--closeness"    , action='store_true', default=False, help="Compute closeness centrality")

@@ -18,7 +18,7 @@ from ..logger import Progress
 from .errors import BuilderError
 from .sql import SQL, execute_sql, attr_table
 from .classes import compute_classes
-
+from .layers import export_shapefile
 
 def iter_places(rows):
     """ Generator for iterating throught places 
@@ -432,6 +432,21 @@ class WayBuilder(object):
             self._line_graph = self.create_line_graph()
         return self._line_graph
 
+    def save_line_graph(self, output):
+        if self._line_graph is not None:
+            logging.info("Ways: saving line graph")
+            basename = os.path.basename(output)
+            nx.write_gpickle(self._line_graph, os.path.join(output,'way_graph_'+basename+'.gpickle'))
+        else:
+            logging.warn("Ways: no graph to save")
+    
+    def export(self, dbname, output ):
+       """ Export way files
+       """
+       logging.info("Ways: Saving ways to %s" % output)
+       export_shapefile(dbname, 'ways'      , output)
+       self.save_line_graph(output)
+
     def create_line_graph(self):
         """ Create a line graph from ways
 
@@ -459,7 +474,7 @@ class WayBuilder(object):
                 w1 = ways[i][1]
                 for j in xrange(i+1,n):
                     w2 = ways[j][1]
-                    g.add_edge(w1,w2)
+                    g.add_edge(w1,w2,place=p)
 
         return g
 

@@ -1,6 +1,16 @@
 -- Table definitions
 -- Create topological graph from input data
 
+-- Create table holding parameters for the session
+
+CREATE TABLE morpheo(
+    DIRECTORY text,
+    INPUT_FILE text,
+    SNAP_DISTANCE real,
+    MIN_EDGE_LENGTH real
+);
+
+
 -- vertices
 
 CREATE TABLE vertices(

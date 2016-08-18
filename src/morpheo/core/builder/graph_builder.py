@@ -37,11 +37,17 @@ class SpatialiteBuilder(object):
         logging.info("Opening database %s" % dbname)
         self._conn     = connect_database(dbname)
         self._dbname   = dbname
+        self._basepath = os.path.dirname(dbname)
         self._basename = os.path.basename(os.path.splitext(dbname)[0])
 
         self._input_table   = table or self._basename.lower()
-        self._ways_output   = None
         self._way_build_attribute = None
+
+    @property
+    def path(self):
+        """ Return the project path
+        """
+        return os.path.join(self._dirname,self._basename)
 
     def build_graph( self, snap_distance, min_edge_length, way_attribute=None, output=None ):
         """ Build morpheo topological graph
@@ -98,6 +104,9 @@ class SpatialiteBuilder(object):
                             input_table=working_table,
                             attribute=way_attribute))
             cur.close()
+
+        # Update parameters
+         
         self._conn.commit()
         if output is not None:
             logging.info("Builder: saving edges and vertices")
@@ -129,18 +138,11 @@ class SpatialiteBuilder(object):
             import_shapefile( self._dbname, places, input_places_table, (QGis.WKBPolygon25D, QGis.WKBPolygon))
 
         from places import PlaceBuilder
-        builder = PlaceBuilder(self._conn, self._dbname)
+        builder = PlaceBuilder(self._conn)
         builder.build_places(buffer_size, input_places_table) 
 
         if output is not None:
-            logging.info("Builder: Saving places to %s" % output)
-            export_shapefile(self._dbname, 'places', output)
-
-    def export_ways(self):
-        """ Export ways to shapefile
-        """
-        if self._ways_output is not None:
-            export_shapefile(self._dbname, 'ways', self._ways_output)
+            builder.export(self._dbname, output) 
 
     def build_ways(self,  threshold, output=None, attributes=False, rtopo=False, **kwargs) :
         """ Build way's hypergraph
@@ -159,11 +161,11 @@ class SpatialiteBuilder(object):
         if attributes:
             self.compute_way_attributes( **kwargs )
 
-        self._ways_output = output
-        self.export_ways()
+        if output is not None:
+            builder.export(self._dbname, output)
 
     def compute_way_attributes( self, orthogonality, betweenness, closeness, stress, 
-                                classes=10, rtopo=False):
+                                classes=10, rtopo=False, output=None):
         """ Compute attributes for ways:
 
             :param orthogonality: If True, compute orthogonality.
@@ -185,6 +187,8 @@ class SpatialiteBuilder(object):
                     stress      = stress,
                     classes     = classes)
 
+        if output is not None:
+            builder.export_ways(self._dbname, output)
 
     def build_ways_from_attribute(self, output=None):
         """ Build way's hypergraph from street names.
@@ -241,6 +245,8 @@ class SpatialiteBuilder(object):
 
         logging.info("Creating database '%s' from layer" % dbname)
 
+        # 
+
         return SpatialiteBuilder(dbname)
 
     @staticmethod
@@ -250,6 +256,7 @@ class SpatialiteBuilder(object):
              :param dbname: Path of the database:
              :returns: A builder object
         """
+        dbname = dbname + '.sqlite'
         if not os.path.isfile( dbname ):
             raise DatabaseNotFound(dbname)
         

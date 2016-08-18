@@ -10,17 +10,21 @@ from ..logger import log_progress
 
 from .errors import BuilderError
 from .sql import SQL, execute_sql, delete_table, connect_database
+from .layers import export_shapefile
 
 BUFFER_TABLE='temp_buffer'
 
 
 class PlaceBuilder(object):
 
-
-    def __init__(self, conn, dbname, chunks=100):
+    def __init__(self, conn, chunks=100):
        self._conn   = conn
-       self._dbname = dbname
        self._chunks = chunks
+
+    def export(self, dbname, output ):
+       logging.info("Builder: Saving places to %s" % output)
+       export_shapefile(dbname, 'places'     , output)
+       export_shapefile(dbname, 'place_edges', output)
 
     def build_places( self, buffer_size, input_places=None):
         """ Build places
@@ -50,7 +54,6 @@ class PlaceBuilder(object):
         finally:
             pass
             #delete_table(self._conn, BUFFER_TABLE)
-
 
     def creates_places_from_file(self, input_places):
         """ Create places from input  file
