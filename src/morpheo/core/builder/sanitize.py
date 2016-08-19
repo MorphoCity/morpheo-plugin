@@ -1,9 +1,10 @@
 # -*- encoding=utf-8 -*-
 
+import sys
 import logging
 
 from .errors import BuilderError
-
+from .sql import SQL
 
 class Sanitizer(object):
     """ Helper for sanitizing geometries to a valid topological
@@ -53,16 +54,11 @@ class Sanitizer(object):
         self.resolve_intersections(cur, min_edge_length, attribute)
         self._conn.commit()
 
-    def SQL( self, sql, **kwargs):
-        sql = sql.format(input_table=self._table, **kwargs)
-        logging.debug(sql)
-        return sql
-
     def delete_unconnected_features(self, cur):
         """ Remove unconnected features from input data
         """
         logging.info("Sanitizer: Deleting unconnected features")
-        cur.execute(self.SQL("""DELETE FROM {input_table}
+        cur.execute(SQL("""DELETE FROM {input_table}
             WHERE NOT (
                 SELECT COUNT(1) FROM {input_table} AS o
                 WHERE Intersects( o.GEOMETRY, {input_table}.GEOMETRY )
@@ -72,7 +68,7 @@ class Sanitizer(object):
                     SELECT ROWID FROM SpatialIndex
                     WHERE f_table_name='{input_table}' AND search_frame={input_table}.GEOMETRY)
                 )
-                """))
+                """,input_table=self._table))
 
     def snap_geometries(self, cur, snap_distance):
         """ Snap close geometries 
@@ -80,7 +76,7 @@ class Sanitizer(object):
             :param snap_distance: minimum snap distance
         """
         logging.info("Sanitizer: Snapping geometries")
-        cur.execute(self.SQL("""UPDATE {input_table}
+        cur.execute(SQL("""UPDATE {input_table}
             SET GEOMETRY = Snap({input_table}.GEOMETRY,
                 (
                 SELECT Collect(o.GEOMETRY) FROM {input_table} AS o
@@ -90,13 +86,12 @@ class Sanitizer(object):
                 AND o.OGC_FID != {input_table}.OGC_FID
                 )
                 , {snap_distance})
-            """, snap_distance=snap_distance))
+            """, snap_distance=snap_distance, input_table=self._table))
 
 
     def resolve_intersections(self, cur, min_edge_length, attribute):
         """ Resolve intersections
 
-            TODO: elaborate logic
         """
         logging.info("Sanitizer: Resolving intersections")
         self._1_find_overlapping_lines(cur)
@@ -113,9 +108,8 @@ class Sanitizer(object):
             geometries from which intersection do not resolve to simple points
         """
         logging.info("Sanitizer: Resolving intersections: find overlapping lines")
-        SQL = self.SQL
 
-        self._create_indexed_line_table(cur, 'overlaping_lines', 'MULTI')
+        self._create_indexed_table(cur, 'overlaping_lines', 'MULTILINESTRING')
         cur.execute(SQL("""INSERT INTO overlaping_lines(GEOMETRY)
             SELECT CastToMulti(Intersection(w1.GEOMETRY, w2.GEOMETRY))
             FROM {input_table} AS w1, {input_table} AS w2
@@ -126,7 +120,7 @@ class Sanitizer(object):
                   WHERE f_table_name='{input_table}' AND search_frame=w2.GEOMETRY)
             AND GeometryType(Intersection(w1.GEOMETRY, w2.GEOMETRY))
                 IN ('LINESTRING', 'MULTILINESTRING', 'LINESTRING Z', 'MULTILINESTRING Z')
-            """))
+            """,input_table=self._table))
 
     def _2_find_crossing_points(self, cur):
         """ Find crossing points between geometries
@@ -135,15 +129,14 @@ class Sanitizer(object):
             to points.
         """
         logging.info("Sanitizer: Resolving intersections: find crossing points")
-        SQL = self.SQL
 
         # add intersections
         # we first locate crossing points
         cur.execute(SQL("""SELECT coord_dimension
                     FROM geometry_columns
-                    WHERE f_table_name='{input_table}'"""))
+                    WHERE f_table_name='{input_table}'""",input_table=self._table))
         [dim] = cur.fetchone()
-        self._create_indexed_point_table(cur, 'crossings', 'MULTI')
+        self._create_indexed_table(cur, 'crossings', 'MULTIPOINT')
 
         # Adding crossings, skipping bridge
         cur.execute(SQL("""INSERT INTO crossings(GEOMETRY)
@@ -157,9 +150,10 @@ class Sanitizer(object):
             AND GeometryType(Intersection(w1.GEOMETRY, w2.GEOMETRY))
                 IN ('POINT', 'MULTIPOINT', 'POINT Z', 'MULTIPOINT Z')""" +
            ("""AND ABS(0.5*(Z(StartPoint(w1.GEOMETRY))+Z(EndPoint(w1.GEOMETRY)))
-                   -0.5*(Z(StartPoint(w1.GEOMETRY))+Z(EndPoint(w1.GEOMETRY)))) < 3""" if dim == 'XYZ' else "")))
+                   -0.5*(Z(StartPoint(w1.GEOMETRY))+Z(EndPoint(w1.GEOMETRY)))) < 3""" if dim == 'XYZ' else ""),
+           input_table=self._table))
 
-        # add overlapping lines end point and lines end points
+        # Add overlapping lines end point and lines end points
         cur.execute(SQL("""INSERT INTO crossings(GEOMETRY)
             SELECT DISTINCT CastToMulti(EndPoint(GEOMETRY)) FROM overlaping_lines
             UNION
@@ -168,75 +162,74 @@ class Sanitizer(object):
             SELECT DISTINCT CastToMulti(EndPoint(GEOMETRY)) FROM {input_table}
             UNION
             SELECT DISTINCT CastToMulti(StartPoint(GEOMETRY)) FROM {input_table}
-            """))
+            """, input_table=self._table))
 
         # Explode multi points as one point per line
         # The counter is here for indexing points in multi.
-        cur.execute(SQL("""SELECT max(NumGeometries(GEOMETRY)) FROM crossings"""))
-        [count_max] = cur.fetchone()
+        [count_max] = cur.execute(SQL("""SELECT max(NumGeometries(GEOMETRY)) FROM crossings""")).fetchone()
         if not count_max:
             count_max = 1
         cur.execute(SQL("CREATE TABLE counter(VALUE integer)"))
-        cur.executemany(SQL("INSERT INTO counter(VALUE) SELECT ?"),[(c+1,) for c in range(count_max)] )
+        cur.executemany(SQL("INSERT INTO counter(VALUE) SELECT ?"),[(c,) for c in range(1,count_max+1)] )
 
-        self._create_indexed_point_table(cur, 'crossing_points')
+        self._create_indexed_table(cur, 'crossing_points', 'POINT')
         cur.execute(SQL("""INSERT INTO crossing_points(GEOMETRY)
             SELECT DISTINCT GeometryN(crossings.GEOMETRY, VALUE)
             FROM crossings, counter
             WHERE counter.VALUE <= NumGeometries(crossings.GEOMETRY)
             """))
 
-        self._create_indexed_line_table(cur, 'split_lines')
+        self._create_indexed_table(cur, 'split_lines', 'LINESTRING')
         cur.execute(SQL("ALTER TABLE split_lines ADD COLUMN START_VTX integer REFERENCES crossing_points(OGC_FID)"))
-        cur.execute(SQL("ALTER TABLE split_lines ADD COLUMN END_VTX integer REFERENCES crossing_points(OGC_FID)"))
+        cur.execute(SQL("ALTER TABLE split_lines ADD COLUMN END_VTX   integer REFERENCES crossing_points(OGC_FID)"))
         cur.execute(SQL("CREATE INDEX split_lines_start_vtx_idx ON split_lines(START_VTX)"))
-        cur.execute(SQL("CREATE INDEX split_lines_end_vtx_idx ON split_lines(END_VTX)"))
+        cur.execute(SQL("CREATE INDEX split_lines_end_vtx_idx   ON split_lines(END_VTX)"))
 
 
     def _3_cut_lines_at_nodes(self, cur):
         """ Cut lines 
 
-            TODO: Elaborate underlying logic 
         """
         logging.info("Sanitizer: Resolving intersections: cut lines")
-        SQL = self.SQL
         # since LinesCutAtNodes in not available in pyspatialite
         # we have to cut lines one segment at a time
-        cur.execute(SQL("SELECT ROWID, OGC_FID FROM {input_table} ORDER BY OGC_FID"))
+        cur.execute(SQL("SELECT ROWID, OGC_FID FROM {input_table} ORDER BY OGC_FID",input_table=self._table))
         res = cur.fetchall()
         splits = []
         for [rowid, line_id] in res:
-            #    progress.setPercentage(int(100*float(rowid)/len(res)))
-            # get all points on line
+            # Get all points on line
             cur.execute(SQL("""
                 SELECT Line_Locate_Point(o.GEOMETRY, v.GEOMETRY) AS LOCATION, v.OGC_FID
                 FROM {input_table} AS o, crossing_points AS v
                 WHERE PtDistWithin(o.GEOMETRY, v.GEOMETRY, 1e-2)
-                AND o.OGC_FID = """+str(line_id)+"""
+                AND o.OGC_FID = {line_id}
                 AND v.ROWID IN (
                       SELECT ROWID FROM SpatialIndex 
                       WHERE f_table_name='crossing_points' AND search_frame=o.GEOMETRY)
                 ORDER BY LOCATION;
-                """))
+                """,input_table=self._table,line_id=line_id))
             locations = cur.fetchall()
 
+            # Store segments
             for i in range(1,len(locations)):
                 splits.append((locations[i-1][0], locations[i][0], 
                     locations[i-1][1], locations[i][1], line_id))
 
-            # add segment to loop
+            # Check if line is a loop and add segment closing loop
             cur.execute(SQL("""SELECT COUNT(1) 
-                FROM  {input_table} WHERE OGC_FID = """+str(line_id)+"""
-                AND PtDistWithin(EndPoint(GEOMETRY), StartPoint(GEOMETRY), 1e-2)"""))
+                FROM  {input_table} WHERE OGC_FID = {line_id}
+                AND PtDistWithin(EndPoint(GEOMETRY), StartPoint(GEOMETRY), 1e-2)""", 
+                input_table=self._table, line_id=line_id))
             [isLoop] = cur.fetchone()
             if isLoop:
                 splits.append((locations[-1][0], 1, locations[-1][1], locations[0][1], line_id))
 
+        # Split lines
         cur.executemany(SQL("""
             INSERT INTO split_lines(GEOMETRY, START_VTX, END_VTX)
             SELECT Line_Substring(o.GEOMETRY, ?, ?), ?, ?
             FROM {input_table} AS o
-            WHERE o.OGC_FID = ?"""), splits)
+            WHERE o.OGC_FID = ?""",input_table=self._table), splits)
 
         # remove duplicated lines
         cur.execute(SQL("""SELECT l1.OGC_FID, l2.OGC_FID
@@ -275,6 +268,12 @@ class Sanitizer(object):
         cur.executemany(SQL("DELETE FROM split_lines WHERE OGC_FID = ?"), deleted_dupes)
         logging.info("Sanitizer: Deleted {} duplicates in split_lines".format(len(deleted_dupes)))
 
+        # Sanity check ?
+        cur.execute(SQL("SELECT COUNT(1) FROM split_lines WHERE END_VTX IS NULL OR START_VTX IS NULL"))
+        [bug] = cur.fetchone()
+        if bug: 
+            raise BuilderError("Graph build error: NULL vertices in 'cut_lines_at_nodes'") 
+
         cur.execute(SQL("ALTER TABLE crossing_points ADD COLUMN DEGREE integer"))
         cur.execute(SQL("""
             UPDATE crossing_points
@@ -296,11 +295,12 @@ class Sanitizer(object):
                 AND split_lines.START_VTX = crossing_points.OGC_FID
             )"""))
 
-        # Sanity check ?
-        cur.execute(SQL("SELECT COUNT(1) FROM split_lines WHERE END_VTX IS NULL OR START_VTX IS NULL"))
-        [bug] = cur.fetchone()
-        if bug: 
-            raise BuilderError("Graph build error: NULL vertices in 'cut_lines_at_nodes'") 
+    def _collect_lines(self, cur):
+        """ join lines that are simply touching 
+        """
+        logging.info("Sanitizer: Resolving intersections: merge lines")
+
+       
 
 
     def _4_merge_lines(self, cur):
@@ -310,41 +310,42 @@ class Sanitizer(object):
             python and not simply SQL
         """
         logging.info("Sanitizer: Resolving intersections: merge lines")
-        SQL = self.SQL
 
-        merges = []
-        cur.execute(SQL("SELECT OGC_FID FROM crossing_points WHERE DEGREE = 2"))
-        for [pid] in cur.fetchall():
-            cur.execute(SQL("SELECT OGC_FID FROM split_lines WHERE "+str(pid)+\
-                    " IN (END_VTX, START_VTX)"))
-            to_merge = [lid for [lid] in cur.fetchall()]
-            assert len(to_merge) == 2
-            for m in merges:
-                if to_merge[0] in m or to_merge[1] in m: 
-                    m.add(to_merge[0])
-                    m.add(to_merge[1])
-                    to_merge = []
-                    break
-            if len(to_merge):
-                merges.append(set(to_merge))
-        for i in range(len(merges)):
-            for j in range(i+1, len(merges)):
-                if merges[i].intersection(merges[j]):
-                    merges[i] = merges[i].union(merges[j])
-                    merges[j] = set()
+        def collect_lines():
+            # Merge all touching segments joined with nodes of DEGREE=2
+            from .angles import create_partition, update, resolve
+            [max_lines] = cur.execute("SELECT Max(OGC_FID) FROM split_lines").fetchone()      
+            part = create_partition(max_lines+1) 
+            cur.execute(SQL("SELECT OGC_FID FROM crossing_points WHERE DEGREE = 2"))
+            for [pid] in cur.fetchall():
+                [[l1],[l2]] = cur.execute(SQL("""
+                    SELECT OGC_FID FROM split_lines 
+                    WHERE {pid} IN (END_VTX, START_VTX)""",pid=pid)).fetchall()
+                resolve(part,l1,l2)
 
+            update(part)
+
+            merges = [[] for i in range(len(part))]
+            for i in range(len(part)):
+                merges[part[i]].append(i)
+            return merges    
+
+        merges = collect_lines()
+
+        # Clean up all crossing points with degree=2
         cur.execute(SQL("DELETE FROM crossing_points WHERE DEGREE = 2"))
-        
+
         for m in merges:
-            if not m: continue
+            if len(m) < 2: continue
             cur.execute(SQL("""
                 INSERT INTO split_lines(GEOMETRY)
-                SELECT LineMerge(Collect(l.GEOMETRY))
+                SELECT LineMerge(Collect(l.GEOMETRY)) AS geom
                 FROM split_lines AS l
                 WHERE l.OGC_FID IN ("""+','.join([str(i) for i in m])+")"))
-            # if the line segment form a ring, there is no guaranty that
+            # If the line segment form a ring, there is no guaranty that
             # the merge endpoint is actually the one belonging to the graph
             # so we have to deal with that case
+
             cur.execute(SQL("SELECT MAX(OGC_FID), AsText(GEOMETRY) FROM split_lines"))
             [lid, s] = cur.fetchone()
             cur.execute(SQL("""SELECT COUNT(1) 
@@ -376,14 +377,12 @@ class Sanitizer(object):
                         +linetype+'('+','.join(l2)+','+','.join(l1[1:])+")', "+str(srid)+")"
                         +" WHERE OGC_FID = "+str(lid)))
 
-
             # remove joined lines 
             cur.execute(SQL("""
                 DELETE FROM split_lines
                 WHERE OGC_FID IN ("""+','.join([str(i) for i in m])+")"))
 
-
-        # set end vtx for merged lines
+        # Set end vtx for merged lines
         cur.execute(SQL("""
             UPDATE split_lines
             SET START_VTX =
@@ -409,8 +408,8 @@ class Sanitizer(object):
         # Sanity check ?
         cur.execute(SQL("SELECT COUNT(1) FROM split_lines WHERE END_VTX IS NULL OR START_VTX IS NULL"))
         [bug] = cur.fetchone()
-        if bug: 
-            raise BuilderError("Graph build error: NULL vertices in 'merge_lines'") 
+        #if bug: 
+        #    raise BuilderError("Graph build error: NULL vertices in 'merge_lines'") 
 
     def _5_remove_small_edges(self, cur, min_edge_length):
         """ Remove small egdes and merge extremities
@@ -422,7 +421,6 @@ class Sanitizer(object):
         """
         # remove small edges and merge extremities at centroid
         logging.info("Sanitizer: Resolving intersections: remove arcs smaller than {}".format(min_edge_length))
-        SQL = self.SQL
 
         cur.execute(SQL("SELECT MAX(OGC_FID) FROM crossing_points"))
         [max_fid] = cur.fetchone()
@@ -467,7 +465,6 @@ class Sanitizer(object):
             TODO: Elaborate logic
         """
         logging.info("Sanitizer: Resolving intersections: remove unconnect elements")
-        SQL = self.SQL
 
         cur.execute(SQL("ALTER TABLE split_lines ADD COLUMN COMPONENT integer"))
         component = 0
@@ -518,7 +515,7 @@ class Sanitizer(object):
                       WHERE f_table_name='split_lines' AND search_frame={input_table}.GEOMETRY)
                 )"""))
 
-        self._create_indexed_line_table(cur, self.work_table)
+        self._create_indexed_table(cur, self.work_table, 'LINESTRING')
         
         if attribute:
             cur.execute(SQL("ALTER TABLE "+self.work_table+" ADD COLUMN "+attribute))
@@ -537,63 +534,32 @@ class Sanitizer(object):
     def _drop_indexed_table(self, cur, table):
         """ Drop a table and its index
         """
-        SQL = self.SQL
         cur.execute(SQL("SELECT DisableSpatialIndex('%s', 'GEOMETRY')" % table));
         cur.execute(SQL("SELECT DiscardGeometryColumn('%s', 'GEOMETRY')" % table));
         cur.execute(SQL("DROP TABLE idx_%s_GEOMETRY" % table))
         cur.execute(SQL("DROP TABLE %s" % table))
 
-    def _create_indexed_line_table(self, cur, table, multi=''):
+    def _create_indexed_table(self, cur, table, geomtype):
         """
         """
-        SQL = self.SQL
-        cur.execute(SQL("""
-            CREATE TABLE """+table+"""(
-                OGC_FID integer PRIMARY KEY
-                )"""))
+        cur.execute(SQL("CREATE TABLE {table}(OGC_FID integer PRIMARY KEY)",table=table))
         cur.execute(SQL("""
             SELECT AddGeometryColumn(
-                '"""+table+"""',
+                '{table}',
                 'GEOMETRY',
                 (
                     SELECT CAST(srid AS integer)
                     FROM geometry_columns
                     WHERE f_table_name='{input_table}'
                 ),
-                '"""+multi+"""LINESTRING',
+                '{geomtype}',
                 (
                     SELECT coord_dimension
                     FROM geometry_columns
                     WHERE f_table_name='{input_table}'
                 )
-            )"""))
-        cur.execute(SQL("SELECT CreateSpatialIndex('"+table+"', 'GEOMETRY')"))
-
-    def _create_indexed_point_table(self, cur, table, multi=''):
-        """
-        """
-        SQL = self.SQL
-        cur.execute(SQL("""
-            CREATE TABLE """+table+"""(
-                OGC_FID integer PRIMARY KEY
-                )"""))
-        cur.execute(SQL("""
-            SELECT AddGeometryColumn(
-                '"""+table+"""',
-                'GEOMETRY',
-                (
-                    SELECT CAST(srid AS integer)
-                    FROM geometry_columns
-                    WHERE f_table_name='{input_table}'
-                ),
-                '"""+multi+"""POINT',
-                (
-                    SELECT coord_dimension
-                    FROM geometry_columns
-                    WHERE f_table_name='{input_table}'
-                )
-            )"""))
-        cur.execute(SQL("SELECT CreateSpatialIndex('"+table+"', 'GEOMETRY')"))
+            )""",input_table=self._table,table=table,geomtype=geomtype))
+        cur.execute(SQL("SELECT CreateSpatialIndex('{table}', 'GEOMETRY')",table=table))
 
 
 def sanitize( conn, table, snap_distance, min_edge_length, attribute=None ):
