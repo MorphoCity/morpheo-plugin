@@ -8,11 +8,13 @@ DELETE FROM way_places;
 
 -- Update place edges with way index
 
+UPDATE place_edges SET 
+WAY = (SELECT WAY FROM way_partition WHERE way_partition.EDGE=place_edges.OGC_FID)
+;
 
+-- Cleanup ways attributes on edges
 
--- Cleanup ways attributes on edge
-
-UPDATE edges SET RTOPO = 0, ACCES = 0, WAY_ID = NULL;
+UPDATE edges SET RTOPO = NULL, ACCES = NULL, WAY_ID = NULL;
 
 -- Compute Way geometry (as MULTILINESTRING)
 

@@ -195,28 +195,16 @@ class WayBuilder(object):
         num_ways = num_partitions(ways)
 
         logging.info("Ways: computed {} ways (num places={}, num edges={})".format(num_ways,count_places,max_edges))
-        
-        self._build_way_table(cur, ways, distances)
-        self._conn.commit()
-        return num_ways
-        
-    def _build_way_table( self, cur, ways, distances ):
-        """ Write back way partition
-
-            Create a table holding the partition mapping for edges. The table
-            also contains the distance corrections.
-        """
+       
         cur.execute(SQL("DELETE FROM way_partition"))
         cur.executemany(SQL("INSERT INTO way_partition(EDGE,WAY,DIST) SELECT ?,?,?"),
                 [(fid,way,distances[fid]) for fid,way in enumerate(ways)])
 
-        logging.info("Ways: updating place edges with way id") 
-        cur.execute(SQL("""UPDATE place_edges
-            SET WAY = (SELECT WAY FROM way_partition WHERE way_partition.EDGE=place_edges.OGC_FID)
-        """))
-
         logging.info("Ways: build ways table")
         execute_sql(self._conn, "ways.sql")
+
+        self._conn.commit()
+        return num_ways
 
     def compute_local_attributes(self,  orthogonality=False, classes=0 ):
         """ Compute local way attributes
@@ -407,7 +395,7 @@ class WayBuilder(object):
         def compute( v ):
             sp = path_length(G,v)
             r = sum(sp.values())
-            a = sum(sp[r[0]]*r[1] for r in lengths)
+            a = sum(sp[w[0]]*w[1] for w in lengths)
             progress()
             return v,r,a
 
@@ -427,6 +415,8 @@ class WayBuilder(object):
                 ACCES = (SELECT ACCES FROM ways WHERE ways.WAY_ID=edges.WAY_ID)
         """))
 
+        self._conn.commit()  
+
     def get_line_graph(self):
         if self._line_graph is None:
             self._line_graph = self.create_line_graph()
@@ -444,7 +434,9 @@ class WayBuilder(object):
        """ Export way files
        """
        logging.info("Ways: Saving ways to %s" % output)
-       export_shapefile(dbname, 'ways'      , output)
+       export_shapefile(dbname, 'ways'       , output)
+       export_shapefile(dbname, 'place_edges', output)
+       export_shapefile(dbname, 'edges'      , output)
        self.save_line_graph(output)
 
     def create_line_graph(self):
