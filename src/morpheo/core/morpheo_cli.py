@@ -25,7 +25,7 @@ def setup_qgis():
     platform = os.uname()[0].lower()
     qgis_pythonpath = os.environ.get('QGIS_PYTHONPATH',{
           'darwin':'/Applications/QGIS.app/Contents/Resources/python',
-          'linux' :'/usr/local/share/qgis/python',
+          'linux' :'/usr/lib/python2.7/dist-packages/qgis',
         }.get(platform))
 
     if qgis_pythonpath is not None:
@@ -33,9 +33,8 @@ def setup_qgis():
 
     qgis_home = os.environ.get('QGIS_HOME',{
             'darwin':'/Applications/QGIS.app/Contents/MacOS',
-            'linux' :'/usr/local/',
+            'linux' :'/usr/',
         }.get(platform))
-
 
     logging.info("QGIS_PYTHONPATH set to '%s'" % qgis_pythonpath)
     logging.info("QGIS_HOME set to '%s'" % qgis_home)
