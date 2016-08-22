@@ -31,7 +31,7 @@ def check_layer(layer, wkbtypes):
        raise InvalidLayerError("Invalid CRS (lat/long) for layer")
 
 
-def import_shapefile( dbname, path, name, wkbtypes ):
+def import_shapefile( dbname, path, name, wkbtypes):
     """ Add shapefile as new table in database
         
         :param conn: Connection to database
@@ -48,7 +48,13 @@ def import_shapefile( dbname, path, name, wkbtypes ):
 
     # Append layer to  database
     ogr2ogr = os.environ['OGR2OGR']
-    rc = call([ogr2ogr,'-update', dbname, path, '-nln', name]) 
+    args = [ogr2ogr]
+    if not os.path.exists(dbname):
+        args.extend(['-f','SQLite','-dsco','SPATIALITE=yes'])
+    else:
+        args.append('-update')
+    args.extend([dbname, path, '-nln', name])
+    rc = call(args) 
     if rc != 0:
         raise IOError("Failed to add layer to database '{}'".format(dbname))
 
