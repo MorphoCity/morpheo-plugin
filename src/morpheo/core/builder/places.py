@@ -111,7 +111,7 @@ class PlaceBuilder(object):
             for start, end in iter_chunks():
                 cur.execute(SQL("""
                     INSERT INTO  {tmp_table}(GEOMETRY)
-                    SELECT ST_Union(GEOMETRY) AS GEOMETRY FROM {input_table}
+                    SELECT ST_Multi(ST_Union(GEOMETRY)) AS GEOMETRY FROM {input_table}
                     WHERE OGC_FID>={start} AND OGC_FID < {end}
                 """, tmp_table=table, input_table=input_table, buffer_size=buffer_size, start=start, end=end))
                 log_progress( end, count )
