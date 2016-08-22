@@ -76,18 +76,6 @@ def check_requirements( stand_alone = True ):
 # Morpheo commands
 #
 
-def compute_way_attributes( args ):
-    """ Compute way attributes
-    """
-    builder = Builder.from_database( args.dbname )
-    builder.compute_way_attributes(
-            orthogonality = args.orthogonality,
-            betweenness   = args.betweenness,
-            closeness     = args.closeness,
-            stress        = args.stress,
-            rtopo         = args.rtopo,
-            output        = args.output)
-
 
 def build_ways( args ):
     """ Build all : graph, places and ways 
@@ -129,6 +117,33 @@ def build_ways( args ):
     else:
         builder.build_ways(threshold=args.threshold/180.0 * pi,
                            output=output, **kwargs)
+
+
+def compute_way_attributes( args ):
+    """ Compute way attributes
+    """
+    builder = Builder.from_database( args.dbname )
+    builder.compute_way_attributes(
+            orthogonality = args.orthogonality,
+            betweenness   = args.betweenness,
+            closeness     = args.closeness,
+            stress        = args.stress,
+            rtopo         = args.rtopo,
+            output        = args.output)
+
+
+def compute_structural_diff( args ):
+    """ Compute structural diff
+    """
+    from builder.structdiff import structural_diff
+
+    output = args.output or "morpheo-diff-{}-{}".format(
+                os.path.basename(args.initial),
+                os.path.basename(args.final))
+
+    structural_diff( args.initial, args.final,
+                     output=output, 
+                     buffersize=args.tolerance)
 
 
 
@@ -185,6 +200,14 @@ def main():
     ways_cmd.add_argument("--rtopo"        , action='store_true', default=False, help="Compute topological radius")
     ways_cmd.add_argument("--classes"      , metavar='NUM', default=10, help="Number of classes")
     ways_cmd.set_defaults(func=compute_way_attributes)
+
+    # Compute structural diff
+    sdiff_cmd = sub.add_parser('sdiff'  , description="Compute structural difference")
+    sdiff_cmd.add_argument("initial"    , metavar='PATH' , help="Path to initial state data")
+    sdiff_cmd.add_argument("final"      , metavar='PATH' , help="Path to final state data")
+    sdiff_cmd.add_argument("--tolerance", metavar='VALUE', type=float, default=1, help="Tolerance value") 
+    sdiff_cmd.add_argument("--output"   , metavar='PATH' , default=None, help="Path to ouptut data")
+    sdiff_cmd.set_defaults(func=compute_structural_diff)
 
     args = parser.parse_args()
     
