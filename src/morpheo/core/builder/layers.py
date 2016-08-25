@@ -68,7 +68,8 @@ def export_shapefile( dbname, table, output ):
     """
     from subprocess import call
     ogr2ogr = os.environ['OGR2OGR']
-    rc = call([ogr2ogr,'-f','ESRI Shapefile','-overwrite',output,dbname,table,'-nln',"%s_%s" % (table,output)])
+    rc = call([ogr2ogr,'-f','ESRI Shapefile','-overwrite',output,dbname,table,'-nln',
+                "%s_%s" % (table,os.path.basename(output))])
     if rc != 0:
         raise IOError("Failed to save '{}:{}' as  '{}'".format(dbname, table, output))
 
