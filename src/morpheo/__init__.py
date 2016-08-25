@@ -5,6 +5,6 @@
 # -----------------------
 
 def classFactory(iface):
-    from gui.gui import Cui
+    from gui.gui import Gui
     return Gui(iface)
 
