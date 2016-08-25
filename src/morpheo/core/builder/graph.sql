@@ -222,6 +222,8 @@ CREATE INDEX place_vtx_place_idx ON place_vtx(PLACE);
 
 CREATE TABLE place_edges(
    OGC_FID   integer PRIMARY KEY,
+   LENGTH    real,
+   DEGREE    integer,
    START_PL  integer, -- REFERENCES places(OGC_FID),
    END_PL    integer, -- REFERENCES places(OGC_FID),
    START_VTX integer, -- REFERENCES vertices(OGC_FID),  -- for optimizing join 

@@ -20,6 +20,7 @@ from .sql import SQL, execute_sql, attr_table
 from .classes import compute_classes
 from .layers import export_shapefile
 
+
 def iter_places(rows):
     """ Generator for iterating throught places 
 
@@ -52,16 +53,13 @@ def compute_way_classes(attr_table, cur, attribute, classes):
 class WayBuilder(object):
 
     def __init__(self, conn):
+       from math import atan2
 
-       from qgis.core import QgsPoint
        self._conn = conn
 
        # Define helper functions
-       p1,p2 = QgsPoint(), QgsPoint()
        def azimuth(x1,y1,x2,y2):
-           p1.set(x1,y1)
-           p2.set(x2,y2)
-           return p1.azimuth(p2) / 180.0 * pi
+           return atan2(x2-x1, y2-y1)
 
        def distance(x1,y1,x2,y2):
            p1.set(x1,y1)
@@ -429,7 +427,7 @@ class WayBuilder(object):
             nx.write_gpickle(self._line_graph, os.path.join(output,'way_graph_'+basename+'.gpickle'))
         else:
             logging.warn("Ways: no graph to save")
-    
+   
     def export(self, dbname, output ):
        """ Export way files
        """

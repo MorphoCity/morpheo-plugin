@@ -87,3 +87,4 @@ def open_shapefile( path, name ):
         raise InvalidLayerError("Failed to load layer %s" % path)
 
     return layer
+

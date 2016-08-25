@@ -15,17 +15,49 @@ from .layers import export_shapefile
 BUFFER_TABLE='temp_buffer'
 
 
+def _edge_graph_path( output ):
+    """ Build edge graph path
+    """
+    basename = os.path.basename(output)
+    return os.path.join(output,'edge_graph_'+basename+'.gpickle')
+
+
+def build_edges_graph(conn, output):
+    """ Build place edge graph and export file
+    """
+    import networkx as nx
+
+    cur  = conn.cursor()
+    rows = cur.execute(SQL("SELECT START_PL, END_PL, LENGTH, OGC_FID FROM place_edges")).fetchall()
+
+    # Edges are multigraph
+    g = nx.MultiGraph()
+    g.add_edges_from( (r[0],r[1],{'length': int(r[2]), 'fid': r[3]}) for r in rows)
+
+    nx.write_gpickle(g, _edge_graph_path(output))
+    return g
+
+
 class PlaceBuilder(object):
 
     def __init__(self, conn, chunks=100):
        self._conn   = conn
        self._chunks = chunks
 
-    def export(self, dbname, output ):
-       logging.info("Builder: Saving places to %s" % output)
+    def export(self, dbname, output, export_graph=False ):
+       logging.info("Places: Saving places to %s" % output)
        export_shapefile(dbname, 'places'     , output)
        export_shapefile(dbname, 'place_edges', output)
-
+       if export_graph:
+           logging.info("Places: building edge graph")
+           build_edges_graph(self._conn, output)
+       else:
+          # Clean up existing graph
+          path = _edge_graph_path(output)
+          if os.path.exists(path):
+              logging.info("Places: cleaning existing edge graph")
+              os.remove(path)
+   
     def build_places( self, buffer_size, input_places=None):
         """ Build places
 

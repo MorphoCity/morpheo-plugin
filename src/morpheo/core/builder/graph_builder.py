@@ -113,7 +113,13 @@ class SpatialiteBuilder(object):
             export_shapefile(self._dbname, 'edges'   , output)
             export_shapefile(self._dbname, 'vertices', output)
 
-    def build_places(self, buffer_size, places=None, output=None):
+    def build_edges_graph(self, output):
+        """ Build and export edge graph
+        """
+        from places import build_edges_graph
+        build_edges_graph(self._conn, output)
+
+    def build_places(self, buffer_size, places=None, output=None, export_graph=False):
         """ Build places
             
             Build places from buffer and/or external places definition.
@@ -142,7 +148,7 @@ class SpatialiteBuilder(object):
         builder.build_places(buffer_size, input_places_table) 
 
         if output is not None:
-            builder.export(self._dbname, output) 
+            builder.export(self._dbname, output, export_graph=export_graph) 
 
     def build_ways(self,  threshold, output=None, attributes=False, rtopo=False, **kwargs) :
         """ Build way's hypergraph

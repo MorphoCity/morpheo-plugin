@@ -118,6 +118,7 @@ UPDATE places SET DEGREE =
 WHERE OGC_FID IN (SELECT ID FROM place_degree)
 ;
 
+
 -- Clean up
 DROP INDEX place_degree_idx;
 DROP TABLE place_degree;
@@ -131,8 +132,6 @@ DELETE FROM places WHERE DEGREE=0
 -- Invalid geometries are geometries that crosses start or end places
 -- multiple times - this may happends with places wich are not convex 
 -- such as digitalized places
-
--- Create temporary table
 
 UPDATE place_edges SET
 STATUS = (
@@ -226,12 +225,36 @@ GEOMETRY = (
 -- This leads in situation where place edges geometries are null when 
 -- computed from differences from places geometries
 -- In those case restore the original edge geometry
+-- We mark those edges with a special status code  
 
 UPDATE place_edges SET
 GEOMETRY = (SELECT e.GEOMETRY FROM edges AS e WHERE place_edges.OGC_FID=e.OGC_FID),
 STATUS   = 2
 WHERE GEOMETRY IS NULL
 ;
+
+-- Update place_edges degree
+
+UPDATE place_edges
+SET DEGREE =
+        (SELECT DEGREE FROM places WHERE places.OGC_FID = place_edges.START_PL)
+       +(SELECT DEGREE FROM places WHERE places.OGC_FID = place_edges.END_PL)
+       - 2
+    WHERE place_edges.START_PL != place_edges.END_PL
+;
+
+UPDATE place_edges
+SET DEGREE =
+        (SELECT DEGREE FROM places WHERE places.OGC_FID = place_edges.START_PL)
+       - 2
+    WHERE place_edges.START_VTX == place_edges.END_VTX
+;
+
+-- Update place_edges length
+
+UPDATE place_edges SET LENGTH = (SELECT ST_Length(place_edges.GEOMETRY))
+;
+
 
 -- Clean up
 VACUUM

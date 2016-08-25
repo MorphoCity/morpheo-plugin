@@ -98,7 +98,8 @@ def build_ways( args ):
         # Compute places
         builder.build_places(buffer_size=args.buffer,
                              places=args.input_places,
-                             output=output)
+                             output=output,
+                             export_graph=args.graph)
 
     if args.P: return
 
@@ -131,6 +132,14 @@ def compute_way_attributes( args ):
             output        = args.output)
 
 
+def build_edges_graph( args ):
+    """ Build and export edges graph  
+    """
+    output = args.output or args.dbname
+    builder = Builder.from_database( args.dbname )
+    builder.build_edges_graph(args.output)
+ 
+
 def compute_structural_diff( args ):
     """ Compute structural diff
     """
@@ -144,6 +153,28 @@ def compute_structural_diff( args ):
                      output=output, 
                      buffersize=args.tolerance)
 
+
+def compute_path( args ):
+    """ Compute shortest paths
+    """
+    import builder.itinerary as iti
+
+    path   = args.path           # input path
+    output = args.output or path # output path
+    dbname = args.dbname or path+'.sqlite'
+
+    if args.path_type=='shortest':
+        _path_fun = iti.shortest_path
+    elif args.path_type=='simplest':
+        _path_fun = iti.simplest_path
+    elif args.path_type=='azimuth':
+        _path_fun = iti.azimuth_path
+    elif args.path_type=='naive-azimuth':
+        _path_fun = iti.naive_azimuth_path
+    elif args.path=='way-simplest':
+        _path_fun = iti.way_simplest
+
+    _path_fun(dbname, path, args.source, args.destination, output=output)
 
 
 def main():
@@ -162,20 +193,22 @@ def main():
     # Ways builder command
     ways_cmd = sub.add_parser('ways', description="Build ways and compute attributes on ways")
     ways_cmd.add_argument("shapefile", help="Shapefile path")
-    ways_cmd.add_argument("--dbname" , default=None, help="Database name")
-    ways_cmd.add_argument("--output" , default=None, help="Output project")
 
     group = ways_cmd.add_mutually_exclusive_group()
     group.add_argument("-G", action='store_true', default=False, help="Compute only viary graph")
     group.add_argument("-P", action='store_true', default=False, help="Compute only places")
     group.add_argument("-W", action='store_true', default=False, help="Compute only ways")
-    
+ 
+    ways_cmd.add_argument("--dbname" , default=None, help="Database name")
+    ways_cmd.add_argument("--output" , default=None, help="Output project")
+
     # Options controlling graph
     ways_cmd.add_argument("--snap-distance"  , metavar='VALUE', type=float, default=0.2, help="Snap distance")
     ways_cmd.add_argument("--min-edge-length", metavar='VALUE', type=float, default=4, help="Min edge length")
     # Options controlling places
     ways_cmd.add_argument("--buffer"         , metavar='VALUE', type=float, default=4 , help="Place Buffer size")
     ways_cmd.add_argument("--input-places"   , metavar='PATH' , default=None, help="Default input polygons for places")
+    ways_cmd.add_argument("--graph"          , action='store_true', default=False, help="Export edges graph")
     # Options controlling ways
     ways_cmd.add_argument("--way-attribute"  , metavar='NAME', default=None, help="Attribute for building street ways")
     ways_cmd.add_argument("--threshold"      , metavar='VALUE', type=float, default=30, help="Treshold angle (in degree)")
@@ -200,6 +233,12 @@ def main():
     ways_cmd.add_argument("--classes"      , metavar='NUM', default=10, help="Number of classes")
     ways_cmd.set_defaults(func=compute_way_attributes)
 
+    # edge graph command
+    ways_cmd = sub.add_parser('edges_graph', description="Build edges graph")
+    ways_cmd.add_argument("dbname", help="Database")
+    ways_cmd.add_argument("--output", metavar='PATH', default=None, help="Output path")
+    ways_cmd.set_defaults(func=build_edges_graph)
+ 
     # Compute structural diff
     sdiff_cmd = sub.add_parser('sdiff'  , description="Compute structural difference")
     sdiff_cmd.add_argument("initial"    , metavar='PATH' , help="Path to initial state data")
@@ -208,6 +247,29 @@ def main():
     sdiff_cmd.add_argument("--output"   , metavar='PATH' , default=None, help="Path to ouptut data")
     sdiff_cmd.set_defaults(func=compute_structural_diff)
 
+    # Compute paths
+    path_cmd = sub.add_parser('path', description="Compute paths")
+    path_cmd.add_argument("path", metavar='PATH', help="Path to morpheo graph data")
+    path_cmd.add_argument("--dbname", metavar='PATH', help="Database")
+    path_cmd.add_argument("--output", metavar='PATH' , default=None, help="Output destination")
+    path_cmd.add_argument("-from","--from", metavar='NUMBER' , type=int, dest='source'     , 
+            required=True, help="FID of starting place")
+    path_cmd.add_argument("-to"  ,"--to"  , metavar='NUMBER' , type=int, dest='destination', 
+            required=True, help="FID of destination place")
+    path_cmd.add_argument("-T, --type", choices=[
+        'shortest',
+        'simplest',
+        'azimuth' ,
+        'way-simplest',
+        'naive-azimuth',
+    ], default='shortest', dest="path_type", help="Type of path (default to shortest)")
+    path_cmd.add_argument("--mesh-attribute" , metavar='NAME'  , default=None, 
+            help="Specify attribute name for mesh structure")
+    path_cmd.add_argument("--mesh-percentile", metavar='NUMBER', default=0, type=int, 
+            help="The percentile for computing the mesh structure")
+    path_cmd.set_defaults(func=compute_path)
+
+    #--------------------------
     args = parser.parse_args()
     
     setup_log_handler(args.logging, formatstr='%(asctime)s\t%(levelname)s\t%(message)s')
