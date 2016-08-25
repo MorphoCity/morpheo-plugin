@@ -62,9 +62,7 @@ class WayBuilder(object):
            return atan2(x2-x1, y2-y1)
 
        def distance(x1,y1,x2,y2):
-           p1.set(x1,y1)
-           p2.set(x2,y2)
-           return np.sqrt(p1.sqrDist(p2))
+           return np.sqrt((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1))
 
        self.azimuth  = azimuth
        self.distance = distance
