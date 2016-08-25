@@ -95,6 +95,26 @@ class PlaceBuilder(object):
         cur.execute(SQL("INSERT INTO places(GEOMETRY) SELECT GEOMETRY FROM {input_table}",
                     input_table=input_places))
 
+    def _create_buffer_table( self, cur, table, input_table ):
+        cur.execute(SQL("CREATE TABLE {buffer_table}(OGC_FID integer primary key)",buffer_table=table))
+        cur.execute(SQL("""
+            SELECT AddGeometryColumn(
+                '{buffer_table}',
+                'GEOMETRY',
+                (
+                    SELECT CAST(srid AS integer)
+                    FROM geometry_columns
+                    WHERE f_table_name='{input_table}'
+                ),
+                'MULTIPOLYGON',
+                (
+                    SELECT coord_dimension
+                    FROM geometry_columns
+                    WHERE f_table_name='{input_table}'
+                )
+            )""",buffer_table=table, input_table=input_table))
+        cur.execute(SQL("SELECT CreateSpatialIndex('{buffer_table}', 'GEOMETRY')",
+             buffer_table=table))
 
     def creates_places_from_buffer(self, buffer_size, input_places ):
         """ Creates places from buffer
@@ -103,10 +123,10 @@ class PlaceBuilder(object):
 
         # Load temporary table definition
         delete_table(self._conn, BUFFER_TABLE)
-        execute_sql(self._conn, "buffers.sql", quiet=True, buffer_table=BUFFER_TABLE, input_table="vertices")
-
+ 
         cur = self._conn.cursor()
 
+        self._create_buffer_table(cur, BUFFER_TABLE, 'vertices')
         cur.execute(SQL("DELETE FROM places"))
 
         # Apply buffer to entities and merge them
@@ -128,7 +148,7 @@ class PlaceBuilder(object):
             # Create temporary buffer table
 
             delete_table(self._conn, table)
-            execute_sql(self._conn, "buffers.sql", quiet=True, buffer_table=table, input_table=input_table)
+            self._create_buffer_table(cur, table, input_table)
         
             count = cur.execute(SQL("SELECT Max(OGC_FID) FROM {input_table}", input_table=input_table)).fetchone()[0]
             size  = count / self._chunks
@@ -144,7 +164,7 @@ class PlaceBuilder(object):
                 cur.execute(SQL("""
                     INSERT INTO  {tmp_table}(GEOMETRY)
                     SELECT ST_Multi(ST_Union(GEOMETRY)) AS GEOMETRY FROM {input_table}
-                    WHERE OGC_FID>={start} AND OGC_FID < {end}
+                    WHERE OGC_FID>={start} AND OGC_FID<{end}
                 """, tmp_table=table, input_table=input_table, buffer_size=buffer_size, start=start, end=end))
                 log_progress( end, count )
             # Final merge into buffer_table
