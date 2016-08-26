@@ -142,7 +142,7 @@ def fill_attribute_table( cur, name, rows ):
 def delete_attr_table( cur, name):
     """ Delete attribute table
     """
-    if table_exists(name):
+    if table_exists(cur, name):
         cur.execute(SQL("DROP INDEX %s_ID_idx" % name))
         cur.execute(SQL("DROP TABLE %s" % name))
         cur.execute(SQL("VACUUM"))

@@ -7,20 +7,10 @@ import logging
 
 from ..logger import log_progress
 
-from .errors import BuilderError
+from .errors import BuilderError, FileNotFoundError, DatabaseNotFound
 from .sql import SQL, execute_sql, delete_table, connect_database
 from .layers import check_layer, open_shapefile, import_shapefile, export_shapefile
 from .sanitize import sanitize
-
-
-class InvalidLayerError(BuilderError):
-    pass
-
-class FileNotFoundError(BuilderError):
-    pass
-
-class DatabaseNotFound(BuilderError):
-    pass
 
 
 class SpatialiteBuilder(object):

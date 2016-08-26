@@ -3,6 +3,8 @@
 """
 import os
 
+from .errors import FileNotFoundError, InvalidLayerError
+
 def open_shapefile( path, name ):
     """ Open a shapefile as a qgis layer
     """
@@ -64,8 +66,8 @@ def export_shapefile( dbname, table, output ):
         :param table: The table name
         :param output: Output path of the destination folder to store shapefile
     """
-    from subprocess import call
     if 'OGR2OGR' in os.environ:
+        from subprocess import call
         # Export with ogr2ogr
         ogr2ogr = os.environ['OGR2OGR']
         rc = call([ogr2ogr,'-f','ESRI Shapefile','-overwrite',output,dbname,table,'-nln',
