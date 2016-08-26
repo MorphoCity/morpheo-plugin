@@ -12,7 +12,6 @@ import numpy as np
 from numpy import sin
 from numpy import pi
 from functools import partial
-from itertools import takewhile
 from ..logger import Progress
 
 from .errors import BuilderError
@@ -34,9 +33,19 @@ def iter_places(rows):
         for the same index.
     """
     s = 0
-    while s<len(rows):
+    size = len(rows)
+    def takew(p,s):
+        while s<size:
+            x = rows[s]
+            if x[0]==p:
+                yield x
+                s = s+1
+            else:
+                break
+
+    while s<size:
         p = rows[s][0]
-        l = list(takewhile(lambda x: x[0]==p,  rows[s:]))
+        l = list(takew(p,s))
         s = s+len(l)
         yield p,l
 
@@ -418,7 +427,14 @@ class WayBuilder(object):
             self._line_graph = self.create_line_graph()
         return self._line_graph
 
-    def save_line_graph(self, output):
+    def save_line_graph(self, output, create=False):
+        """ Save line graph
+
+            :param output: Path to export graph
+            :param create: If True, force graph creation
+        """
+        if create:
+           self.get_line_graph()
         if self._line_graph is not None:
             logging.info("Ways: saving line graph")
             basename = os.path.basename(output)
@@ -426,14 +442,14 @@ class WayBuilder(object):
         else:
             logging.warn("Ways: no graph to save")
    
-    def export(self, dbname, output ):
+    def export(self, dbname, output, export_graph=False):
        """ Export way files
        """
        logging.info("Ways: Saving ways to %s" % output)
        export_shapefile(dbname, 'ways'       , output)
        export_shapefile(dbname, 'place_edges', output)
        export_shapefile(dbname, 'edges'      , output)
-       self.save_line_graph(output)
+       self.save_line_graph(output, create=export_graph)
 
     def create_line_graph(self):
         """ Create a line graph from ways

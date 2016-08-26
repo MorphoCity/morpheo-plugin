@@ -116,7 +116,8 @@ def build_ways( args ):
         builder_build_ways_from_attribute(output=args.output, **kwargs)
     else:
         builder.build_ways(threshold=args.threshold/180.0 * pi,
-                           output=output, **kwargs)
+                           output=output,
+                           export_graph=args.graph, **kwargs)
 
 
 def compute_way_attributes( args ):
@@ -137,8 +138,16 @@ def build_edges_graph( args ):
     """
     output = args.output or args.dbname
     builder = Builder.from_database( args.dbname )
-    builder.build_edges_graph(args.output)
+    builder.build_edges_graph(output)
  
+
+def build_ways_graph( args ):
+    """ Build and save way line graph
+    """
+    output  = args.output or args.dbname
+    builder = Builder.from_database( args.dbname )
+    builder.build_ways_graph(output)
+
 
 def compute_structural_diff( args ):
     """ Compute structural diff
@@ -208,7 +217,7 @@ def main():
     # Options controlling places
     ways_cmd.add_argument("--buffer"         , metavar='VALUE', type=float, default=4 , help="Place Buffer size")
     ways_cmd.add_argument("--input-places"   , metavar='PATH' , default=None, help="Default input polygons for places")
-    ways_cmd.add_argument("--graph"          , action='store_true', default=False, help="Export edges graph")
+    ways_cmd.add_argument("--graph"          , action='store_true', default=False, help="Export graphes")
     # Options controlling ways
     ways_cmd.add_argument("--way-attribute"  , metavar='NAME', default=None, help="Attribute for building street ways")
     ways_cmd.add_argument("--threshold"      , metavar='VALUE', type=float, default=30, help="Treshold angle (in degree)")
@@ -238,6 +247,12 @@ def main():
     ways_cmd.add_argument("dbname", help="Database")
     ways_cmd.add_argument("--output", metavar='PATH', default=None, help="Output path")
     ways_cmd.set_defaults(func=build_edges_graph)
+ 
+    # way graph command
+    ways_cmd = sub.add_parser('ways_graph', description="Build way line graph")
+    ways_cmd.add_argument("dbname", help="Database")
+    ways_cmd.add_argument("--output", metavar='PATH', default=None, help="Output path")
+    ways_cmd.set_defaults(func=build_ways_graph)
  
     # Compute structural diff
     sdiff_cmd = sub.add_parser('sdiff'  , description="Compute structural difference")
