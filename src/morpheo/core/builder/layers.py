@@ -1,5 +1,5 @@
 # -*- encoding=utf-8 -*-
-""" Utilities to manage shapefile layers 
+""" Utilities to manage shapefile layers
 """
 import os
 
@@ -33,9 +33,9 @@ def check_layer(layer, wkbtypes):
 
 def import_shapefile( dbname, path, name, wkbtypes):
     """ Add shapefile as new table in database
-        
+
         :param conn: Connection to database
-        :param dbname: Path of the database 
+        :param dbname: Path of the database
         :param path: Path of the shapefile
         :param name: Name of the table
         :param wkbtypes: Required types for geometries
@@ -54,7 +54,7 @@ def import_shapefile( dbname, path, name, wkbtypes):
     else:
         args.append('-update')
     args.extend([dbname, path, '-nln', name])
-    rc = call(args) 
+    rc = call(args)
     if rc != 0:
         raise IOError("Failed to add layer to database '{}'".format(dbname))
 
@@ -67,11 +67,28 @@ def export_shapefile( dbname, table, output ):
         :param output: Output path of the destination folder to store shapefile
     """
     from subprocess import call
-    ogr2ogr = os.environ['OGR2OGR']
-    rc = call([ogr2ogr,'-f','ESRI Shapefile','-overwrite',output,dbname,table,'-nln',
-                "%s_%s" % (table,os.path.basename(output))])
-    if rc != 0:
-        raise IOError("Failed to save '{}:{}' as  '{}'".format(dbname, table, output))
+    if 'OGR2OGR' in os.environ:
+        # Export with ogr2ogr
+        ogr2ogr = os.environ['OGR2OGR']
+        rc = call([ogr2ogr,'-f','ESRI Shapefile','-overwrite',output,dbname,table,'-nln',
+                    "%s_%s" % (table,os.path.basename(output))])
+        if rc != 0:
+            raise IOError("Failed to save '{}:{}' as  '{}'".format(dbname, table, output))
+    else:
+        # Export with QGIS API
+        from qgis.core import QgsDataSourceURI, QgsVectorLayer, QgsVectorFileWriter
+        # Create Spatialite URI
+        uri = QgsDataSourceURI()
+        uri.setDatabase(dbname)
+        uri.setDataSource('', table, 'GEOMETRY')
+        # Create Spatialite QgsVectorLayer
+        dblayer = QgsVectorLayer(uri.uri(), table, 'spatialite')
+        # Shapefile path
+        shapefile = os.path.join(output, "%s_%s.shp" % (table,os.path.basename(output)))
+        # Write Shapefile
+        writeError = QgsVectorFileWriter.writeAsVectorFormat(dblayer, shapefile, "UTF8", None, "ESRI Shapefile")
+        if writeError != QgsVectorFileWriter.NoError:
+            raise IOError("Failed to save '{}:{}' as  '{}'".format(dbname, table, output))
 
 
 def open_shapefile( path, name ):

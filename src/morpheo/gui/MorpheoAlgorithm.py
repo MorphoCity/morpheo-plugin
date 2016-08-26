@@ -154,7 +154,6 @@ class MorpheoAlgorithm(GeoAlgorithm):
     def processAlgorithm(self, progress):
         """ Build all : graph, places and ways
         """
-        os.environ.update(OGR2OGR='ogr2ogr')
         layer = dataobjects.getObjectFromUri(self.getParameterValue(self.INPUT_LAYER))
 
         output    = self.getParameterValue(self.DIRECTORY) or os.join(tempFolder(), 'morpheo_'+layer.name().replace(" ", "_"))
