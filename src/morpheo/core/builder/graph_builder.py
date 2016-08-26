@@ -57,7 +57,7 @@ class SpatialiteBuilder(object):
             - The edges table
 
             :param snap_distance: The snap distance used to sanitize  the graph,
-                 If the snap_distance is > 0 the graph will be sanitized (merge close vertices, 
+                 If the snap_distance is > 0 the graph will be sanitized (merge close vertices,
                  remove unconnected features, the result will be a topological graph
             :param min_edge_length: The minimum edge length - edge below this length will be removed
             :param way_attribute: The attribute which will be used to build way from street name.
@@ -66,14 +66,14 @@ class SpatialiteBuilder(object):
         # sanitize graph
         if snap_distance > 0:
             logging.info("Builder: sanitizing graph")
-            working_table = sanitize(self._conn, self._input_table, snap_distance, min_edge_length, 
+            working_table = sanitize(self._conn, self._input_table, snap_distance, min_edge_length,
                                      attribute=way_attribute)
-            # Because we still have rounding errors 
+            # Because we still have rounding errors
             # We need to round coordinates using
-            
+
             precision = snap_distance/2.0
-  
-            logging.info("Builder: rounding coordinates to {} m precision".format(precision)) 
+
+            logging.info("Builder: rounding coordinates to {} m precision".format(precision))
             cur = self._conn.cursor()
             cur.execute(SQL("UPDATE {table} SET"
                             " GEOMETRY = (SELECT ST_SnapToGrid({table}.GEOMETRY,{prec}))",
@@ -87,7 +87,7 @@ class SpatialiteBuilder(object):
                 export_shapefile(self._dbname, working_table, output)
         else:
             working_table = self._input_table
-       
+
         self._way_build_attribute = way_attribute
 
         # Compute edges, way, vertices
@@ -95,7 +95,7 @@ class SpatialiteBuilder(object):
 
         self.execute_sql('graph.sql', input_table=working_table)
 
-        # Copy attribute to graph edge 
+        # Copy attribute to graph edge
         if way_attribute:
             cur = self._conn.cursor()
             cur.execute(SQL("UPDATE edges SET NAME = ("
@@ -106,7 +106,7 @@ class SpatialiteBuilder(object):
             cur.close()
 
         # Update parameters
-         
+
         self._conn.commit()
         if output is not None:
             logging.info("Builder: saving edges and vertices")
@@ -121,13 +121,13 @@ class SpatialiteBuilder(object):
 
     def build_places(self, buffer_size, places=None, output=None, export_graph=False):
         """ Build places
-            
+
             Build places from buffer and/or external places definition.
             If buffer is defined and > 0 then a buffer is applied to all vertices for defining
-            'virtual' places in the edge graph. 
+            'virtual' places in the edge graph.
 
             If places definition is used, these definition are used like the 'virtual' places definition. Intersecting
-            places definition and 'virtual' places are merged. 
+            places definition and 'virtual' places are merged.
 
             :param buffer_size: buffer size applied to vertices
             :param places: path of an external shapefile containing places definitions
@@ -145,10 +145,10 @@ class SpatialiteBuilder(object):
 
         from places import PlaceBuilder
         builder = PlaceBuilder(self._conn)
-        builder.build_places(buffer_size, input_places_table) 
+        builder.build_places(buffer_size, input_places_table)
 
         if output is not None:
-            builder.export(self._dbname, output, export_graph=export_graph) 
+            builder.export(self._dbname, output, export_graph=export_graph)
 
     def build_ways(self,  threshold, output=None, attributes=False, rtopo=False, **kwargs) :
         """ Build way's hypergraph
@@ -170,7 +170,7 @@ class SpatialiteBuilder(object):
         if output is not None:
             builder.export(self._dbname, output)
 
-    def compute_way_attributes( self, orthogonality, betweenness, closeness, stress, 
+    def compute_way_attributes( self, orthogonality, betweenness, closeness, stress,
                                 classes=10, rtopo=False, output=None):
         """ Compute attributes for ways:
 
@@ -182,7 +182,7 @@ class SpatialiteBuilder(object):
         from ways import WayBuilder
         builder = WayBuilder(self._conn)
         builder.compute_local_attributes(orthogonality = orthogonality, classes=classes)
-        
+
         if rtopo:
             builder.compute_topological_radius()
 
@@ -194,7 +194,7 @@ class SpatialiteBuilder(object):
                     classes     = classes)
 
         if output is not None:
-            builder.export_ways(self._dbname, output)
+            builder.export(self._dbname, output)
 
     def build_ways_from_attribute(self, output=None):
         """ Build way's hypergraph from street names.
@@ -223,7 +223,7 @@ class SpatialiteBuilder(object):
             :returns: A Builder object
         """
         basename = os.path.basename(os.path.splitext(path)[0])
-        layer    = open_shapefile( path, basename) 
+        layer    = open_shapefile( path, basename)
         builder  = SpatialiteBuilder.from_layer(layer, dbname)
         return builder
 
@@ -235,7 +235,7 @@ class SpatialiteBuilder(object):
             :returns: A builder object
         """
         from qgis.core import QgsVectorFileWriter, QGis
-       
+
         check_layer(layer, (QGis.WKBLineString25D, QGis.WKBLineString))
 
         dbname = dbname or 'morpheo_'+layer.name().replace(" ", "_")
@@ -251,13 +251,13 @@ class SpatialiteBuilder(object):
 
         logging.info("Creating database '%s' from layer" % dbname)
 
-        # 
+        #
 
         return SpatialiteBuilder(dbname)
 
     @staticmethod
     def from_database( dbname ):
-        """" Open existing database 
+        """" Open existing database
 
              :param dbname: Path of the database:
              :returns: A builder object
@@ -265,9 +265,9 @@ class SpatialiteBuilder(object):
         dbname = dbname + '.sqlite'
         if not os.path.isfile( dbname ):
             raise DatabaseNotFound(dbname)
-        
+
         return SpatialiteBuilder(dbname)
-        
+
 
 
 
