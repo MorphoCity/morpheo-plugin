@@ -71,6 +71,7 @@ class MorpheoAlgorithm(GeoAlgorithm):
 
     INPUT_LAYER = 'INPUT_LAYER'
     DIRECTORY = 'DIRECTORY'
+    DBNAME = 'DBNAME'
 
     COMPUTE = 'COMPUTE'
 
@@ -113,8 +114,11 @@ class MorpheoAlgorithm(GeoAlgorithm):
         self.addParameter(ParameterVector(self.INPUT_LAYER, 'Input layer',
                           [ParameterVector.VECTOR_TYPE_LINE]))
 
-        self.addParameter(ParameterFile(self.DIRECTORY, 'Output morpheo project',
+        self.addParameter(ParameterFile(self.DIRECTORY, 'Output directory to store database and data',
                           isFolder=True))
+
+        self.addParameter(ParameterString(self.DBNAME, 'Database and data directory name',
+                          optional=True))
 
         # Options controlling graph
         self.addParameter(
@@ -156,22 +160,22 @@ class MorpheoAlgorithm(GeoAlgorithm):
         """
         layer = dataobjects.getObjectFromUri(self.getParameterValue(self.INPUT_LAYER))
 
-        output    = self.getParameterValue(self.DIRECTORY) or os.join(tempFolder(), 'morpheo_'+layer.name().replace(" ", "_"))
-        dbname    = output
+        output    = self.getParameterValue(self.DIRECTORY) or tempFolder()
+        dbname    = self.getParameterValue(self.DBNAME) or 'morpheo_'+layer.name().replace(" ", "_")
 
         compute = self.getParameterValue(self.COMPUTE)
 
-        builder = Builder.from_layer( layer, dbname )
+        builder = Builder.from_layer( layer, os.path.join(output, dbname) )
 
         # Compute graph
         builder.build_graph(self.getParameterValue(self.SNAP_DISTANCE),
                             self.getParameterValue(self.MIN_EDGE_LENGTH),
                             self.getParameterValue(self.WAY_ATTRIBUTE),
-                            output=output)
+                            output=os.path.join(output, dbname))
         # Compute places
         builder.build_places(buffer_size=self.getParameterValue(self.BUFFER),
                              places=self.getParameterValue(self.INPUT_PLACES),
-                             output=output)
+                             output=os.path.join(output, dbname))
 
         # Compute ways
         kwargs = dict(classes=self.getParameterValue(self.CLASSES), rtopo=self.getParameterValue(self.RTOPO))
@@ -183,12 +187,15 @@ class MorpheoAlgorithm(GeoAlgorithm):
                           stress        = self.getParameterValue(self.STRESS))
 
         if self.getParameterValue(self.WAY_ATTRIBUTE) is not None:
-            builder.build_ways_from_attribute(output=args.output, **kwargs)
+            builder.build_ways_from_attribute(output=os.path.join(output, dbname), **kwargs)
         else:
             builder.build_ways(threshold=self.getParameterValue(self.THRESHOLD)/180.0 * pi,
-                           output=output, **kwargs)
+                           output=os.path.join(output, dbname), **kwargs)
 
-        #'place_edges','places' et ways
+        # Visualize data
+        self.add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'places', "%s_%s" % ('places',dbname))
+        self.add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'place_edges', "%s_%s" % ('place_edges',dbname))
+        self.add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'ways', "%s_%s" % ('ways',dbname))
 
     def write_output_table(self, output_param, table, cursor):
         cursor.execute("pragma table_info("+table+")")
@@ -198,11 +205,11 @@ class MorpheoAlgorithm(GeoAlgorithm):
         cursor.execute("SELECT "+','.join(fields)+" FROM "+table)
         table_writer.addRecords(cursor.fetchall())
 
-    def add_vector_layer(self, layer_name, dbname):
+    def add_vector_layer(self, dbname, table_name, layer_name):
             uri = QgsDataSourceURI()
             uri.setDatabase(dbname)
-            uri.setDataSource('', Terminology.tr(layer_name), 'GEOMETRY')
-            vlayer = QgsVectorLayer(uri.uri(), Terminology.tr(layer_name), 'spatialite')
+            uri.setDataSource('', table_name, 'GEOMETRY')
+            vlayer = QgsVectorLayer(uri.uri(), layer_name, 'spatialite')
             QgsMapLayerRegistry.instance().addMapLayer(vlayer)
 
 
