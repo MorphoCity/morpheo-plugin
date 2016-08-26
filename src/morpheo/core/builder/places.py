@@ -9,7 +9,11 @@ import logging
 from ..logger import log_progress
 
 from .errors import BuilderError
-from .sql import SQL, execute_sql, delete_table, connect_database
+from .sql import (SQL, execute_sql, 
+                  create_indexed_table,
+                  delete_table, 
+                  connect_database, table_exists)
+
 from .layers import export_shapefile
 
 BUFFER_TABLE='temp_buffer'
@@ -75,17 +79,13 @@ class PlaceBuilder(object):
         # Use a minimum buffer_size
         buffer_size = buffer_size or 0
 
-        try:
-            if buffer_size > 0:
-                self.creates_places_from_buffer(buffer_size, input_places )
-            else:
-                self.creates_places_from_file(input_places)
-            logging.info("Building edges between places")
-            execute_sql(self._conn, "places.sql")
-            self._conn.commit()
-        finally:
-            pass
-            #delete_table(self._conn, BUFFER_TABLE)
+        if buffer_size > 0:
+            self.creates_places_from_buffer(buffer_size, input_places )
+        else:
+            self.creates_places_from_file(input_places)
+        logging.info("Building edges between places")
+        execute_sql(self._conn, "places.sql")
+        self._conn.commit()
 
     def creates_places_from_file(self, input_places):
         """ Create places from input  file
@@ -95,38 +95,55 @@ class PlaceBuilder(object):
         cur.execute(SQL("INSERT INTO places(GEOMETRY) SELECT GEOMETRY FROM {input_table}",
                     input_table=input_places))
 
-    def _create_buffer_table( self, cur, table, input_table ):
-        cur.execute(SQL("CREATE TABLE {buffer_table}(OGC_FID integer primary key)",buffer_table=table))
-        cur.execute(SQL("""
-            SELECT AddGeometryColumn(
-                '{buffer_table}',
-                'GEOMETRY',
-                (
-                    SELECT CAST(srid AS integer)
-                    FROM geometry_columns
-                    WHERE f_table_name='{input_table}'
-                ),
-                'MULTIPOLYGON',
-                (
-                    SELECT coord_dimension
-                    FROM geometry_columns
-                    WHERE f_table_name='{input_table}'
-                )
-            )""",buffer_table=table, input_table=input_table))
-        cur.execute(SQL("SELECT CreateSpatialIndex('{buffer_table}', 'GEOMETRY')",
-             buffer_table=table))
-
     def creates_places_from_buffer(self, buffer_size, input_places ):
         """ Creates places from buffer
         """
         logging.info("Places: building places from buffers (buffer size={})".format(buffer_size))
 
-        # Load temporary table definition
-        delete_table(self._conn, BUFFER_TABLE)
- 
+        def union_buffers( input_table ):
+            count = cur.execute(SQL("SELECT Max(OGC_FID) FROM {input_table}", input_table=input_table)).fetchone()[0]
+            if count <= self._chunks:
+                cur.execute(SQL("DELETE FROM {buffer_table}", buffer_table=BUFFER_TABLE))
+                cur.execute(SQL("""
+                    INSERT INTO  {buffer_table}(GEOMETRY)
+                    SELECT ST_Union(CastToXYZ(GEOMETRY)) FROM {table}
+                """, table=input_table, buffer_table=BUFFER_TABLE))
+            else:            
+                try:
+                    table = 'temp_buffer_table' 
+                    # Create temporary buffer table
+                    create_indexed_table( cur, table, 'MULTIPOLYGON', input_table)
+
+                    size  = count / self._chunks
+                    def iter_chunks():
+                        start = 1
+                        while start <= count:
+                            yield (start, start+size)
+                            start = start+size
+
+                    logging.info("Places: Building union of buffers")
+
+                    for start, end in iter_chunks():
+                        cur.execute(SQL("""
+                            INSERT INTO  {tmp_table}(GEOMETRY)
+                            SELECT ST_Multi(ST_Union(GEOMETRY)) AS GEOMETRY FROM {input_table}
+                            WHERE OGC_FID>={start} AND OGC_FID<{end}
+                        """, tmp_table=table, input_table=input_table, 
+                             buffer_size=buffer_size, start=start, end=end))
+                        log_progress( end, count )
+                    # Final merge into buffer_table
+                    logging.info("Places: finalizing union...")
+                    cur.execute(SQL("DELETE FROM {buffer_table}", buffer_table=BUFFER_TABLE))
+                    cur.execute(SQL("""
+                        INSERT INTO  {buffer_table}(GEOMETRY)
+                        SELECT ST_Union(GEOMETRY)  FROM {tmp_table}
+                    """, tmp_table=table, buffer_table=BUFFER_TABLE))
+                finally:
+                    delete_table(cur, table)
+
         cur = self._conn.cursor()
 
-        self._create_buffer_table(cur, BUFFER_TABLE, 'vertices')
+        create_indexed_table(cur, BUFFER_TABLE, 'MULTIPOLYGON', 'vertices')
         cur.execute(SQL("DELETE FROM places"))
 
         # Apply buffer to entities and merge them
@@ -135,46 +152,41 @@ class PlaceBuilder(object):
 
         logging.info("Places: Creating buffers...")
 
-        # Note that we exclude 'cul-de-sac' vertices from aggregation
+        # Create a table of terminal vertices
+        # We need to handle them in a special way
 
+        cur.execute(SQL("CREATE TABLE IF NOT EXISTS left_vertices(OGC_FID integer PRIMARY KEY)"))
+        cur.execute(SQL("DELETE FROM left_vertices"))
+
+        # Index all vertices
+        cur.execute(SQL("INSERT INTO left_vertices(OGC_FID) SELECT OGC_FID FROM vertices"))
+
+        # Remove all vertices that are in input_places
+        if input_places is not None:
+            # Remove from left vertices all vertices included in places
+            cur.execute(SQL("""DELETE FROM left_vertices WHERE OGC_FID IN (
+                    SELECT v.OGC_FID FROM vertices AS v, {input_places} AS p 
+                    WHERE ST_Within(v.GEOMETRY,p.GEOMETRY)
+                    AND v.ROWID IN(
+                        SELECT ROWID FROM SpatialIndex
+                        WHERE f_table_name='vertices' AND search_frame=p.GEOMETRY))
+            """,input_places=input_places))
+
+        # Create buffers from left vertices vertices with degree > 1
         cur.execute(SQL("""
-                INSERT INTO {buffer_table}(GEOMETRY)
-                SELECT ST_Multi(ST_Buffer( GEOMETRY, {buffer_size})) FROM vertices
-                WHERE DEGREE > 1
+                INSERT INTO {buffer_table}(OGC_FID,GEOMETRY)
+                SELECT v.OGC_FID, ST_Multi(ST_Buffer( v.GEOMETRY, {buffer_size})) 
+                FROM vertices AS v, left_vertices AS l
+                WHERE v.DEGREE>1 AND l.OGC_FID=v.OGC_FID
             """, buffer_table=BUFFER_TABLE, buffer_size=buffer_size))
 
-        def union_buffers( input_table ):
-            table = 'temp_buffer_table' 
-            # Create temporary buffer table
+        # Remove inserted vertices
+        cur.execute(SQL("""
+                DELETE FROM left_vertices WHERE OGC_FID IN (
+                SELECT OGC_FID FROM {buffer_table})
+        """,buffer_table=BUFFER_TABLE))
 
-            delete_table(self._conn, table)
-            self._create_buffer_table(cur, table, input_table)
-        
-            count = cur.execute(SQL("SELECT Max(OGC_FID) FROM {input_table}", input_table=input_table)).fetchone()[0]
-            size  = count / self._chunks
-            def iter_chunks():
-                start = 1
-                while start <= count:
-                    yield (start, start+size)
-                    start = start+size
-
-            logging.info("Places: Building union of buffers")
-
-            for start, end in iter_chunks():
-                cur.execute(SQL("""
-                    INSERT INTO  {tmp_table}(GEOMETRY)
-                    SELECT ST_Multi(ST_Union(GEOMETRY)) AS GEOMETRY FROM {input_table}
-                    WHERE OGC_FID>={start} AND OGC_FID<{end}
-                """, tmp_table=table, input_table=input_table, buffer_size=buffer_size, start=start, end=end))
-                log_progress( end, count )
-            # Final merge into buffer_table
-            logging.info("Places: finalizing union...")
-            cur.execute(SQL("DELETE FROM {buffer_table}", buffer_table=BUFFER_TABLE))
-            cur.execute(SQL("""
-                INSERT INTO  {buffer_table}(GEOMETRY)
-                SELECT ST_Union(GEOMETRY)  FROM {tmp_table}
-            """, tmp_table=table, buffer_table=BUFFER_TABLE))
-           
+        # Create buffers
         union_buffers(BUFFER_TABLE)
 
         # Explode buffer blob into elementary geometries
@@ -183,29 +195,81 @@ class PlaceBuilder(object):
            INSERT INTO places(GEOMETRY)
            SELECT ST_ConvexHull(GEOMETRY) FROM ElementaryGeometries WHERE f_table_name='{buffer_table}' AND origin_rowid=1
         """, buffer_table=BUFFER_TABLE))
-
-        self._conn.commit()
-
+        
         if input_places is not None:
-            # Add input_places using the same merge ands split strategie
-            # This will merge connexe input places as well as places computed previously
-            logging.info("Places: adding external places geometries") 
-            cur.execute(SQL("DELETE FROM {buffer_table}", buffer_table=BUFFER_TABLE))
-            cur.execute(SQL("""
-                INSERT INTO {buffer_table}(GEOMETRY)
-                    SELECT ST_Multi(geom) FROM (
-                        SELECT GEOMETRY AS geom FROM places
-                        UNION ALL
-                        SELECT CastToXYZ(GEOMETRY) AS geom FROM {input_places})
-            """, buffer_table=BUFFER_TABLE, input_places=input_places))
-            union_buffers(BUFFER_TABLE)
-            # Split geometries again
-            cur.execute(SQL("DELETE FROM places"))
-            cur.execute(SQL("""
-                INSERT INTO places(GEOMETRY)
-                SELECT ST_MakePolygon(ST_ExteriorRing(GEOMETRY))
-                FROM ElementaryGeometries WHERE f_table_name='{buffer_table}' AND origin_rowid=1
-            """, buffer_table=BUFFER_TABLE))
+            # Cleanup placesd
+            union_buffers(input_places)
+            self._conn.commit()
+            create_indexed_table(cur, 'tmp_places', 'POLYGON', 'places')
+            try:
+                cur.execute(SQL("""
+                    INSERT INTO tmp_places(GEOMETRY)
+                    SELECT GEOMETRY FROM ElementaryGeometries WHERE f_table_name='{buffer_table}' AND origin_rowid=1
+                """,buffer_table=BUFFER_TABLE))
+
+                # now we need to check if we merge adjacent computed places in input places or not
+
+                # Select all buffers that intersect places
+                rows=cur.execute(SQL("""
+                    SELECT b.OGC_FID AS buffer, p.OGC_FID AS place
+                    FROM places AS b, tmp_places AS p 
+                    WHERE ST_Intersects(b.GEOMETRY, p.GEOMETRY)
+                        AND b.ROWID IN (
+                            SELECT ROWID FROM SpatialIndex
+                            WHERE f_table_name='places' AND search_frame=b.GEOMETRY
+                        )""")).fetchall()
+
+                to_merge = {place:[] for _,place in rows}
+
+                for buf, place in rows:
+                    # Fetch all vertices included in buffer
+                    vertices=cur.execute(SQL("""
+                        SELECT v.OGC_FID FROM vertices AS v, places AS b
+                            WHERE ST_Within( v.GEOMETRY, b.GEOMETRY )
+                            AND b.OGC_FID={buffer}
+                            AND v.ROWID IN (
+                                SELECT ROWID FROM SpatialIndex
+                                WHERE f_table_name='vertices' AND search_frame=b.GEOMETRY)
+                            """, buffer=buf)).fetchall()
+
+                    # Test that they are connected to vertex in place
+                    [rv] = cur.execute(SQL("""
+                        SELECT Count(v.OGC_FID) FROM tmp_places AS p, vertices AS v
+                        WHERE v.OGC_FID IN (
+                            SELECT vtx FROM (
+                                SELECT START_VTX AS vtx FROM edges WHERE END_VTX IN ({vertices})
+                                UNION
+                                SELECT END_VTX AS vtx FROM edges WHERE START_VTX IN ({vertices})
+                            )
+                        ) 
+                        AND p.OGC_FID={place}
+                        AND ST_Within( v.GEOMETRY, p.GEOMETRY )
+                        AND v.ROWID IN (
+                            SELECT ROWID FROM SpatialIndex
+                            WHERE f_table_name='vertices' AND search_frame=p.GEOMETRY)
+                        """, place=place, vertices=','.join(str(s[0]) for s in vertices))).fetchone()
+
+                    if rv:
+                        to_merge[place].append(buf)
+
+                # Merge buffers into places
+                for place, buffers in to_merge.iteritems():
+                    if buffers:
+                        bufstr = ','.join(str(b) for b in buffers)
+                        cur.execute(SQL("""INSERT INTO places(GEOMETRY)
+                            SELECT ST_Union(geom) FROM (
+                                SELECT GEOMETRY AS geom FROM tmp_places WHERE OGC_FID={place}
+                                UNION ALL
+                                SELECT GEOMETRY AS geom FROM places WHERE OGC_FID in ({buffers})
+                            )""",place=place, buffers=bufstr))
+                    
+                        # Clean up merged buffers
+                        cur.execute(SQL("""DELETE FROM places WHERE OGC_FID in ({buffers})""",
+                                        buffers=bufstr))
+            finally:
+                delete_table(cur, 'tmp_places')
+
+        delete_table(cur, BUFFER_TABLE)
 
         # Checkout number of places
         rv = cur.execute(SQL("Select Count(*) FROM places")).fetchone()[0]

@@ -183,7 +183,7 @@ CREATE TABLE places(
     OGC_FID integer PRIMARY KEY,
     DEGREE  integer DEFAULT 0,
     NB_VTX  integer,
-    CUL_DE_SAC integer -- REFERENCES vertices(OGC_FID)
+    END_VTX integer -- REFERENCES vertices(OGC_FID) -- mark place as terminal vertex
 );
 
 SELECT AddGeometryColumn(
@@ -204,7 +204,7 @@ SELECT AddGeometryColumn(
 
 SELECT CreateSpatialIndex('places', 'GEOMETRY');
 
-CREATE INDEX places_cul_de_sac_idx  ON places(CUL_DE_SAC);
+CREATE INDEX places_END_VTX_idx  ON places(END_VTX);
  
 -- Create an assoction table between vertices and places
 -- This table is faster to build than using subquery/join with 

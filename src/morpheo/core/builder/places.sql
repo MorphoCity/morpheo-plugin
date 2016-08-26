@@ -12,22 +12,24 @@ DELETE FROM place_edges;
 INSERT INTO place_vtx(VERTEX, PLACE)
 SELECT v.OGC_FID, p.OGC_FID
 FROM vertices AS v, places AS p
-WHERE ST_Within( v.GEOMETRY, p.GEOMETRY ) AND v.DEGREE > 1
+WHERE ST_Within( v.GEOMETRY, p.GEOMETRY ) 
+AND v.OGC_FID NOT IN (SELECT OGC_FID FROM left_vertices)
 AND v.ROWID IN (
     SELECT ROWID FROM Spatialindex
     WHERE f_table_name='vertices' AND search_frame=p.GEOMETRY)
 ;
 
--- Add 'places' for all vertices with DEGREE=1
-INSERT INTO places(GEOMETRY, CUL_DE_SAC)
-SELECT ST_Buffer(v.GEOMETRY, 1), v.OGC_FID 
-FROM vertices AS v WHERE v.DEGREE=1
+
+-- Add 'places' for all left vertices
+INSERT INTO places(GEOMETRY,END_VTX)
+SELECT ST_Buffer(v.GEOMETRY, 1), v.OGC_FID
+FROM vertices AS v, left_vertices as l WHERE v.OGC_FID=l.OGC_FID
 ;
 
 -- Udpate vertex-place table association
 
 INSERT INTO place_vtx(VERTEX, PLACE) 
-SELECT CUL_DE_SAC, OGC_FID FROM places WHERE CUL_DE_SAC IS NOT NULL
+SELECT END_VTX, OGC_FID FROM places WHERE END_VTX IS NOT NULL
 ;
 
 -- Update places with the number of vertices

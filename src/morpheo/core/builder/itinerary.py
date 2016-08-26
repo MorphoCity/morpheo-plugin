@@ -8,7 +8,7 @@ import networkx as nx
 from ..logger import Progress
 
 from .errors  import BuilderError
-from .sql     import connect_database, SQL, execute_sql, attr_table
+from .sql     import connect_database, SQL, execute_sql, attr_table, table_exists
 from .layers  import import_shapefile, export_shapefile
 
 from math import atan2, pi
@@ -67,10 +67,7 @@ def get_closest_feature( cur, table, radius, x, y, srid=None ):
 def _create_itinerary_table(cur, path_type):
     """ Create the table to store itinerary results
     """
-    table = "itinerary_%s" % path_type
-    cur.execute(SQL("SELECT Count(*) FROM sqlite_master WHERE type='table' AND name='{table}'",table=table))
-    [rv] = cur.fetchone()
-    if rv==0:
+    if not table_exists(cur, table):
         cur.execute(SQL("""
             CREATE TABLE {table}(
                 OGC_FID integer PRIMARY KEY,

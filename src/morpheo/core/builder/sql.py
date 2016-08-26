@@ -80,20 +80,47 @@ def execute_sql(conn, name, quiet=False, **kwargs):
     conn.commit()
 
 
-def delete_table( conn, table ):
+def table_exists( cur, name ):
+    """ Test if table exists
+    """
+    cur.execute(SQL("""SELECT Count(*) FROM sqlite_master 
+        WHERE type='table' AND name='{table}'""",table=name))
+    return int(cur.fetchone()[0])==1
+
+
+def create_indexed_table( cur, table, geomtype, table_ref  ):
+    """ Create a spatially indexed table 
+    """
+    if not table_exists(cur, table):
+        cur.execute(SQL("CREATE TABLE {table}(OGC_FID integer primary key)",table=table))
+        cur.execute(SQL("""
+            SELECT AddGeometryColumn(
+                '{table}',
+                'GEOMETRY',
+                (
+                    SELECT CAST(srid AS integer)
+                    FROM geometry_columns
+                    WHERE f_table_name='{table_ref}'
+                ),
+                '{geomtype}',
+                (
+                    SELECT coord_dimension
+                    FROM geometry_columns
+                    WHERE f_table_name='{table_ref}'
+                )
+           )""",table=table, table_ref=table_ref, geomtype=geomtype))
+        cur.execute(SQL("SELECT CreateSpatialIndex('{table}', 'GEOMETRY')", table=table))
+    cur.execute(SQL("DELETE FROM {table}",table=table)) 
+
+
+def delete_table( cur, table ):
     """ Safely delete spatialite table """
-    cur = conn.cursor()
-    rv  = cur.execute(SQL("""
-        SELECT Count(*) from sqlite_master 
-        WHERE type='table' AND name='{table}'
-    """, table=table)).fetchall()
-    if rv and int(rv[0][0]) == 1:
+    if table_exists(cur, table):
         cur.execute(SQL("SELECT DisableSpatialIndex('%s', 'GEOMETRY')" % table));
         cur.execute(SQL("SELECT DiscardGeometryColumn('%s', 'GEOMETRY')" % table));
         cur.execute(SQL("DROP TABLE idx_%s_GEOMETRY" % table))
         cur.execute(SQL("DROP TABLE %s" % table))
         cur.execute(SQL("VACUUM"))
-    conn.commit()
 
 
 def create_attribute_table( cur, name,  dtype='real'):
@@ -115,11 +142,7 @@ def fill_attribute_table( cur, name, rows ):
 def delete_attr_table( cur, name):
     """ Delete attribute table
     """
-    rv  = cur.execute(SQL("""
-        SELECT Count(*) from sqlite_master 
-        WHERE type='table' AND name='{table}'
-    """, table=name)).fetchall()
-    if rv and int(rv[0][0]) == 1:
+    if table_exists(name):
         cur.execute(SQL("DROP INDEX %s_ID_idx" % name))
         cur.execute(SQL("DROP TABLE %s" % name))
         cur.execute(SQL("VACUUM"))

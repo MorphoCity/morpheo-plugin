@@ -133,17 +133,15 @@ class SpatialiteBuilder(object):
             :param places: path of an external shapefile containing places definitions
             :param output: path of a shapefile to write computed places to.
         """
+        from places import PlaceBuilder
         input_places_table = None
         if places is not None:
             input_places_table = 'input_places'
             # Open the places shapefile and insert in as 'input_places' table
             from qgis.core import QGis
             # Delete table it it exists
-            delete_table( self._conn, input_places_table )
-            # Add shapefile
+            delete_table( self._conn.cursor(), input_places_table )
             import_shapefile( self._dbname, places, input_places_table, (QGis.WKBPolygon25D, QGis.WKBPolygon))
-
-        from places import PlaceBuilder
         builder = PlaceBuilder(self._conn)
         builder.build_places(buffer_size, input_places_table)
 

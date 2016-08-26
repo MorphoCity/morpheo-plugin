@@ -3,8 +3,6 @@
 """
 import os
 
-from .sql import delete_table
-
 def open_shapefile( path, name ):
     """ Open a shapefile as a qgis layer
     """
