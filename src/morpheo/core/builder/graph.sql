@@ -46,28 +46,7 @@ CREATE TABLE edges(
     LENGTH real,
     DEGREE integer DEFAULT 0,
     NAME text default NULL,
-    WAY_ID           integer,
-    -- Indicators
-    -- Note: because data will be exported to 
-    -- shapefile our names have to be compliant
-    -- to the limition of the dbf format (less than 10 chars)
-    CONN             real, -- connectivity
-    CLOSEN           real, -- closeness
-    SPACING          real, -- spacing
-    ORTHOG           real, -- orthogonality
-    BETWEE           real, -- betweeness
-    USE              real, -- stress centrality
-    RTOPO            real, -- topological radius (from ways)
-    ACCES            real, -- accessibility      (from ways)
-    -- Classes 
-    DEGREE_CL        integer,
-    LENGTH_CL        integer,
-    CONN_CL          integer,
-    CLOSEN_CL        integer,
-    SPACING_CL       integer,
-    ORTHOG_CL        integer,
-    BETWEE_CL        integer,
-    USE_CL           integer
+    WAY_ID           integer
 );
 
 SELECT AddGeometryColumn( -- to ease update, because joins are not allowed
@@ -229,7 +208,28 @@ CREATE TABLE place_edges(
    START_VTX integer, -- REFERENCES vertices(OGC_FID),  -- for optimizing join 
    END_VTX   integer, -- REFERENCES vertices(OCG_FID),  -- for optimizing join
    WAY       integer,
-   STATUS    integer DEFAULT 0
+   STATUS    integer DEFAULT 0,
+    -- Indicators
+    -- Note: because data will be exported to 
+    -- shapefile our names have to be compliant
+    -- to the limition of the dbf format (less than 10 chars)
+    CONN             real, -- connectivity
+    CLOSEN           real, -- closeness
+    SPACING          real, -- spacing
+    ORTHOG           real, -- orthogonality
+    BETWEE           real, -- betweeness
+    USE              real, -- stress centrality
+    RTOPO            real, -- topological radius (from ways)
+    ACCES            real, -- accessibility      (from ways)
+    -- Classes 
+    DEGREE_CL        integer,
+    LENGTH_CL        integer,
+    CONN_CL          integer,
+    CLOSEN_CL        integer,
+    SPACING_CL       integer,
+    ORTHOG_CL        integer,
+    BETWEE_CL        integer,
+    USE_CL           integer
 );
 
 SELECT AddGeometryColumn(

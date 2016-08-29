@@ -14,7 +14,7 @@ WAY = (SELECT WAY FROM way_partition WHERE way_partition.EDGE=place_edges.OGC_FI
 
 -- Cleanup ways attributes on edges
 
-UPDATE edges SET RTOPO = NULL, ACCES = NULL, WAY_ID = NULL;
+UPDATE place_edges SET RTOPO = NULL, ACCES = NULL;
 
 -- Compute Way geometry (as MULTILINESTRING)
 
@@ -34,12 +34,6 @@ FROM (
     UNION
     SELECT WAY as way, END_PL AS pl FROM place_edges
 )
-;
-
--- Update edge with ways id
-
-UPDATE edges SET WAY_ID = 
-    (SELECT WAY FROM place_edges WHERE place_edges.OGC_FID=edges.OGC_FID)
 ;
 
 -- Compute basic way attributes

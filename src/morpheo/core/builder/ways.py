@@ -415,9 +415,9 @@ class WayBuilder(object):
         # Update edges
         logging.info("Ways: Updating edges with topological radius")
         cur.execute(SQL("""
-            UPDATE edges SET
-                RTOPO = (SELECT RTOPO FROM ways WHERE ways.WAY_ID=edges.WAY_ID),
-                ACCES = (SELECT ACCES FROM ways WHERE ways.WAY_ID=edges.WAY_ID)
+            UPDATE place_edges SET
+                RTOPO = (SELECT RTOPO FROM ways WHERE ways.WAY_ID=place_edges.WAY),
+                ACCES = (SELECT ACCES FROM ways WHERE ways.WAY_ID=place_edges.WAY)
         """))
 
         self._conn.commit()  

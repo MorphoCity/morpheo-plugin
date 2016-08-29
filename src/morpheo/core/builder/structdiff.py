@@ -33,7 +33,7 @@ def structural_diff( path1, path2, output, buffersize ):
 
     def import_data(path, table, create=False):
         basename = os.path.basename(path)
-        shp = os.path.join(path,'edges_%s.shp' % basename)
+        shp = os.path.join(path,'place_edges_%s.shp' % basename)
         logging.info("Structural diff: importing %s" % shp)
         import_shapefile( dbname, shp, table, constraints)
         logging.info("Structural diff: importing way line graph")
