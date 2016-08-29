@@ -31,7 +31,12 @@ from PyQt4.QtGui import *
 from processing.core.AlgorithmProvider import AlgorithmProvider
 from processing.core.ProcessingConfig import ProcessingConfig, Setting
 from processing.core.ProcessingLog import ProcessingLog
-from MorpheoAlgorithm import MorpheoAlgorithm
+from MorpheoAlgorithm import \
+        MorpheoBuildAlgorithm, \
+        MorpheoWayAttributesAlgorithm, \
+        MorpheoEdgesGraphAlgorithm, \
+        MorpheoWaysGraphAlgorithm, \
+        MorpheoStructuralDiffAlgorithm
 
 class MorpheoAlgorithmProvider(AlgorithmProvider):
 
@@ -56,7 +61,11 @@ class MorpheoAlgorithmProvider(AlgorithmProvider):
 
     def _loadAlgorithms(self):
         try:
-            self.algs.append(MorpheoAlgorithm())
+            self.algs.append(MorpheoBuildAlgorithm())
+            self.algs.append(MorpheoWayAttributesAlgorithm())
+            self.algs.append(MorpheoEdgesGraphAlgorithm())
+            self.algs.append(MorpheoWaysGraphAlgorithm())
+            self.algs.append(MorpheoStructuralDiffAlgorithm())
         except Exception, e:
             print "error: unable to load morpheo algo because ", e
             ProcessingLog.addToLog(ProcessingLog.LOG_ERROR,
