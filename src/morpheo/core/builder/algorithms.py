@@ -7,8 +7,6 @@ from networkx.algorithms.centrality.betweenness import (_single_source_shortest_
                                                         _single_source_dijkstra_path_basic,
                                                         _rescale)
 
-import numpy as np
-
 def stress_centrality( G, k=None, normalized=True, weight=None, endpoints=False, seed=None ):
     """ Compute stress centrality 
 

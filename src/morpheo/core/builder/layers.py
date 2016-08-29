@@ -91,18 +91,4 @@ def export_shapefile( dbname, table, output ):
             raise IOError("Failed to save '{}:{}' as  '{}'".format(dbname, table, output))
 
 
-def open_shapefile( path, name ):
-    """ Open a shapefile as a qgis layer
-    """
-    from qgis.core import QgsVectorLayer
-
-    path = os.path.abspath(path)
-    if not os.path.exists(path):
-        raise FileNotFoundError("Shapefile not found: %s" % path)
-
-    layer = QgsVectorLayer(path, name, 'ogr' )
-    if not layer.isValid():
-        raise InvalidLayerError("Failed to load layer %s" % path)
-
-    return layer
 
