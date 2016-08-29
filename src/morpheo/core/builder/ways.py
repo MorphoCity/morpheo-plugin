@@ -11,7 +11,6 @@ import numpy as np
 
 from numpy import sin
 from numpy import pi
-from functools import partial
 from ..logger import Progress
 
 from .errors import BuilderError
@@ -311,23 +310,25 @@ class WayBuilder(object):
            ))"""))
 
 
-    def compute_global_attributes(self, betweenness=False, closeness=False, stress=False, classes=0):
+    def compute_global_attributes(self, betweenness=False, closeness=False, stress=False, 
+                                  classes=0 ):
         r""" Compute global attributes
         
-            :param closeness:   If True, compute closeness.
+            :param closeness:   If True, compute closeness centrality.
             :param betweenness: If True, compute betweenness centrality.
             :param stress:      If True, compute stress centrality.
             :param classes: Number of classes of equals length
 
-            These attributes with networkx package
-            see: http://networkx.readthedocs.io/en/networkx-1.10/reference/algorithms.html
+            These attributes are computed  with networkx package
+            see: http://networkx.readthedocs.io/en/networkx-1.11/reference/algorithms.html
 
-       """
+        """
         cur = self._conn.cursor()
         with attr_table(cur, "global_attributes") as attrs:
-                
+                       
             if betweenness:
-                attrs.update('ways', 'WAY_ID', 'BETWEE', self.compute_betweenness().items())
+                attrs.update('ways', 'WAY_ID', 'BETWEE', 
+                        self.compute_betweenness().items())
                 compute_way_classes(attrs, cur, 'BETWEE', classes)
 
             if closeness:
@@ -335,15 +336,29 @@ class WayBuilder(object):
                 compute_way_classes(attrs, cur, 'CLOSEN', classes)
 
             if stress:
-                attrs.update('ways', 'WAY_ID', 'USE'   , self.compute_use().items())
+                attrs.update('ways', 'WAY_ID', 'USE', 
+                        self.compute_use().items())
                 compute_way_classes(attrs, cur, 'USE', classes)
 
     def compute_betweenness(self):
         """ Compute betweeness for each way
-        """
+
+            .. math::
+            
+                    c_B(v) =\sum_{s,t \in V} \frac{\sigma(s, t|v)}{\sigma(s, t)}
+
+            where `V` is the set of nodes, `\sigma(s, t)` is the number of
+            shortest `(s, t)`-paths,  and `\sigma(s, t|v)` is the number of those
+            paths  passing through some  node `v` other than `s, t`.
+            If `s = t`, `\sigma(s, t) = 1`, and if `v \in {s, t}`,
+            `\sigma(s, t|v) = 0` [2]_.
+
+            see: http://networkx.readthedocs.io/en/networkx-1.11/reference/generated/networkx.algorithms.centrality.betweenness_centrality.html#networkx.algorithms.centrality.betweenness_centrality
+
+       """
         G = self.get_line_graph()
         logging.info("Ways: computing betweenness centrality")
-        return nx.betweenness_centrality(G)
+        return nx.betweenness_centrality(G, normalized=False)
 
     def compute_closeness(self):
         r""" Compute closeness for each way
@@ -358,15 +373,25 @@ class WayBuilder(object):
             and `n` is the number of nodes in the graph.
         """
         G = self.get_line_graph()
-        logging.info("Ways: computing closeness centrality")
+        logging.info("Ways: computing closeness")
         return nx.closeness_centrality(G)
 
     def compute_use(self):
-        """ Compute stress centrality
+        """ Compute stress/use centrality
+ 
+            .. math::
+            
+                c_S(v) =\sum_{s,t \in V} \sigma(s, t|v)
+
+            We use a modified algorithm of betweenness as described in 
+                http://algo.uni-konstanz.de/publications/b-vspbc-08.pdf
+
         """
-        # TODO Implement me !!
+        from .algorithms import stress_centrality
+
+        G = self.get_line_graph()
         logging.info("Ways: computing stress centrality")
-        raise NotImplementedError("Stress Centrality")
+        return stress_centrality(G, normalized=False)
 
     def compute_topological_radius(self):
         """ Compute the topological radius for all ways

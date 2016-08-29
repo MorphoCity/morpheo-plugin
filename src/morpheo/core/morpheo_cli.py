@@ -193,6 +193,12 @@ def main():
     from time import time
     from .logger import setup_log_handler
 
+    def range_type(strval, min=0, max=100):
+        val = int(strval)
+        if not min <= value <= max:
+            raise argparse.ArgumentTypeError('value must be in range %s-%s' % (min,max))
+        return val
+
     version = "{} {}".format("Morpheo graph builder", Builder.version)
     parser = argparse.ArgumentParser(description=version)
     parser.add_argument("--logging"  , choices=('debug','info','warning','error'), default='info', help="set log level")
