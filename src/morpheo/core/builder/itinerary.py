@@ -9,7 +9,8 @@ from ..logger import Progress
 
 from .errors  import BuilderError
 from .sql     import connect_database, SQL, execute_sql, attr_table, table_exists
-from .layers  import import_shapefile, export_shapefile
+from .layers  import export_shapefile
+
 
 from math import atan2, pi
 
@@ -21,7 +22,7 @@ class ErrorPathNotFound(BuilderError):
     pass
 
 
-def load_graph( path ):
+def load_edge_graph( path ):
     """ Load edge graph
 
         :param path: path location of the morpheo data
@@ -116,7 +117,7 @@ def _store_path(cur, dbname, edges, path_type, output, manifest):
 def _edge_shortest_path( dbname, path, fid_src, fid_dst, weight=None, output=None ):
     """ Compute the edge shortest path
     """
-    G = load_graph(path)    
+    G = load_edge_graph(path)    
 
     path_type = 'shortest' if weight is not None else 'simplest'
 
@@ -310,7 +311,7 @@ def azimuth_path(dbname, path, fid_src, fid_dst, output):
 
         :return the list of edge feature id that represent the shortest path
     """
-    G = load_graph(path)    
+    G = load_edge_graph(path)    
 
     conn = connect_database(dbname)
     cur  = conn.cursor()

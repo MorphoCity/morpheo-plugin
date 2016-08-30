@@ -58,6 +58,51 @@ def compute_way_classes(attr_table, cur, attribute, classes):
         attr_table.update('ways','WAY_ID', attribute+'_CL',rows)
 
 
+def _ways_graph_path( output ):
+    """ Build ways graph path
+    """
+    basename = os.path.basename(output)
+    return os.path.join(output,'way_graph_'+basename+'.gpickle')
+
+
+def create_ways_graph(conn):
+    """ Create a line graph from ways
+
+        Each node is way,
+        Each edge is connection between two intersecting ways
+    """ 
+    import networkx as nx
+        
+    # Build an adjacency matrix 
+    cur  = conn.cursor()
+    rows = cur.execute(SQL("SELECT PLACE,WAY_ID FROM way_places ORDER BY PLACE")).fetchall()
+
+    # Undirected, simple (not multi-) graph 
+    g = nx.Graph()
+
+    logging.info("Ways: creating line graph")    
+
+    progress = Progress(len(rows))
+    for p,ways in iter_places(rows):
+        n = len(ways)
+        progress(n)
+        if n==1: continue
+        for i in xrange(n-1):
+            w1 = ways[i][1]
+            for j in xrange(i+1,n):
+                w2 = ways[j][1]
+                g.add_edge(w1,w2,place=p)
+
+    return g
+
+
+def read_ways_graph( path ):
+    """ Read way line graph as networkx object 
+    """
+    return nx.read_gpickle(_ways_graph_path(path))
+
+
+
 class WayBuilder(object):
 
     def __init__(self, conn):
@@ -449,7 +494,7 @@ class WayBuilder(object):
 
     def get_line_graph(self):
         if self._line_graph is None:
-            self._line_graph = self.create_line_graph()
+            self._line_graph = create_ways_graph(self._conn)
         return self._line_graph
 
     def save_line_graph(self, output, create=False):
@@ -462,48 +507,22 @@ class WayBuilder(object):
            self.get_line_graph()
         if self._line_graph is not None:
             logging.info("Ways: saving line graph")
-            basename = os.path.basename(output)
-            nx.write_gpickle(self._line_graph, os.path.join(output,'way_graph_'+basename+'.gpickle'))
+            nx.write_gpickle(self._line_graph, _ways_graph_path(output))
         else:
             logging.warn("Ways: no graph to save")
    
     def export(self, dbname, output, export_graph=False):
        """ Export way files
        """
+       # Delete previous way graph
+       graph_path = _ways_graph_path(output)
+       if os.path.exists(graph_path):
+               os.remove(graph_path)
+
        logging.info("Ways: Saving ways to %s" % output)
        export_shapefile(dbname, 'ways'       , output)
        export_shapefile(dbname, 'place_edges', output)
        export_shapefile(dbname, 'edges'      , output)
        self.save_line_graph(output, create=export_graph)
 
-    def create_line_graph(self):
-        """ Create a line graph from ways
-
-            Each node is way,
-            Each edge is connection between two intersecting ways
-        """ 
-        import networkx as nx
-        
-        # Build an adjacency matrix 
-        cur  = self._conn.cursor()
-        rows = cur.execute(SQL("SELECT PLACE,WAY_ID FROM way_places ORDER BY PLACE")).fetchall()
-
-        # Undirected, simple (not multi-) graph 
-        g = nx.Graph()
-
-        logging.info("Ways: creating line graph")    
-
-        progress = Progress(len(rows))
-
-        for p,ways in iter_places(rows):
-            n = len(ways)
-            progress(n)
-            if n==1: continue
-            for i in xrange(n-1):
-                w1 = ways[i][1]
-                for j in xrange(i+1,n):
-                    w2 = ways[j][1]
-                    g.add_edge(w1,w2,place=p)
-
-        return g
 

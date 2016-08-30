@@ -7,9 +7,9 @@ import networkx as nx
 
 from ..logger import Progress
 
-from .sql     import connect_database, SQL, execute_sql, attr_table
-from .layers  import import_shapefile, export_shapefile
-
+from .sql    import connect_database, SQL, execute_sql, attr_table
+from .layers import import_shapefile, export_shapefile
+from .ways   import read_ways_graph
 
 def structural_diff( path1, path2, output, buffersize ):
     """ Compute structural diff between two files 
@@ -23,9 +23,6 @@ def structural_diff( path1, path2, output, buffersize ):
     """
 
     # Import shapefiles
-    from qgis.core import QGis
-    constraints = (QGis.WKBLineString25D, QGis.WKBLineString)
-
     dbname = output+'.sqlite'
     if os.path.exists(dbname):
         logging.info("Removing existing  database %s" % dbname)
@@ -35,9 +32,9 @@ def structural_diff( path1, path2, output, buffersize ):
         basename = os.path.basename(path)
         shp = os.path.join(path,'place_edges_%s.shp' % basename)
         logging.info("Structural diff: importing %s" % shp)
-        import_shapefile( dbname, shp, table, constraints)
+        import_shapefile( dbname, shp, table)
         logging.info("Structural diff: importing way line graph")
-        return nx.read_gpickle(os.path.join(path,'way_graph_%s.gpickle' % basename))
+        return read_ways_graph(path)
 
     G1 = import_data(path1, 'edges1')
     G2 = import_data(path2, 'edges2')

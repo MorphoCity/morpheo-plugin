@@ -31,7 +31,7 @@ def check_layer(layer, wkbtypes):
        raise InvalidLayerError("Invalid CRS (lat/long) for layer")
 
 
-def import_shapefile( dbname, path, name, wkbtypes):
+def import_shapefile( dbname, path, name ):
     """ Add shapefile as new table in database
 
         :param conn: Connection to database
@@ -41,10 +41,6 @@ def import_shapefile( dbname, path, name, wkbtypes):
         :param wkbtypes: Required types for geometries
     """
     from subprocess import call
-
-    if wkbtypes is not None:
-        layer = open_shapefile(path, name)
-        check_layer(layer, wkbtypes)
 
     # Append layer to  database
     ogr2ogr = os.environ['OGR2OGR']

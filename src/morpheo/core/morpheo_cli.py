@@ -14,7 +14,8 @@ Builder = SpatialiteBuilder
 
 qgis_app = None
 
-def setup_qgis():
+
+def setup_qgis_pythonpath():
     """ Setup qgis
 
         This function is only used when morpheo is
@@ -30,6 +31,9 @@ def setup_qgis():
 
     if qgis_pythonpath is not None:
         sys.path.append(qgis_pythonpath)
+
+
+def init_qgis_application():
 
     qgis_home = os.environ.get('QGIS_HOME',{
             'darwin':'/Applications/QGIS.app/Contents/MacOS',
@@ -186,6 +190,30 @@ def compute_path( args ):
     _path_fun(dbname, path, args.source, args.destination, output=output)
 
 
+def compute_horizon( args ):
+    """ Compute horizon
+    """
+
+    import builder.horizon as hrz
+    from   builder.ways import read_ways_graph
+    from   builder.sql  import connect_database
+
+    path   = args.path
+    dbname = args.dbname or path +'.sqlite'
+
+    conn = connect_database(dbname)
+    G    = read_ways_graph(path)
+    data = hrz.horizon_from_attribute(conn, G, args.attribute, args.percentile, 
+                                      output=args.output) 
+
+    if args.plot:
+       hrz.plot_histogram(data, args.plot, 
+                bins=args.bins,
+                color=args.color,
+                size=args.size)
+
+
+
 def main():
     """ Run 'build_graph' from command line
     """
@@ -198,6 +226,14 @@ def main():
         if not min <= value <= max:
             raise argparse.ArgumentTypeError('value must be in range %s-%s' % (min,max))
         return val
+
+    def size_type( strval ):
+        try:
+            sz = [int(v) for v in strval.lower().split('x')]
+            assert len(sz)==2
+            return sz
+        except:
+            raise argparse.ArgumentTypeError("size must be '{integer width}x{integer height}'")
 
     version = "{} {}".format("Morpheo graph builder", Builder.version)
     parser = argparse.ArgumentParser(description=version)
@@ -290,12 +326,25 @@ def main():
             help="The percentile for computing the mesh structure")
     path_cmd.set_defaults(func=compute_path)
 
+    # Compute horizon
+    hrz_cmd = sub.add_parser('horizon', description="Compute horizon")
+    hrz_cmd.add_argument("path", metavar='PATH', help="Path to morpheo graph data")
+    hrz_cmd.add_argument("--dbname", metavar='PATH', help="Database")
+    hrz_cmd.add_argument("--output", metavar='PATH' , default=None, help="Output destination")
+    hrz_cmd.add_argument("--attribute" , metavar='NAME'    , required=True, help="Attribute name")
+    hrz_cmd.add_argument("--percentile", metavar='PERCENT' , type=size_type, default=5, help="Percentile of features selected")
+    hrz_cmd.add_argument("--plot"      , metavar='PATH'    , default=None, help="Complete path to save image to")
+    hrz_cmd.add_argument("--bins"      , metavar='NUM'     , default=20, type=int, help="Number of bins in histogram")
+    hrz_cmd.add_argument("--color"     , metavar='NAME'    , default='blue',help="Histogram color")
+    hrz_cmd.add_argument("--size"      , metavar='SIZE'    , default='400x300',type=size_type, help="Image size")
+    hrz_cmd.set_defaults(func=compute_horizon)
+
     #--------------------------
     args = parser.parse_args()
     
     setup_log_handler(args.logging, formatstr='%(asctime)s\t%(levelname)s\t%(message)s')
-    setup_qgis()
-  
+    setup_qgis_pythonpath()
+ 
     check_requirements(stand_alone=True)
 
     start = time()
@@ -306,4 +355,9 @@ def main():
         raise
     finally:
         print( "====== Elapsed time: {:.3f} s ======".format(time()-start), file=sys.stderr )
+
+
+
+if __name__ == '__main__':
+    main()
 

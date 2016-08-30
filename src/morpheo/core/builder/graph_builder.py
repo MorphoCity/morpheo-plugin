@@ -32,12 +32,24 @@ class SpatialiteBuilder(object):
 
         self._input_table   = table or self._basename.lower()
         self._way_build_attribute = None
+        self._way_builder = None
+
+    @property
+    def way_builder(self):
+        if self._way_builder is None:
+            from ways import WayBuilder
+            self._way_builder = WayBuilder(self._conn)
+        return self._way_builder
 
     @property
     def path(self):
         """ Return the project path
         """
         return os.path.join(self._dirname,self._basename)
+
+    @property 
+    def connection(self):
+        return self._conn
 
     def build_graph( self, snap_distance, min_edge_length, way_attribute=None, output=None ):
         """ Build morpheo topological graph
@@ -112,8 +124,7 @@ class SpatialiteBuilder(object):
     def build_ways_graph(self, output):
         """ Build and export way line graph
         """
-        from ways import WayBuilder
-        builder = WayBuilder(self._conn)
+        builder = self.way_builder
         builder.save_line_graph(output, create=True) 
 
     def build_places(self, buffer_size, places=None, output=None, export_graph=False):
@@ -135,10 +146,9 @@ class SpatialiteBuilder(object):
         if places is not None:
             input_places_table = 'input_places'
             # Open the places shapefile and insert in as 'input_places' table
-            from qgis.core import QGis
             # Delete table it it exists
             delete_table( self._conn.cursor(), input_places_table )
-            import_shapefile( self._dbname, places, input_places_table, (QGis.WKBPolygon25D, QGis.WKBPolygon))
+            import_shapefile( self._dbname, places, input_places_table)
         builder = PlaceBuilder(self._conn)
         builder.build_places(buffer_size, input_places_table)
 
@@ -153,8 +163,7 @@ class SpatialiteBuilder(object):
             :param output: output shapefile to store results
             :param attributes: compute attributes
         """
-        from ways import WayBuilder
-        builder = WayBuilder(self._conn)
+        builder = self.way_builder
         builder.build_ways(threshold)
 
         if rtopo:
@@ -175,8 +184,7 @@ class SpatialiteBuilder(object):
             :param stress:        If True, compute stress centrality.
             :param closeness:     If True, compute closeness.
         """
-        from ways import WayBuilder
-        builder = WayBuilder(self._conn)
+        builder = self.way_builder
         builder.compute_local_attributes(orthogonality = orthogonality, classes=classes)
 
         if rtopo:
@@ -210,6 +218,11 @@ class SpatialiteBuilder(object):
         """
         execute_sql(self._conn, name, **kwargs)
 
+    def way_graph(self):
+        """ Return the way line graph
+        """
+        return self.way_builder.get_line_graph()
+
     @staticmethod
     def from_shapefile( path, dbname=None ):
         """ Build graph from shapefile definition
@@ -219,9 +232,16 @@ class SpatialiteBuilder(object):
             :returns: A Builder object
         """
         basename = os.path.basename(os.path.splitext(path)[0])
-        layer    = open_shapefile( path, basename)
-        builder  = SpatialiteBuilder.from_layer(layer, dbname)
-        return builder
+
+        dbname = dbname or 'morpheo_'+basename.replace(" ", "_")
+        dbname = dbname + '.sqlite'
+        if os.path.isfile(dbname):
+            logging.info("Removing existing database %s" % dbname)
+            os.remove(dbname)
+
+        layername = os.path.basename(os.path.splitext(dbname)[0]).lower()
+        import_shapefile( dbname, path, layername)
+        return SpatialiteBuilder(dbname)
 
     @staticmethod
     def from_layer( layer, dbname=None ):
@@ -241,13 +261,10 @@ class SpatialiteBuilder(object):
             os.remove(dbname)
 
         # Create database from layer
+        logging.info("Creating database '%s' from layer" % dbname)
         error = QgsVectorFileWriter.writeAsVectorFormat(layer, dbname, "utf-8", None, "SpatiaLite")
         if error != QgsVectorFileWriter.NoError:
             raise IOError("Failed to create database '{}': error {}".format(dbname, error))
-
-        logging.info("Creating database '%s' from layer" % dbname)
-
-        #
 
         return SpatialiteBuilder(dbname)
 
