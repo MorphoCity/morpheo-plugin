@@ -4,7 +4,7 @@ from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 from qgis.core import *
 
-from MorpheoDialog import MorpheoDialog
+from MorpheoDialog import MorpheoDialog, MorpheoFileSelectionPanel
 from MorpheoAlgorithmProvider import MorpheoAlgorithmProvider
 from processing.core.Processing import Processing
 
@@ -147,9 +147,75 @@ class MorpheoPlugin:
             text=self.tr(u'Morpheo'),
             callback=self.run,
             parent=self.iface.mainWindow())
+
+        # connect group toggle
+        self.dlg.grpWaysBuilderGeomProps.toggled.connect(self.grpWaysBuilderGeomPropsToggled)
+        self.dlg.grpWaysBuilderStreetName.toggled.connect(self.grpWaysBuilderStreetNameToggled)
+
+        # Initialize field path selection
+        self.connectFileSelectionPanel(self.dlg.letWaysBuilderDirectoryPath, self.dlg.pbnWaysBuilderDirectoryPath, True)
+        self.connectFileSelectionPanel(self.dlg.letWayAttributesDBPath, self.dlg.pbnWayAttributesDBPath, False, 'sqlite')
+        self.connectFileSelectionPanel(self.dlg.letStructuralDiffDBPath1, self.dlg.pbnStructuralDiffDBPath1, True)
+        self.connectFileSelectionPanel(self.dlg.letStructuralDiffDBPath2, self.dlg.pbnStructuralDiffDBPath2, True)
+        self.connectFileSelectionPanel(self.dlg.letStructuralDiffDirectoryPath, self.dlg.pbnStructuralDiffDirectoryPath, True)
+
         # add to processing
         self.morpheoAlgoProvider = MorpheoAlgorithmProvider()
         Processing.addProvider(self.morpheoAlgoProvider, True)
+
+    def grpWaysBuilderGeomPropsToggled(self, toggle):
+        self.dlg.grpWaysBuilderStreetName.setChecked(not toggle)
+
+    def grpWaysBuilderStreetNameToggled(self, toggle):
+        self.dlg.grpWaysBuilderGeomProps.setChecked(not toggle)
+
+    def connectFileSelectionPanel(self,leText, btnSelect, isFolder, ext=None):
+
+        def showSelectionDialog():
+            QMessageBox.warning(self.dlg, 'showSelectionDialog', 'showSelectionDialog')
+            # Find the file dialog's working directory
+            settings = QSettings()
+            text = leText.text()
+            if os.path.isdir(text):
+                path = text
+            elif os.path.isdir(os.path.dirname(text)):
+                path = os.path.dirname(text)
+            elif settings.contains('/Morpheo/LastInputPath'):
+                path = settings.value('/Morpheo/LastInputPath')
+            else:
+                path = ''
+
+            if isFolder:
+                folder = QFileDialog.getExistingDirectory(self.dlg,
+                                                          self.tr('Select folder'), path)
+                if folder:
+                    leText.setText(folder)
+                    settings.setValue('/Morpheo/LastInputPath',
+                                      os.path.dirname(folder))
+            else:
+                filenames = QFileDialog.getOpenFileNames(self.dlg,
+                                                         self.tr('Select file'), path, '*.' + ext)
+                if filenames:
+                    leText.setText(u';'.join(filenames))
+                    settings.setValue('/Morpheo/LastInputPath',
+                                      os.path.dirname(filenames[0]))
+
+        btnSelect.clicked.connect(showSelectionDialog)
+
+    def populateLayerComboboxes(self):
+        """Populate all layer comboboxes"""
+        # clear comboboxes
+        self.dlg.cbxWaysBuilderInputLayer.clear()
+        self.dlg.cbxWaysBuilderPlacesLayer.clear()
+        self.dlg.cbxWaysBuilderPlacesLayer.addItem(self.tr('No layer'), '')
+        # add items to comboboxes
+        layers = QgsProject.instance().layerTreeRoot().findLayers()
+        layers = [lay.layer() for lay in layers if lay.layer().type() == QgsMapLayer.VectorLayer]
+        for l in layers:
+            if l.geometryType() == QGis.Line:
+                self.dlg.cbxWaysBuilderInputLayer.addItem(l.name(), l.id())
+            elif l.geometryType() == QGis.Polygon:
+                self.dlg.cbxWaysBuilderPlacesLayer.addItem(l.name(), l.id())
 
 
     def unload(self):
@@ -167,6 +233,8 @@ class MorpheoPlugin:
 
     def run(self):
         """Run method that performs all the real work"""
+        # populate layer comboboxes
+        self.populateLayerComboboxes()
         # show the dialog
         self.dlg.show()
         # Run the dialog event loop

@@ -171,7 +171,7 @@ class MorpheoBuildAlgorithm(GeoAlgorithm):
         self.addParameter(ParameterBoolean(self.CLOSENESS, 'Compute closeness centrality (require attributes)', False))
         self.addParameter(ParameterBoolean(self.STRESS, 'Compute stress centrality (require attributes)', False))
         self.addParameter(
-            ParameterNumber(self.CLASSES, 'Number of classes', 0, 1999, 10))
+            ParameterNumber(self.CLASSES, 'Number of classes', 0, 99, 10))
 
         self.addOutput(OutputString(self.OUTPUT_DBPATH, 'Database path'))
 

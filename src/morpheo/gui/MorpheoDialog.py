@@ -3,6 +3,8 @@
 import os
 
 from PyQt4 import QtGui, uic
+from PyQt4.QtGui import QFileDialog, QMessageBox
+from PyQt4.QtCore import QSettings
 
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'ui', 'morpheo_dialog.ui'))
