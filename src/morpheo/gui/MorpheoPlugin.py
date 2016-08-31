@@ -155,6 +155,7 @@ class MorpheoPlugin:
         # Initialize field path selection
         self.connectFileSelectionPanel(self.dlg.letWaysBuilderDirectoryPath, self.dlg.pbnWaysBuilderDirectoryPath, True)
         self.connectFileSelectionPanel(self.dlg.letWayAttributesDBPath, self.dlg.pbnWayAttributesDBPath, False, 'sqlite')
+        self.connectFileSelectionPanel(self.dlg.letHorizonDBPath, self.dlg.pbnHorizonDBPath, False, 'sqlite')
         self.connectFileSelectionPanel(self.dlg.letStructuralDiffDBPath1, self.dlg.pbnStructuralDiffDBPath1, True)
         self.connectFileSelectionPanel(self.dlg.letStructuralDiffDBPath2, self.dlg.pbnStructuralDiffDBPath2, True)
         self.connectFileSelectionPanel(self.dlg.letStructuralDiffDirectoryPath, self.dlg.pbnStructuralDiffDirectoryPath, True)
@@ -172,7 +173,7 @@ class MorpheoPlugin:
     def connectFileSelectionPanel(self,leText, btnSelect, isFolder, ext=None):
 
         def showSelectionDialog():
-            QMessageBox.warning(self.dlg, 'showSelectionDialog', 'showSelectionDialog')
+            #QMessageBox.warning(self.dlg, 'showSelectionDialog', 'showSelectionDialog')
             # Find the file dialog's working directory
             settings = QSettings()
             text = leText.text()
@@ -206,6 +207,7 @@ class MorpheoPlugin:
         """Populate all layer comboboxes"""
         # clear comboboxes
         self.dlg.cbxWaysBuilderInputLayer.clear()
+        self.dlg.cbxHorizonWayLayer.clear()
         self.dlg.cbxWaysBuilderPlacesLayer.clear()
         self.dlg.cbxWaysBuilderPlacesLayer.addItem(self.tr('No layer'), '')
         # add items to comboboxes
@@ -214,6 +216,7 @@ class MorpheoPlugin:
         for l in layers:
             if l.geometryType() == QGis.Line:
                 self.dlg.cbxWaysBuilderInputLayer.addItem(l.name(), l.id())
+                self.dlg.cbxHorizonWayLayer.addItem(l.name(), l.id())
             elif l.geometryType() == QGis.Polygon:
                 self.dlg.cbxWaysBuilderPlacesLayer.addItem(l.name(), l.id())
 
