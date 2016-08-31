@@ -176,7 +176,7 @@ class MorpheoBuildAlgorithm(GeoAlgorithm):
         self.addParameter(ParameterBoolean(self.CLOSENESS, 'Compute closeness centrality (require attributes)', False))
         self.addParameter(ParameterBoolean(self.STRESS, 'Compute stress centrality (require attributes)', False))
         self.addParameter(
-            ParameterNumber(self.CLASSES, 'Number of classes', 0, 99, 10))
+            ParameterNumber(self.CLASSES, 'Number of classes', 2, 99, 10))
 
         self.addOutput(OutputString(self.OUTPUT_DBPATH, 'Database path'))
 
@@ -280,7 +280,7 @@ class MorpheoWayAttributesAlgorithm(GeoAlgorithm):
         self.addParameter(ParameterBoolean(self.CLOSENESS, 'Compute closeness centrality', False))
         self.addParameter(ParameterBoolean(self.STRESS, 'Compute stress centrality', False))
         self.addParameter(
-            ParameterNumber(self.CLASSES, 'Number of classes', 0, 1999, 10))
+            ParameterNumber(self.CLASSES, 'Number of classes', 2, 99, 10))
 
         self.addOutput(OutputString(self.OUTPUT_DBPATH, 'Database path'))
 
@@ -304,6 +304,7 @@ class MorpheoWayAttributesAlgorithm(GeoAlgorithm):
                 closeness     = self.getParameterValue(self.CLOSENESS),
                 stress        = self.getParameterValue(self.STRESS),
                 rtopo         = self.getParameterValue(self.RTOPO),
+                classes       = self.getParameterValue(self.CLASSES),
                 output        = os.path.join(output, dbname))
 
         # Visualize data
