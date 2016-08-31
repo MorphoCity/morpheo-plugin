@@ -46,7 +46,7 @@ from processing.core.parameters import \
         ParameterSelection, \
         ParameterTableField, \
         ParameterFile
-from processing.core.outputs import OutputString
+from processing.core.outputs import OutputString, OutputFile
 from processing.core.ProcessingConfig import ProcessingConfig
 from processing.tools import dataobjects
 from processing.tools.system import tempFolder
@@ -55,6 +55,9 @@ from math import pi
 from ..core.builder.errors import BuilderError
 from ..core.builder.graph_builder import SpatialiteBuilder
 from ..core.builder.structdiff import structural_diff
+from ..core.builder import horizon as hrz
+from ..core.builder.ways import read_ways_graph
+from ..core.builder.sql  import connect_database
 
 Builder = SpatialiteBuilder
 
@@ -486,5 +489,88 @@ class MorpheoStructuralDiffAlgorithm(GeoAlgorithm):
         add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'paired_edges', "%s_%s" % ('paired_edges',dbname))
 
         self.setOutputValue(self.OUTPUT_DBPATH, os.path.join(output, dbname)+'.sqlite')
+
+
+class MorpheoHorizonAlgorithm(GeoAlgorithm):
+
+    DBPATH = 'DBPATH'
+    WAY_LAYER = 'WAY_LAYER'
+    WAY_ATTRIBUTE = 'WAY_ATTRIBUTE'
+    PERCENTILE = 'PERCENTILE'
+
+    #output param
+    PLOT_BINS = 'PLOT_BINS'
+    PLOT_COLOR = 'PLOT_COLOR'
+    PLOT_WIDTH = 'PLOT_WIDTH'
+    PLOT_HEIGHT = 'PLOT_HEIGHT'
+
+    #output
+    PLOT = 'PLOT'
+
+    def __init__(self):
+        GeoAlgorithm.__init__(self)
+        print "loading morpheo horizon algo at ", time.strftime("%H:%M:%S")
+
+    def getIcon(self):
+        return QIcon(os.path.join(os.path.dirname(__file__),'..','morpheo.png'))
+
+    def helpFile(self):
+        return None
+
+    def commandLineName(self):
+        return 'morpheo:horizon'
+
+    def defineCharacteristics(self):
+        self.name = 'Compute horizon'
+        self.group = 'Compute'
+
+        self.addParameter(ParameterFile(self.DBPATH, 'Morpheo database path',
+                          isFolder=False, optional=False, ext='sqlite'))
+
+        self.addParameter(ParameterVector(self.WAY_LAYER, 'Ways layer',
+                          [ParameterVector.VECTOR_TYPE_LINE]))
+
+        self.addParameter(ParameterTableField(self.WAY_ATTRIBUTE,
+            'Attribute for building street ways', self.WAY_LAYER, ParameterTableField.DATA_TYPE_NUMBER, True))
+
+        self.addParameter(
+            ParameterNumber(self.PERCENTILE, 'Percentile of features', 1, 99, 5))
+
+        self.addParameter(
+            ParameterNumber(self.PLOT_BINS, 'Number of bins in histogram', 2, 99, 20))
+        self.addParameter(
+            ParameterString(self.PLOT_COLOR, 'Histogram color', 'blue'))
+        self.addParameter(
+            ParameterNumber(self.PLOT_WIDTH, 'Width of image histogram', 10, 2000, 400))
+        self.addParameter(
+            ParameterNumber(self.PLOT_HEIGHT, 'Height of image histogram', 10, 2000, 300))
+
+        self.addOutput(OutputFile(self.PLOT, 'Path to save image to', ext='png'))
+
+    def checkBeforeOpeningParametersDialog(self):
+        return None
+
+    def processAlgorithm(self, progress):
+        """ Compute horizon
+        """
+        dbpath    = self.getParameterValue(self.DBPATH)
+        if not os.path.isfile( dbpath ):
+            log_error('Morpheo database path not found')
+
+        output    = os.path.dirname(dbpath)
+        dbname    = os.path.basename(dbpath).replace('.sqlite','')
+
+        attribute = self.getParameterValue(self.WAY_ATTRIBUTE)
+        percentile = self.getParameterValue(self.PERCENTILE)
+
+        conn = connect_database(dbpath)
+        G    = read_ways_graph(os.path.join(output, dbname))
+        data = hrz.horizon_from_attribute(conn, G, attribute, percentile,
+                                          output=os.path.join(output, dbname, '%s_%s.txt' % (attribute, percentile)))
+
+        hrz.plot_histogram(data, self.getOutputValue(self.PLOT),
+                           bins=self.getParameterValue(self.PLOT_BINS),
+                           color=self.getParameterValue(self.PLOT_COLOR),
+                           size=(self.getParameterValue(self.PLOT_WIDTH), self.getParameterValue(self.PLOT_HEIGHT)))
 
 
