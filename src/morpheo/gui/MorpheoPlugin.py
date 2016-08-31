@@ -4,7 +4,7 @@ from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 from qgis.core import *
 
-from MorpheoDialog import MorpheoDialog, MorpheoFileSelectionPanel
+from MorpheoDialog import MorpheoDialog
 from MorpheoAlgorithmProvider import MorpheoAlgorithmProvider
 from processing.core.Processing import Processing
 
