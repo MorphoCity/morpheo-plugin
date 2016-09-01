@@ -6,9 +6,11 @@ import os
 import sys
 import logging
 
+from functools import partial
 from math import pi
 from builder.errors import BuilderError
 from builder.graph_builder import SpatialiteBuilder
+from builder.layers import export_shapefile
 
 Builder = SpatialiteBuilder
 
@@ -171,23 +173,63 @@ def compute_path( args ):
     """ Compute shortest paths
     """
     import builder.itinerary as iti
+    from   builder.sql  import connect_database
 
     path   = args.path           # input path
     output = args.output or path # output path
     dbname = args.dbname or path+'.sqlite'
 
-    if args.path_type=='shortest':
-        _path_fun = iti.shortest_path
-    elif args.path_type=='simplest':
-        _path_fun = iti.simplest_path
-    elif args.path_type=='azimuth':
-        _path_fun = iti.azimuth_path
-    elif args.path_type=='naive-azimuth':
-        _path_fun = iti.naive_azimuth_path
-    elif args.path=='way-simplest':
-        _path_fun = iti.way_simplest
+    conn = connect_database(dbname)
 
-    _path_fun(dbname, path, args.source, args.destination, output=output)
+    if args.attribute is not None:
+        if args.use_way:
+            _edges = iti.edges_from_way_attribute
+        else:
+            _edges = iti.edges_from_edge_attribute
+
+        if args.path_type=='shortest':
+            _path_fun = iti.mesh_shortest_path
+        elif args.path_type=='simplest':
+            _path_fun = iti.mesh_simplest_path
+        else:
+            logging.error("Attribute is only supported for simplest or shortest path type")
+            sys.exit(1)
+
+        _path_fun = partial(_path_fun, edges=_edges(conn, args.attribute, args.percentile))
+    else:
+        if args.path_type=='shortest':
+            _path_fun = iti.shortest_path
+        elif args.path_type=='simplest':
+            _path_fun = iti.simplest_path
+        elif args.path_type=='azimuth':
+            _path_fun = iti.azimuth_path
+        elif args.path_type=='naive-azimuth':
+            _path_fun = iti.naive_azimuth_path
+        elif args.path=='way-simplest':
+            _path_fun = iti.way_simplest
+
+    _path_fun(dbname, path, args.source, args.destination, conn=conn, output=output)
+
+
+def compute_mesh( args ):
+    """ Compute mesh
+    """
+
+    import builder.mesh as mesh
+    from   builder.sql  import connect_database
+
+    dbname = args.dbname+'.sqlite'
+    conn = connect_database(dbname)
+
+    name = args.name or 'mesh'
+    if args.use_way:
+        mesh_fun = mesh.create_indexed_table_from_way_attribute
+    else:
+        mesh_fun = mesh.create_indexed_table_from_edge_attribute
+
+    mesh_fun(conn, name, args.attribute, args.percentile)
+    if args.output is not None:
+        export_shapefile(dbname, name, args.output)
 
 
 def compute_horizon( args ):
@@ -317,14 +359,30 @@ def main():
         'shortest',
         'simplest',
         'azimuth' ,
-        'way-simplest',
+        'way-simplest' ,
         'naive-azimuth',
     ], default='shortest', dest="path_type", help="Type of path (default to shortest)")
-    path_cmd.add_argument("--mesh-attribute" , metavar='NAME'  , default=None, 
+    path_cmd.add_argument("--use-way", action="store_true", default=False, help="Use ways for computing mesh components")
+    path_cmd.add_argument("--attribute" , metavar='NAME'  , default=None, 
             help="Specify attribute name for mesh structure")
-    path_cmd.add_argument("--mesh-percentile", metavar='NUMBER', default=0, type=int, 
+    path_cmd.add_argument("--percentile", metavar='NUMBER', default=5, type=int, 
             help="The percentile for computing the mesh structure")
+    path_cmd.add_argument("--mesh", metavar='NAME', default=None, help="Name of the table to store the mesh geometry")
     path_cmd.set_defaults(func=compute_path)
+
+    # Compute mesh
+    mesh_cmd = sub.add_parser('mesh', description="Compute mesh")
+    mesh_cmd.add_argument("dbname", metavar='PATH', help="Database")
+    mesh_cmd.add_argument("--use-way", action="store_true", default=False, help="Use ways for computing mesh components")
+    mesh_cmd.add_argument("--attribute" , metavar='NAME', required=True  , default=None, 
+            help="Specify attribute name for mesh structure")
+    mesh_cmd.add_argument("--percentile", metavar='NUMBER', default=5, type=int, 
+            help="The percentile for computing the mesh structure")
+    mesh_cmd.add_argument("--name"  , metavar='NAME', default=None, help="Name of the table to store the mesh geometry")
+    mesh_cmd.add_argument("--output", metavar='path', default=None, help="Path to output shapefile")
+    mesh_cmd.set_defaults(func=compute_mesh)
+
+
 
     # Compute horizon
     hrz_cmd = sub.add_parser('horizon', description="Compute horizon")

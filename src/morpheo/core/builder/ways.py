@@ -13,7 +13,7 @@ from numpy import sin
 from numpy import pi
 from ..logger import Progress
 
-from .errors import BuilderError
+from .errors import BuilderError, ErrorGraphNotFound
 from .sql import SQL, execute_sql, attr_table
 from .classes import compute_classes
 from .layers import export_shapefile
@@ -99,7 +99,12 @@ def create_ways_graph(conn):
 def read_ways_graph( path ):
     """ Read way line graph as networkx object 
     """
-    return nx.read_gpickle(_ways_graph_path(path))
+    graph_path = _ways_graph_path(path)
+    try:
+        return nx.read_gpickle(graph_path)
+    except Exception as e:
+        raise ErrorGraphNotFound(
+                "Error while reading graph {}: {}".format(graph_path,e))
 
 
 

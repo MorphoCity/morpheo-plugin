@@ -5,10 +5,11 @@ from __future__ import print_function
 
 import os
 import logging
+import networkx as nx
 
 from ..logger import log_progress
 
-from .errors import BuilderError
+from .errors import BuilderError, ErrorGraphNotFound
 from .sql import (SQL, execute_sql, 
                   create_indexed_table,
                   delete_table, 
@@ -29,17 +30,34 @@ def _edge_graph_path( output ):
 def build_edges_graph(conn, output):
     """ Build place edge graph and export file
     """
-    import networkx as nx
-
     cur  = conn.cursor()
     rows = cur.execute(SQL("SELECT START_PL, END_PL, LENGTH, OGC_FID FROM place_edges")).fetchall()
 
     # Edges are multigraph
+    logging.info("Places: building edges graph")
     g = nx.MultiGraph()
     g.add_edges_from( (r[0],r[1],{'length': int(r[2]), 'fid': r[3]}) for r in rows)
 
+    logging.info("Places: saving edges graph")
     nx.write_gpickle(g, _edge_graph_path(output))
     return g
+
+
+def load_edge_graph( path ):
+    """ Load edge NetworkX  graph
+
+        :param path: of the morpheo data
+        
+        :return: A NetworkX graph
+    """
+    graph_path = _edge_graph_path(path)
+    logging.info("Importing edge graph %s" % graph_path)
+    try:
+        return nx.read_gpickle(graph_path)
+    except Exception as e:
+        raise ErrorGraphNotFound(
+                "Error while reading graph {}: {}".format(graph_path,e))
+
 
 
 class PlaceBuilder(object):
@@ -53,7 +71,6 @@ class PlaceBuilder(object):
        export_shapefile(dbname, 'places'     , output)
        export_shapefile(dbname, 'place_edges', output)
        if export_graph:
-           logging.info("Places: building edge graph")
            build_edges_graph(self._conn, output)
        else:
           # Clean up existing graph

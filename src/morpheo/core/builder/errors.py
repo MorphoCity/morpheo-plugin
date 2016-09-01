@@ -1,6 +1,9 @@
 # -*- encoding=utf-8 -*-
 
-class BuilderError(Exception):
+class MorpheoException(Exception):
+    pass
+
+class BuilderError(MorpheoException):
     pass
 
 class FileNotFoundError(BuilderError):
@@ -12,4 +15,6 @@ class DatabaseNotFound(BuilderError):
 class InvalidLayerError(BuilderError):
     pass
 
+class ErrorGraphNotFound(BuilderError):
+    pass
 

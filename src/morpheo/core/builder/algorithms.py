@@ -2,7 +2,11 @@
 """ Graph algorithms
 """
 
+from __future__ import print_function
+
 import random
+import networkx as nx
+from itertools import izip
 from networkx.algorithms.centrality.betweenness import (_single_source_shortest_path_basic,
                                                         _single_source_dijkstra_path_basic,
                                                         _rescale)
@@ -66,7 +70,6 @@ def _accumulate_stress_endpoints(stress, S, P, sigma, s):
     return stress
 
 
-
 def multiple_sources_shortest_path_length( G, sources, cutoff=None ):
     """ Compute shortest path length from a set of sources
 
@@ -96,123 +99,58 @@ def multiple_sources_shortest_path_length( G, sources, cutoff=None ):
     return seen  # return all path lengths as dictionary
 
 
+def shortest_subgraph_path( G, source, target, mesh, weight=None ):
+    """ Compute shortest path using subgraph shortcuts
 
-def unweighted_shortest_path( G, source, stop_predicat, cutoff=None ): 
-    """ Compute shortest path between source
-        and a the set of nodes in targets reachable.
-
-        This as variant of Networkx BFS algorithm implemented in single source shortesst path
-
-        Propagation stop when predicat is met 
-   
-        :param G: NetworkX graph
-        :param source : Node label, Starting node for path
-
-        :return: list of nodes in shortest path
-
-        Notes
-        -----
-        The shortest path is not necessarily unique. So there can be multiple
+        A mesh is a set of nodes that are considered topologically equivalent
+        for the shortest path computation
     """
-    level=0                  # the current level
-    nextlevel={source:1}     # list of nodes to check at next level
-    paths={source:[source]}  # paths dictionary  (paths to key from source)
-    if cutoff==0 or stop_predicat(G,source):
-        return paths
-    while nextlevel:
-        thislevel=nextlevel
-        nextlevel={}
-        for v in thislevel:
-            for w in G[v]:
-                if w not in paths:
-                    paths[w]=paths[v]+[w]
-                    nextlevel[w]=1
-                    if stop_predicat(G,w):
-                        return paths[w]
-        if (cutoff is not None and cutoff <= level):  break
-        level=level+1
-    raise nx.NetworkxNoPath("No path found from %s" % source)
+    from itertools import combinations
 
+    # Compute subgraph set
+    subgraphs = list(nx.connected_component_subgraphs(mesh))
 
-def dijkstra_path( G, source, stop_predicat, weight='weight'):
-    """ Compute shortest path between source
-        and a the set of nodes in targets reachable.
+    # Add shortcuts to the graph
+    Gs = G.copy()  
 
-        This as variant of Networkx  algorithm implemented in single source shortesst path
+    # Remove all nodes in nbunch
+    #Gs.remove_nodes_from(nbunch)
 
-        Propagation stop when predicat is met 
-   
-        :param G: NetworkX graph
-        :param source : Node label, Starting node for path
+    EPSILON_WEIGHT=0.01
 
-        :return: list of nodes in shortest path
+    # Create shortcuts
 
-    """
-    (length, path) = single_source_dijkstra(G, source, stop_predicat,                                                                                     weight=weight)
-    try:
-        return path[target]
-    except KeyError:
-        raise nx.NetworkXNoPath("No reachable nodes from %s" % source)
-
-
-def single_source_dijkstra_path( G, source, stop_predicat, weight='weight' ):
-    """ Compute shortest path between source
-        and a the set of nodes in targets reachable.
-
-        This as variant of Networkx  algorithm implemented in single source shortesst path
-
-        Propagation stop when predicat is met 
-   
-        :param G: NetworkX graph
-        :param source : Node label, Starting node for path
-
-        :return: dictionaries
-               Returns a tuple of two dictionaries keyed by node.
-               The first dictionary stores distance from the source.
-               The second stores the path from the source to that node.
-    """
-    if stop_predicat(G,source):
-        return ({source: 0}, {source: [source]})
-    push = heappush
-    pop = heappop
-    dist = {}  # dictionary of final distances
-    paths = {source: [source]}  # dictionary of paths
-    seen = {source: 0}
-    c = count()
-    fringe = []  # use heapq with (distance,label) tuples
-    push(fringe, (0, next(c), source))
-    while fringe:
-        (d, _, v) = pop(fringe)
-        if v in dist:
-            continue  # already searched this node.
-        dist[v] = d
-        #if v == target:
-        #    break
-        if stop_predicat(G,v):
-            break
-       # for ignore,w,edgedata in G.edges_iter(v,data=True):
-        # is about 30% slower than the following
-        if G.is_multigraph():
-            edata = []
-            for w, keydata in G[v].items():
-                minweight = min((dd.get(weight, 1)
-                                 for k, dd in keydata.items()))
-                edata.append((w, {weight: minweight}))
+    for i, g in enumerate(subgraphs):
+        # Skip subgraph with only one node
+        if g.order()==1: 
+           continue
+        # Get the fringe of the node group in G
+        edges = list(combinations([v for v in g if any(n not in g for n in G[v])], 2))
+        # Add shortcuts between all nodes from the fringe
+        if weight is None:
+            Gs.add_edges_from(edges, index=i)
         else:
-            edata = iter(G[v].items())
+            Gs.add_weighted_edges_from(((u,v,EPSILON_WEIGHT) for u,v in edges), weight=weight, index=i)
 
-        for w, edgedata in edata:
-            vw_dist = dist[v] + edgedata.get(weight, 1)
-            if cutoff is not None:
-                if vw_dist > cutoff:
-                    continue
-            if w in dist:
-                if vw_dist < dist[w]:
-                    raise ValueError('Contradictory paths found:',
-                                     'negative weights?')
-            elif w not in seen or vw_dist < seen[w]:
-                seen[w] = vw_dist
-                push(fringe, (vw_dist, next(c), w))
-                paths[w] = paths[v] + [w]
-    return (dist, paths)
+    # Resolve shortest_path
+    p = nx.shortest_path(Gs, source, target, weight=weight)
+
+    nx.write_gpickle(Gs,"GS.nx")
+
+    # Resolve shortcuts
+    path = [source]
+    for u,v in izip(p[:-1],p[1:]):
+       # Test if edge is a shortcut
+       if Gs.is_multigraph():
+            index = Gs[u][v][0].get('index')
+       else:
+            index = Gs[u][v]['index']
+       if index is not None:
+           # compute real path inside that subgraph
+           path = path + nx.shortest_path(subgraphs[index],u,v,weight=weight)[1:]
+       else:
+           path.append(v)
+    
+    return path
+
 

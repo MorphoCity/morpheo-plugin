@@ -9,7 +9,7 @@ from __future__ import print_function
 
 import logging
 
-from .mesh import features_from_attributes, features_from_geometry
+from .mesh import features_from_attribute, features_from_geometry
 from .algorithms import multiple_sources_shortest_path_length
 from .sql import connect_database, SQL
  
@@ -18,9 +18,16 @@ import numpy as np
 
 def horizon_from_attribute( conn, G,  attribute, percentile, output=None ):
     """ Compute horizon from a percentile of a numerical attributs
+
+        :param conn: connection to database
+        :param G: Networkx graph
+        :param attribute: Attribute column
+        :param percentile: Percentage of objects to retrieve from a list 
+                         ordered in decreasing order of attribute value
+        :param output: complete path of text file to output data (optionel)
     """
-    features = features_from_attributes(conn.cursor(), 'ways', attribute, percentile,
-                                        fid_column="WAY_ID")
+    features = features_from_attribute(conn.cursor(), 'ways', attribute, percentile,
+                                       fid_column="WAY_ID")
 
     # Compute all shortest path lengths
     lengths = multiple_sources_shortest_path_length(G, features)
@@ -35,6 +42,11 @@ def horizon_from_attribute( conn, G,  attribute, percentile, output=None ):
  
 def horizon_from_geometry( conn, G,  wkbgeom, within=False, output=None ):
     """ Compute horizon from features selected from a geometry
+
+        :param conn: connection to database
+        :param G: Networkx graph
+        :param wkbgeom: Geometry in wkb format
+        :param output: complete path of text file to output data (optionel)
     """
     features = features_from_geometry(conn.cursor(), 'ways', wkbgeom, within=within)
     return horizon_from_feature_list(G, features, output) 
@@ -42,6 +54,12 @@ def horizon_from_geometry( conn, G,  wkbgeom, within=False, output=None ):
 
 def horizon_from_feature_list( G,  features, output=None ):
     """ Compute horizon from features selected from a geometry
+
+        :param conn: connection to database
+        :param G: Networkx graph
+        :param features: list of feature id
+        :param output: complete path of text file to output data (optionel)
+ 
     """
     # Compute all shortest path lengths
     lengths = multiple_sources_shortest_path_length(G, features)

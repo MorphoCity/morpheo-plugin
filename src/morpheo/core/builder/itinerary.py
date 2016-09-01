@@ -7,12 +7,14 @@ import networkx as nx
 
 from ..logger import Progress
 
-from .errors  import BuilderError
-from .sql     import connect_database, SQL, execute_sql, attr_table, table_exists
-from .layers  import export_shapefile
-
+from .errors import BuilderError
+from .sql    import connect_database, SQL, execute_sql, attr_table, table_exists
+from .layers import export_shapefile
+from .places import load_edge_graph 
+from .mesh   import features_from_geometry
 
 from math import atan2, pi
+
 
 class ErrorInvalidFeature(BuilderError):
     pass
@@ -20,21 +22,6 @@ class ErrorInvalidFeature(BuilderError):
 
 class ErrorPathNotFound(BuilderError):
     pass
-
-
-def load_edge_graph( path ):
-    """ Load edge graph
-
-        :param path: path location of the morpheo data
-
-        :return: A networkx graph
-    """
-    basename = os.path.basename(path)
-    graph_path = os.path.join(path, 'edge_graph_'+basename+'.gpickle') 
-    logging.info("Itinerary: importing edge graph %s" % graph_path)
-    if not os.path.exists(graph_path):
-        raise BuilderError('Edge graph file {} not found'.format(graph_path))
-    return nx.read_gpickle(graph_path)
 
 
 def get_closest_feature( cur, table, radius, x, y, srid=None ):
@@ -65,7 +52,7 @@ def get_closest_feature( cur, table, radius, x, y, srid=None ):
         return result[0]
 
 
-def _create_itinerary_table(cur, path_type):
+def _create_itinerary_table(cur, table):
     """ Create the table to store itinerary results
     """
     if not table_exists(cur, table):
@@ -107,14 +94,15 @@ def _store_path(cur, dbname, edges, path_type, output, manifest):
     """,list=','.join(str(fid) for fid in edges),table=table))
             
     if output is not None:
+        basename = os.path.basename(output)
         export_shapefile(dbname, table, output)
         # Write manifest
-        with open(os.path.join(output,'itinerary_%s_%s.manifest' % (path_type,output)),'w') as f:
+        with open(os.path.join(output,'itinerary_%s_%s.manifest' % (path_type,basename)),'w') as f:
             for k,v in manifest.iteritems():
                 f.write("{}={}\n".format(k,v))
 
 
-def _edge_shortest_path( dbname, path, fid_src, fid_dst, weight=None, output=None ):
+def _edge_shortest_path( dbname, path, source, target, conn=None, weight=None, output=None ):
     """ Compute the edge shortest path
     """
     G = load_edge_graph(path)    
@@ -122,7 +110,7 @@ def _edge_shortest_path( dbname, path, fid_src, fid_dst, weight=None, output=Non
     path_type = 'shortest' if weight is not None else 'simplest'
 
     logging.info("Itinerary: computing {} edge path".format(path_type))
-    p = nx.shortest_path(G, fid_src, fid_dst, weight=weight)
+    p = nx.shortest_path(G, source, target, weight=weight)
     p = zip(p[:-1],p[1:]) 
     # G is expected to be a Multigraph and then return a list of edges
     if G.is_multigraph():
@@ -130,13 +118,13 @@ def _edge_shortest_path( dbname, path, fid_src, fid_dst, weight=None, output=Non
     else:
         edges = [G[u][v]['fid'] for u,v in p]
 
-    conn = connect_database(dbname)
+    conn = conn or connect_database(dbname)
 
     cur = conn.cursor()
     _store_path(cur, dbname, edges, path_type, output=output, manifest=dict(
         input=path,
-        source=fid_src,
-        destination=fid_dst,
+        source=source,
+        destination=target,
         type=path_type))
 
     cur.close()
@@ -145,76 +133,49 @@ def _edge_shortest_path( dbname, path, fid_src, fid_dst, weight=None, output=Non
     return edges
 
 
-def _edge_mesh_shortest_path( conn, path, fid_src, fid_dst, attribute, cutoff, weight=None, 
-                              output=None ):
-    """ Compute the edge shortest path from mesh structure 
-
-        The mesh structure is defined by taking the cutoff portion of the features 
-        having the highest values of the given attributes 
-    """
-
-    raise NotImplementedError()
-
-    cur = conn.cursor()
-    # Get the number of features
-    cur.execute(SQL("DELETE FROM mesh_struct"))
-    count = cur.execute(SQL("SELECT Count(*) FROM place_edges"))
-    limit = count * 100.0/cutoff
-
-    cur.execute(SQL("""INSERT INTO mesh_struct(OGC_FID,START_PL,END_PL,GEOMETRY)
-        SELECT OGC_FID,START_PL,END_PL,GEOMETRY FROM place_edges ORDER BY {attribute} 
-        LIMIT {limit}
-    """,attribute=attr_table,limit=limit))
-    
-    # Get all the nodes included/touching in the mesh
-    nodes = cur.execute(SQL("""SELECT p 
-          FROM (SELECT START_PL AS pl FROM mesh_struct
-                UNION
-                SELECT END_PL AS pl FROM mesh_struct)"""))
-
-
-def shortest_path( dbname, path, fid_src, fid_dst, output=None ):
+def shortest_path( dbname, path, source, target, output=None, conn=None):
     """ Compute the edge shortest path in length
 
         :param conn: the connection to the morpheo working database
         :param path: the path location of morpheo data
-        :param fid_src: The feature id of the starting node 
-        :param fid_dst: The feature id of the destination node
+        :param source: The feature id of the starting node 
+        :param target: The feature id of the destination node
         :param output: path to output results
 
         :return the list of edge feature id that represent the shortest path
     """
-    return _edge_shortest_path(dbname, path, fid_src, fid_dst, output=output,
-            weight='length')        
+    return _edge_shortest_path(dbname, path, source, target, output=output,
+            weight='length', conn=conn)        
 
 
-def simplest_path( dbname, path, fid_src, fid_dst, output=None ):
+def simplest_path( dbname, path, source, target, output=None, conn=None):
     """ Compute the unweighted edge shortest path
 
         Note that path is not unique and the function compute only one path
 
         :prama conn: the connection to the morpheo working database
         :param path: the path location of morpheo data
-        :param fid_src: The feature id of the starting place
-        :param fid_dst: The feature id of the destination place
+        :param source: The feature id of the starting place
+        :param target: The feature id of the destination place
         :param output: path to output results
 
         :return the list of edge feature id that represent the shortest path
     """
-    return _edge_shortest_path(dbname, path, fid_src, fid_dst, output=output)        
- 
+    return _edge_shortest_path(dbname, path, source, target, output=output,
+                               conn=conn)        
+
 
 def azimuth( x1, y1, x2, y2 ):
     return atan2( x2-x1, y2-y1)
 
 
-def naive_azimuth_path(dbname, path, fid_src, fid_dst, output):
+def naive_azimuth_path(dbname, path, source, target, output, conn=None):
     """ Naive computation of  the azimuthal path
 
         :prama dbname: The path to the molpheo working database
         :param path: The path location of morpheo data
-        :param fid_src: The feature id of the starting place
-        :param fid_dst: The feature id of the destination place
+        :param source: The feature id of the starting place
+        :param target: The feature id of the destination place
         :param output: Path to output results
 
         We compute a path by selecting the edge that minimize the 
@@ -228,7 +189,7 @@ def naive_azimuth_path(dbname, path, fid_src, fid_dst, output):
             a = 2*pi - a
         return a
 
-    conn = connect_database(dbname)
+    conn = conn or connect_database(dbname)
     cur  = conn.cursor()
 
     # Compute the reference  azimuth
@@ -239,14 +200,14 @@ def naive_azimuth_path(dbname, path, fid_src, fid_dst, output):
                 """,node=node)).fetchone()
         return x,y
 
-    n = fid_src
+    n = source
     edges  = {}
     level  = 0
     edgeid = -1
-    while n!=fid_dst:
+    while n!=target:
         # Get all edges accessibles from n
         # Compute the azimuth for the destination point
-        az_dest = azimuth( *(get_coordinates(n)+get_coordinates(fid_dst)) )
+        az_dest = azimuth( *(get_coordinates(n)+get_coordinates(target)) )
 
         rows = cur.execute(SQL("""SELECT
             fid, next, ST_X(p1), ST_Y(p1), ST_X(p2), ST_Y(p2)
@@ -278,8 +239,8 @@ def naive_azimuth_path(dbname, path, fid_src, fid_dst, output):
 
     _store_path(cur, dbname, edges, 'naive_azimuth', output=output, manifest=dict(
         input=path,
-        source=fid_src,
-        destination=fid_dst,
+        source=source,
+        destination=target,
         type='naive_azimuth'))
 
     cur.close()
@@ -289,13 +250,13 @@ def naive_azimuth_path(dbname, path, fid_src, fid_dst, output):
 
 
 
-def azimuth_path(dbname, path, fid_src, fid_dst, output):
+def azimuth_path(dbname, path, source, target, output, conn=None):
     """ Compute the azimuthal path
 
         :prama dbname: The path to the molpheo working database
         :param path: The path location of morpheo data
-        :param fid_src: The feature id of the starting place
-        :param fid_dst: The feature id of the destination place
+        :param source: The feature id of the starting place
+        :param target: The feature id of the destination place
         :param output: Path to output results
 
         We compute a path by selecting the edge that minimize the 
@@ -313,7 +274,7 @@ def azimuth_path(dbname, path, fid_src, fid_dst, output):
     """
     G = load_edge_graph(path)    
 
-    conn = connect_database(dbname)
+    conn = conn or connect_database(dbname)
     cur  = conn.cursor()
 
     # Compute the reference  azimuth
@@ -368,25 +329,25 @@ def azimuth_path(dbname, path, fid_src, fid_dst, output):
         az = azimuth(*coords)
         return abs(angle_rel(az,ref)-angle_rel(dst,ref))
 
-    n = fid_src
+    n = source
 
     # Get starting edge
-    az_dst = azimuth( *(get_coordinates(n)+get_coordinates(fid_dst)) )
+    az_dst = azimuth( *(get_coordinates(n)+get_coordinates(target)) )
     edgeid,n = min(get_edge_candidates(n),key=lambda r:angle_abs(azimuth(*r[2:]),az_dst))[0:2] 
    
     level = 0
     edges = { edgeid: level }
 
-    while n!=fid_dst:
+    while n!=target:
         # Get all edges accessibles from n
         # Compute the azimuth for the destination point
         az_ref = get_edge_azimuth(n,edgeid)
-        az_dst = azimuth( *(get_coordinates(n)+get_coordinates(fid_dst)) )
+        az_dst = azimuth( *(get_coordinates(n)+get_coordinates(target)) )
 
         rows = get_edge_candidates(n,edgeid)
         
         try:
-            edgeid,n = next((r[0],r[1]) for r in rows if r[1]==fid_dst)
+            edgeid,n = next((r[0],r[1]) for r in rows if r[1]==target)
         except StopIteration:
             # Do not select dead-end
             rows = filter(lambda r:len(G.edges(r[1]))>1,rows)
@@ -407,8 +368,8 @@ def azimuth_path(dbname, path, fid_src, fid_dst, output):
 
     _store_path(cur, dbname, edges, 'azimuth', output=output, manifest=dict(
         input=path,
-        source=fid_src,
-        destination=fid_dst,
+        source=source,
+        destination=target,
         type='azimuth'))
 
     cur.close()
@@ -417,7 +378,122 @@ def azimuth_path(dbname, path, fid_src, fid_dst, output):
     return edges
 
 
-def way_simplest(dbname, path, fid_src, fid_dst, output):
+
+def _edge_components_path( dbname, path, source, target, edges, conn=None, weight=None, output=None ):
+    """ Compute the edge shortest using subgraph components as shortcuts
+
+            :param dbname: The morpheo database full path
+            :param path:   The morpheo data path (graph location directory)
+            :param source: The feature id of the starting place
+            :param target: The feature id of the destination place 
+    """
+    from .algorithms import shortest_subgraph_path
+    
+    G = load_edge_graph(path)    
+
+    path_type = 'mesh_shortest' if weight is not None else 'mesh_simplest'
+
+    logging.info("Itinerary: computing {} edge path with mesh components".format(path_type))
+
+    # Compute mesh subgraph
+    mesh = G.__class__()
+    mesh.add_weighted_edges_from(edges, weight='length')
+
+    p = shortest_subgraph_path(G, source, target, mesh, weight=weight)
+    p = zip(p[:-1],p[1:]) 
+    # G is expected to be a Multigraph and then return a list of edges
+    if G.is_multigraph():
+        edges = [min(G[u][v].values(),key=lambda x: x['length'])['fid'] for u,v in p]
+    else:
+        edges = [G[u][v]['fid'] for u,v in p]
+
+    conn = conn or connect_database(dbname)
+    cur  = conn.cursor()
+
+    _store_path(cur, dbname, edges, path_type, output=output, manifest=dict(
+        input=path,
+        source=source,
+        destination=target,
+        type=path_type))
+
+    cur.close()
+    conn.commit()
+    conn.close()
+    return edges
+
+
+def mesh_simplest_path(dbname, path, source, target, edges, conn=None, output=None ):
+    """ Compute the edge simplest path using subgraph components as shortcuts
+
+            :param dbname: The morpheo database full path
+            :param path:   The morpheo data path (graph location directory)
+            :param source: The feature id of the starting place
+            :param target: The feature id of the destination place 
+                           shortest path
+            :param edges: List 3-tuples edges as returned from edges_from_... functions
+    """
+    return _edge_components_path(dbname, path, source, target, edges, conn=conn, 
+                                 output=output)
+
+
+def mesh_shortest_path(dbname, path, source, target, edges, conn=None, output=None ):
+    """ Compute the edge simplest path using subgraph components as shortcuts
+
+            :param dbname: The morpheo database full path
+            :param path:   The morpheo data path (graph location directory)
+            :param source: The feature id of the starting place
+            :param target: The feature id of the destination place 
+                           shortest path
+    """
+    return _edge_components_path(dbname, path, source, target, edges, conn=conn, 
+                                 weight='length', output=output)
+
+
+def edges_from_edge_attribute( conn, attribute, percentile ):
+    """ Return places using edge attribute
+
+            :param attribute: Attribute column
+            :param percentile: Percentage of objects to retrieve from a list
+                              ordered in decreasing order of attribute value
+    """
+    from .mesh import edges_from_edge_attributes as _edges
+    return _edges(conn.cursor(), attribute, percentile)
+
+
+def edges_from_way_attribute( conn, attribute, percentile):
+    """ Return places using way attributes
+
+            :param attribute: Attribute column
+            :param percentile: Percentage of objects to retrieve from a list
+                              ordered in decreasing order of attribute value
+    """
+    from .mesh import edges_from_way_attribute as _edges
+    return _edges(conn.cursor(), attribute, percentile)
+
+
+def edges_from_edge_fid( conn, fids ):
+    """ Return list of 2-tuples edges from a list of edge fids  
+    """
+    cur  = conn.cursor()
+    rows = cur.execute(SQL("""SELECT START_PL,END_PL,LENGTH FROM place_edges
+                            WHERE OGC_FID IN ({fids})
+                     """,','.join(str(fid) for fid in fids))).fetchall()
+    return rows
+
+
+def edges_from_way_fid( conn, fids ):
+    """ Return list of 2-tuples edges from a list of edge fids  
+    """
+    cur  = conn.cursor()
+    rows = cur.execute(SQL("""SELECT START_PL,END_PL,LENGTH FROM place_edges
+                              WHERE WAY IN ({fids})
+                     """,','.join(str(fid) for fid in fids))).fetchall()
+    return rows
+
+
+   
+
+def way_simplest(dbname, path, source, target, output):
     """ Compute the way simplest path
 
         The way simplest path is computed on the line graph of the ways connectivity:
@@ -427,12 +503,13 @@ def way_simplest(dbname, path, fid_src, fid_dst, output):
             
         :prama conn: The path to  the morpheo working database
         :param path: The path location of morpheo data
-        :param fid_src: The feature id of the starting place
-        :param fid_dst: The feature id of the destination place
+        :param source: The feature id of the starting place
+        :param target: The feature id of the destination place
         :param output: Path to output results
 
         :return the list of edge feature id that represent the shortest path
     """
     raise NotImplementedError()     
+
 
 

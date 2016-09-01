@@ -122,6 +122,8 @@ def delete_table( cur, table ):
         cur.execute(SQL("DROP TABLE %s" % table))
         cur.execute(SQL("VACUUM"))
 
+delete_indexed_table = delete_table
+
 
 def create_attribute_table( cur, name,  dtype='real'):
     """ Create a table for storing temporary results 
