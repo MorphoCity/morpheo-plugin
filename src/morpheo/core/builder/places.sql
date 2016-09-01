@@ -1,7 +1,13 @@
 -- Build edges between places
 
+
+-- Clean up things 
+
 DELETE FROM place_vtx;
 DELETE FROM place_edges;
+DELETE FROM ways;
+DELETE FROM way_places;
+DELETE FROM way_angles;
 
 -- Create an association table between places and graph vertices
 -- This is much faster than using subqueries/join with edge table

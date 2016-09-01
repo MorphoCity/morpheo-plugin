@@ -213,7 +213,6 @@ CREATE TABLE place_edges(
     -- Note: because data will be exported to 
     -- shapefile our names have to be compliant
     -- to the limition of the dbf format (less than 10 chars)
-    CONN             real, -- connectivity
     CLOSEN           real, -- closeness
     SPACING          real, -- spacing
     ORTHOG           real, -- orthogonality
@@ -224,7 +223,6 @@ CREATE TABLE place_edges(
     -- Classes 
     DEGREE_CL        integer,
     LENGTH_CL        integer,
-    CONN_CL          integer,
     CLOSEN_CL        integer,
     SPACING_CL       integer,
     ORTHOG_CL        integer,

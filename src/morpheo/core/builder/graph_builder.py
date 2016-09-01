@@ -27,7 +27,6 @@ class SpatialiteBuilder(object):
         logging.info("Opening database %s" % dbname)
         self._conn     = connect_database(dbname)
         self._dbname   = dbname
-        self._basepath = os.path.dirname(dbname)
         self._basename = os.path.basename(os.path.splitext(dbname)[0])
 
         self._input_table   = table or self._basename.lower()
@@ -40,12 +39,6 @@ class SpatialiteBuilder(object):
             from ways import WayBuilder
             self._way_builder = WayBuilder(self._conn)
         return self._way_builder
-
-    @property
-    def path(self):
-        """ Return the project path
-        """
-        return os.path.join(self._dirname,self._basename)
 
     @property 
     def connection(self):
@@ -199,6 +192,31 @@ class SpatialiteBuilder(object):
 
         if output is not None:
             builder.export(self._dbname, output)
+
+    def compute_edge_attributes( self, path, orthogonality, betweenness, closeness, stress,
+                                 classes=10, output=None):
+        """ Compute attributes for edges:
+
+            :param orthogonality: If True, compute orthogonality.
+            :param betweenness:   If True, compute betweenness centrality.
+            :param stress:        If True, compute stress centrality.
+            :param closeness:     If True, compute closeness.
+        """
+        import edge_properties as props
+        props.compute_local_attributes(self._conn,orthogonality = orthogonality, classes=classes)
+
+        if any((betweenness, closeness, stress)):
+            props.compute_global_attributes(
+                    self._conn,
+                    path, 
+                    betweenness = betweenness,
+                    closeness   = closeness,
+                    stress      = stress,
+                    classes     = classes)
+
+        if output is not None:
+            export_shapefile(self._dbname, 'place_edges', output)
+
 
     def build_ways_from_attribute(self, output=None):
         """ Build way's hypergraph from street names.

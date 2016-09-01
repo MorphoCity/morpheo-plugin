@@ -3,6 +3,7 @@
 """
 from collections import namedtuple
 from numpy import pi
+from math import atan2
 import numpy as np
 
 #-------------------------------
@@ -151,6 +152,8 @@ def angle_from_azimuth( az1, az2 ):
     return abs( angle - pi )
 
 
-
-
+def azimuth(x1,y1,x2,y2):
+    """ Compute azimuth between two directions
+    """
+    return atan2(x2-x1, y2-y1)
 

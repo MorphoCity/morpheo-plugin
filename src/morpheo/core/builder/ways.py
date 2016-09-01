@@ -14,7 +14,7 @@ from numpy import pi
 from ..logger import Progress
 
 from .errors import BuilderError, ErrorGraphNotFound
-from .sql import SQL, execute_sql, attr_table
+from .sql import SQL, execute_sql, attr_table, table_exists
 from .classes import compute_classes
 from .layers import export_shapefile
 
@@ -107,6 +107,13 @@ def read_ways_graph( path ):
                 "Error while reading graph {}: {}".format(graph_path,e))
 
 
+def azimuth(x1,y1,x2,y2):
+    return atan2(x2-x1, y2-y1)
+
+
+def distance(x1,y1,x2,y2):
+    return np.sqrt((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1))
+
 
 class WayBuilder(object):
 
@@ -114,17 +121,6 @@ class WayBuilder(object):
        from math import atan2
 
        self._conn = conn
-
-       # Define helper functions
-       def azimuth(x1,y1,x2,y2):
-           return atan2(x2-x1, y2-y1)
-
-       def distance(x1,y1,x2,y2):
-           return np.sqrt((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1))
-
-       self.azimuth  = azimuth
-       self.distance = distance
-
        self._line_graph = None
 
     def build_ways(self, threshold):
@@ -141,11 +137,6 @@ class WayBuilder(object):
       
         # Invalidate current line graph
         self._line_graph = None
-
-        # Dereference helper functions
-        azimuth  = self.azimuth
-        distance = self.distance
-
         cur = self._conn.cursor()
 
         # Clean up way id on edges
@@ -283,70 +274,19 @@ class WayBuilder(object):
                 compute_way_classes(attrs, cur, 'ORTHOG', classes)
 
         self._conn.commit()
-    
+   
+
     def compute_orthogonality(self):
-        """ Compute orthogonality
+        """ Compute orthogonality on ways
         """
-        from .angles import angle_from_azimuth
-
-        logging.info("Ways: computing orthogonality")
-
-        f_azimuth = self.azimuth
-
-        cur  = self._conn.cursor()
-        rows = cur.execute(SQL("""SELECT 
-            pl, way, edge,  ST_X(p1), ST_Y(p1), ST_X(p2), ST_Y(p2)
-            FROM (
-                SELECT 
-                START_PL AS pl,
-                WAY AS way,
-                OGC_FID AS edge,
-                ST_StartPoint(GEOMETRY) AS p1, 
-                ST_PointN(GEOMETRY,2) AS p2
-                FROM place_edges
-            UNION ALL
-                SELECT
-                END_PL AS pl,
-                WAY AS way,
-                OGC_FID AS edge,
-                ST_EndPoint(GEOMETRY) AS p1, 
-                ST_PointN(GEOMETRY, ST_NumPoints(GEOMETRY)-1) AS p2
-                FROM place_edges)
-            ORDER BY pl
-        """)).fetchall()
-
-        # compute azimuths
-        way_places = [(r[0],r[1],r[2], f_azimuth(*r[3:])) for r in rows]
-
-        # Compute all angles for each pairs of way 
-        # for each places
-
-        progress = Progress(len(way_places))
-
-        def compute_angles():
-            for place, ways in iter_places(way_places):
-                n = len(ways)
-                progress(n)
-                if n==1:
-                    continue
-                for i in range(n-1):
-                    w1 = ways[i]
-                    i1 = w1[1]
-                    for j in range(i+1,n):
-                        w2 = ways[j]
-                        i2 = w2[1]  
-                        if i1 != i2:
-                            angle = sin( angle_from_azimuth(w1[3],w2[3]) )
-                            yield (place,angle,i1,w1[2],i2,w2[2])
-
-        # Build way_angles table
-        logging.info("Ways: computing angles")
-        cur.execute(SQL("DELETE FROM way_angles"))
-        cur.executemany(SQL("INSERT INTO way_angles(PLACE,ANGLE,WAY1,EDGE1,WAY2,EDGE2) SELECT ?,?,?,?,?,?"),
-                [(pl,angle,way1,e1,way2,e2) for pl,angle,way1,e1,way2,e2 in compute_angles()])
+        cur = self._conn.cursor()
+        if not table_exists(cur, "way_angles"):
+            import edges_properties as props
+            props.compute_angles(self._conn)   
 
         # Update orthogonality
         logging.info("Ways: computing orthogonality")
+
         cur.execute(SQL("UPDATE ways SET ORTHOG = NULL"))
         cur.execute(SQL("""UPDATE ways SET ORTHOG = (
             SELECT Sum(inner)/ways.CONN FROM (

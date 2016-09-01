@@ -5,6 +5,7 @@
 
 DELETE FROM ways;
 DELETE FROM way_places;
+DELETE FROM way_angles;
 
 -- Update place edges with way index
 

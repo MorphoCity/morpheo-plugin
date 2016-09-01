@@ -59,7 +59,6 @@ def load_edge_graph( path ):
                 "Error while reading graph {}: {}".format(graph_path,e))
 
 
-
 class PlaceBuilder(object):
 
     def __init__(self, conn, chunks=100):
@@ -92,7 +91,6 @@ class PlaceBuilder(object):
             :param buffer_size: buffer size applied to vertices
             :param input_places: path of an external shapefile containing places definitions
         """
-
         # Use a minimum buffer_size
         buffer_size = buffer_size or 0
 
@@ -100,7 +98,7 @@ class PlaceBuilder(object):
             self.creates_places_from_buffer(buffer_size, input_places )
         else:
             self.creates_places_from_file(input_places)
-        logging.info("Building edges between places")
+        logging.info("Places: building edges")
         execute_sql(self._conn, "places.sql")
         self._conn.commit()
 

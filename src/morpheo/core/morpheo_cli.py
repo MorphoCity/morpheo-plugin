@@ -139,6 +139,19 @@ def compute_way_attributes( args ):
             output        = args.output)
 
 
+def compute_edge_attributes( args ):
+    """ Compute edge attributes
+    """
+    path    = args.dbname
+    builder = Builder.from_database( args.dbname )
+    builder.compute_edge_attributes(path,
+            orthogonality = args.orthogonality,
+            betweenness   = args.betweenness,
+            closeness     = args.closeness,
+            stress        = args.stress,
+            output        = args.output)
+
+
 def build_edges_graph( args ):
     """ Build and export edges graph  
     """
@@ -228,7 +241,7 @@ def compute_mesh( args ):
         mesh_fun = mesh.create_indexed_table_from_edge_attribute
 
     mesh_fun(conn, name, args.attribute, args.percentile)
-    if args.output is not None:
+    if output is not None:
         export_shapefile(dbname, name, args.output)
 
 
@@ -326,6 +339,18 @@ def main():
     ways_cmd.add_argument("--classes"      , metavar='NUM', default=10, help="Number of classes")
     ways_cmd.set_defaults(func=compute_way_attributes)
 
+    # Edge attributes command
+    ways_cmd = sub.add_parser('edge_attributes', description="Compute attributes on edges")
+    ways_cmd.add_argument("dbname", help="Database")
+    ways_cmd.add_argument("--output"       , metavar='PATH' , default=None, help="Output edge shapefile")
+    ways_cmd.add_argument("--orthogonality", action='store_true', default=False, help="Compute orthoganality")
+    ways_cmd.add_argument("--betweenness"  , action='store_true', default=False, help="Compute betweenness centrality")
+    ways_cmd.add_argument("--closeness"    , action='store_true', default=False, help="Compute closeness centrality")
+    ways_cmd.add_argument("--stress"       , action='store_true', default=False, help="Compute stress centrality")
+    ways_cmd.add_argument("--classes"      , metavar='NUM', default=10, help="Number of classes")
+    ways_cmd.set_defaults(func=compute_edge_attributes)
+
+
     # edge graph command
     ways_cmd = sub.add_parser('edges_graph', description="Build edges graph")
     ways_cmd.add_argument("dbname", help="Database")
@@ -381,8 +406,6 @@ def main():
     mesh_cmd.add_argument("--name"  , metavar='NAME', default=None, help="Name of the table to store the mesh geometry")
     mesh_cmd.add_argument("--output", metavar='path', default=None, help="Path to output shapefile")
     mesh_cmd.set_defaults(func=compute_mesh)
-
-
 
     # Compute horizon
     hrz_cmd = sub.add_parser('horizon', description="Compute horizon")
