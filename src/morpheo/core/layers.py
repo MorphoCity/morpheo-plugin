@@ -40,16 +40,16 @@ def import_as_layer( dbname, layer, name ):
         import_shapefile( dbname, layer, name )
     else:
         from qgis.core import QgsDataSourceURI, QgsVectorLayer, QgsVectorLayerImport
-        if isinstance(places, QgsVectorLayer):
+        if isinstance(layer, QgsVectorLayer):
             # Create Spatialite URI
             uri = QgsDataSourceURI()
-            uri.setDatabase(self._dbname)
+            uri.setDatabase(dbname)
             uri.setDataSource('', name, 'GEOMETRY')
             options = {}
             options['overwrite'] = True
-            error, errMsg = QgsVectorLayerImport.importLayer(places, uri.uri(False), 'spatialite', places.crs(), False, False, options)
+            error, errMsg = QgsVectorLayerImport.importLayer(layer, uri.uri(False), 'spatialite', layer.crs(), False, False, options)
             if error != QgsVectorLayerImport.NoError:
-                raise IOError("Failed to add layer to database '{}': error {}".format(self._dbname, errMsg))
+                raise IOError("Failed to add layer to database '{}': error {}".format(dbname, errMsg))
         else:
             import_shapefile( dbname, layer, name )
 
