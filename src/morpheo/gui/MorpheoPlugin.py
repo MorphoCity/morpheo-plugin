@@ -151,6 +151,7 @@ class MorpheoPlugin:
             parent=self.iface.mainWindow())
 
         # connect group toggle
+        self.dlg.grpWaysBuilderStreetName.setChecked(False)
         self.dlg.grpWaysBuilderGeomProps.toggled.connect(self.grpWaysBuilderGeomPropsToggled)
         self.dlg.grpWaysBuilderStreetName.toggled.connect(self.grpWaysBuilderStreetNameToggled)
 

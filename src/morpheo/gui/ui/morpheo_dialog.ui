@@ -145,7 +145,7 @@
               <property name="geometry">
                <rect>
                 <x>0</x>
-                <y>0</y>
+                <y>-73</y>
                 <width>437</width>
                 <height>482</height>
                </rect>
@@ -247,6 +247,9 @@
                </item>
                <item>
                 <widget class="QGroupBox" name="grpWaysBuilderStreetName">
+                 <property name="enabled">
+                  <bool>true</bool>
+                 </property>
                  <property name="sizePolicy">
                   <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
                    <horstretch>0</horstretch>
@@ -260,7 +263,7 @@
                   <bool>true</bool>
                  </property>
                  <property name="checked">
-                  <bool>false</bool>
+                  <bool>true</bool>
                  </property>
                  <layout class="QGridLayout" name="gridLayout_2">
                   <item row="1" column="1">
@@ -450,7 +453,7 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>453</width>
+                <width>299</width>
                 <height>364</height>
                </rect>
               </property>
@@ -643,7 +646,7 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>453</width>
+                <width>278</width>
                 <height>314</height>
                </rect>
               </property>
@@ -842,7 +845,7 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>453</width>
+                <width>305</width>
                 <height>222</height>
                </rect>
               </property>
