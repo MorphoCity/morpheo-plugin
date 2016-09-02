@@ -7,8 +7,10 @@ from qgis.core import *
 from MorpheoDialog import MorpheoDialog
 from MorpheoAlgorithmProvider import MorpheoAlgorithmProvider
 from processing.core.Processing import Processing
+from processing.core.parameters import ParameterTableField
 
 import os.path
+import locale
 
 class MorpheoPlugin:
     """QGIS Plugin Implementation."""
@@ -160,6 +162,10 @@ class MorpheoPlugin:
         self.connectFileSelectionPanel(self.dlg.letStructuralDiffDBPath2, self.dlg.pbnStructuralDiffDBPath2, True)
         self.connectFileSelectionPanel(self.dlg.letStructuralDiffDirectoryPath, self.dlg.pbnStructuralDiffDirectoryPath, True)
 
+        # Iitialize attribute list
+        self.connectComboboxLayerAttribute(self.dlg.cbxWaysBuilderWayAttribute, self.dlg.cbxWaysBuilderInputLayer, ParameterTableField.DATA_TYPE_STRING)
+        self.connectComboboxLayerAttribute(self.dlg.cbxHorizonWayAttribute, self.dlg.cbxHorizonWayLayer, ParameterTableField.DATA_TYPE_NUMBER)
+
         # add to processing
         self.morpheoAlgoProvider = MorpheoAlgorithmProvider()
         Processing.addProvider(self.morpheoAlgoProvider, True)
@@ -170,7 +176,7 @@ class MorpheoPlugin:
     def grpWaysBuilderStreetNameToggled(self, toggle):
         self.dlg.grpWaysBuilderGeomProps.setChecked(not toggle)
 
-    def connectFileSelectionPanel(self,leText, btnSelect, isFolder, ext=None):
+    def connectFileSelectionPanel(self, leText, btnSelect, isFolder, ext=None):
 
         def showSelectionDialog():
             #QMessageBox.warning(self.dlg, 'showSelectionDialog', 'showSelectionDialog')
@@ -202,6 +208,32 @@ class MorpheoPlugin:
                                       os.path.dirname(filenames[0]))
 
         btnSelect.clicked.connect(showSelectionDialog)
+
+
+    def getFields(self, layer, datatype):
+        fieldTypes = []
+        if datatype == ParameterTableField.DATA_TYPE_STRING:
+            fieldTypes = [QVariant.String]
+        elif datatype == ParameterTableField.DATA_TYPE_NUMBER:
+            fieldTypes = [QVariant.Int, QVariant.Double, QVariant.LongLong,
+                          QVariant.UInt, QVariant.ULongLong]
+
+        fieldNames = set()
+        for field in layer.pendingFields():
+            if not fieldTypes or field.type() in fieldTypes:
+                fieldNames.add(unicode(field.name()))
+        return sorted(list(fieldNames), cmp=locale.strcoll)
+
+    def connectComboboxLayerAttribute(self, attributeCbx, layerCbx, datatype):
+
+        def updateAttributeCombobox(idx):
+            """update"""
+            attributeCbx.clear()
+            layerId = layerCbx.itemData( idx )
+            for fieldName in self.getFields(QgsMapLayerRegistry.instance().mapLayer(layerId), datatype):
+                attributeCbx.addItem(fieldName)
+
+        layerCbx.currentIndexChanged.connect(updateAttributeCombobox)
 
     def populateLayerComboboxes(self):
         """Populate all layer comboboxes"""
