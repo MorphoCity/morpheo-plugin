@@ -70,7 +70,18 @@ def init_log_custom_hooks( level=logging.INFO,
 
         Each hook is a function that takes a message
         except for the progress handler that takes
-        a message and an integer value indicating the progress.
+        an integer indicating the progress value and a message.
+
+        example of handlers::
+
+            def on_info(msg):
+                # do something with msg
+                ...
+
+            def on_progress(value, msg):
+                # de something with value and message
+                ...
+
     """
     handler = _Handler(on_info=on_info,
                        on_warn=on_warn,
