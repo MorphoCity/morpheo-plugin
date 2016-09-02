@@ -113,21 +113,20 @@ class PlaceBuilder(object):
         """ Creates places from buffer
         """
         logging.info("Places: building places from buffers (buffer size={})".format(buffer_size))
-
-        def union_buffers( input_table ):
-            count = cur.execute(SQL("SELECT Max(OGC_FID) FROM {input_table}", input_table=input_table)).fetchone()[0]
+        def union_buffers():
+            count = cur.execute(SQL("SELECT Max(OGC_FID) FROM {buffer_table}", buffer_table=BUFFER_TABLE)).fetchone()[0]
             if count <= self._chunks:
-                cur.execute(SQL("DELETE FROM {buffer_table}", buffer_table=BUFFER_TABLE))
                 cur.execute(SQL("""
                     INSERT INTO  {buffer_table}(GEOMETRY)
-                    SELECT ST_Union(CastToXYZ(GEOMETRY)) FROM {table}
-                """, table=input_table, buffer_table=BUFFER_TABLE))
+                    SELECT ST_Union(GEOMETRY) FROM {buffer_table}
+                """, buffer_table=BUFFER_TABLE))
+                cur.execute(SQL("DELETE FROM {buffer_table} WHERE OGC_FID <= {count}",
+                        buffer_table=BUFFER_TABLE,count=count))
             else:            
                 try:
-                    table = 'temp_buffer_table' 
                     # Create temporary buffer table
-                    create_indexed_table( cur, table, 'MULTIPOLYGON', input_table)
-
+                    table = 'temp_buffer_table' 
+                    create_indexed_table( cur, table, 'MULTIPOLYGON', BUFFER_TABLE)
                     size  = count / self._chunks
                     def iter_chunks():
                         start = 1
@@ -140,9 +139,9 @@ class PlaceBuilder(object):
                     for start, end in iter_chunks():
                         cur.execute(SQL("""
                             INSERT INTO  {tmp_table}(GEOMETRY)
-                            SELECT ST_Multi(ST_Union(GEOMETRY)) AS GEOMETRY FROM {input_table}
+                            SELECT ST_Multi(ST_Union(GEOMETRY)) AS GEOMETRY FROM {buffer_table}
                             WHERE OGC_FID>={start} AND OGC_FID<{end}
-                        """, tmp_table=table, input_table=input_table, 
+                        """, tmp_table=table, buffer_table=BUFFER_TABLE, 
                              buffer_size=buffer_size, start=start, end=end))
                         log_progress( end, count )
                     # Final merge into buffer_table
@@ -201,7 +200,7 @@ class PlaceBuilder(object):
         """,buffer_table=BUFFER_TABLE))
 
         # Create buffers
-        union_buffers(BUFFER_TABLE)
+        union_buffers()
 
         # Explode buffer blob into elementary geometries
         logging.info("Places: computing convex hulls")
@@ -211,15 +210,24 @@ class PlaceBuilder(object):
         """, buffer_table=BUFFER_TABLE))
         
         if input_places is not None:
-            # Cleanup placesd
-            union_buffers(input_places)
+            # Cleanup places
+            # copy geometries into buffer table
+            cur.execute(SQL("DELETE from {buffer_table}",buffer_table=BUFFER_TABLE))
+            cur.execute(SQL("""
+                    INSERT INTO {buffer_table}(GEOMETRY)
+                    SELECT ST_Multi(CastToXYZ(GEOMETRY)) FROM {input_table}
+            """,input_table=input_places, buffer_table=BUFFER_TABLE))
+            union_buffers()
             self._conn.commit()
             create_indexed_table(cur, 'tmp_places', 'POLYGON', 'places')
             try:
+                [rowid] = cur.execute(SQL("SELECT OGC_FID FROM {buffer_table} LIMIT 1",
+                                    buffer_table=BUFFER_TABLE)).fetchone()
                 cur.execute(SQL("""
                     INSERT INTO tmp_places(GEOMETRY)
-                    SELECT GEOMETRY FROM ElementaryGeometries WHERE f_table_name='{buffer_table}' AND origin_rowid=1
-                """,buffer_table=BUFFER_TABLE))
+                    SELECT GEOMETRY FROM ElementaryGeometries WHERE f_table_name='{buffer_table}' 
+                    AND origin_rowid={rowid}
+                """,buffer_table=BUFFER_TABLE, rowid=rowid))
 
                 # now we need to check if we merge adjacent computed places in input places or not
 
@@ -284,7 +292,7 @@ class PlaceBuilder(object):
                 delete_table(cur, 'tmp_places')
 
         delete_table(cur, BUFFER_TABLE)
-
+        
         # Checkout number of places
         rv = cur.execute(SQL("Select Count(*) FROM places")).fetchone()[0]
         if rv <= 0:
