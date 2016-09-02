@@ -39,7 +39,7 @@ class SpatialiteBuilder(object):
             self._way_builder = WayBuilder(self._conn)
         return self._way_builder
 
-    @property 
+    @property
     def connection(self):
         return self._conn
 
@@ -117,7 +117,7 @@ class SpatialiteBuilder(object):
         """ Build and export way line graph
         """
         builder = self.way_builder
-        builder.save_line_graph(output, create=True) 
+        builder.save_line_graph(output, create=True)
 
     def build_places(self, buffer_size, places=None, output=None, export_graph=False):
         """ Build places
@@ -137,17 +137,30 @@ class SpatialiteBuilder(object):
         input_places_table = None
         if places is not None:
             input_places_table = 'input_places'
-            # Open the places shapefile and insert in as 'input_places' table
             # Delete table it it exists
             delete_table( self._conn.cursor(), input_places_table )
-            import_shapefile( self._dbname, places, input_places_table)
+            from qgis.core import QgsDataSourceURI, QgsVectorLayer, QgsVectorLayerImport
+            if isinstance(places, QgsVectorLayer):
+                # Create Spatialite URI
+                uri = QgsDataSourceURI()
+                uri.setDatabase(self._dbname)
+                uri.setDataSource('', input_places_table, 'GEOMETRY')
+                options = {}
+                options['overwrite'] = True
+                error, errMsg = QgsVectorLayerImport.importLayer(places, uri.uri(False), 'spatialite', places.crs(), False, False, options)
+                if error != QgsVectorLayerImport.NoError:
+                    raise IOError("Failed to add layer to database '{}': error {}".format(self._dbname, errMsg))
+            else:
+                # Open the places shapefile and insert in as 'input_places' table
+                import_shapefile( self._dbname, places, input_places_table)
         builder = PlaceBuilder(self._conn)
         builder.build_places(buffer_size, input_places_table)
+        #raise IOError("Add layer to database '{}': error {}".format(self._dbname, errMsg))
 
         if output is not None:
             builder.export(self._dbname, output, export_graph=export_graph)
 
-    def build_ways(self,  threshold, output=None, attributes=False, rtopo=False, 
+    def build_ways(self,  threshold, output=None, attributes=False, rtopo=False,
                    export_graph=False, **kwargs) :
         """ Build way's hypergraph
 
@@ -207,7 +220,7 @@ class SpatialiteBuilder(object):
         if any((betweenness, closeness, stress)):
             props.compute_global_attributes(
                     self._conn,
-                    path, 
+                    path,
                     betweenness = betweenness,
                     closeness   = closeness,
                     stress      = stress,
