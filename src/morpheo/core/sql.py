@@ -40,9 +40,14 @@ def load_sql(name, **kwargs):
         :raises: SQLNotFoundError
     """
     # Try to get schema from ressources
-    import pkg_resources
-        
-    srcpath = pkg_resources.resource_filename("morpheo","core")
+    try:
+        import pkg_resources    
+        srcpath = pkg_resources.resource_filename("morpheo","core")
+    except ImportError:
+        # If we are executed as qgis plugin, the moprheo package does not exists
+        # try to load resource from module path
+        srcpath = os.path.dirname(__file__)
+
     sqlfile = os.path.join(srcpath, name)
     if not os.path.exists(sqlfile):
         # If we are not in standard python installation,
