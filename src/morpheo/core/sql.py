@@ -42,7 +42,7 @@ def load_sql(name, **kwargs):
     # Try to get schema from ressources
     import pkg_resources
         
-    srcpath = pkg_resources.resource_filename("morpheo.core","builder")
+    srcpath = pkg_resources.resource_filename("morpheo","core")
     sqlfile = os.path.join(srcpath, name)
     if not os.path.exists(sqlfile):
         # If we are not in standard python installation,
@@ -122,6 +122,21 @@ def delete_table( cur, table ):
         cur.execute(SQL("VACUUM"))
 
 delete_indexed_table = delete_table
+
+
+def set_srid( cur, table, from_table ):
+    """ Force srid for table
+    """
+    [srid_to]   = cur.execute(SQL("SELECT srid FROM geometry_columns WHERE f_table_name='{table}'",
+                              table=from_table)).fetchone()
+    [srid_from] = cur.execute(SQL("SELECT srid FROM geometry_columns WHERE f_table_name='{table}'",
+                              table=table)).fetchone()
+
+    if srid_to != srid_from:
+        cur.execute(SQL("UPDATE geometry_columns SET srid = {srid} WHERE f_table_name = '{table}'",
+                        table=table, srid=srid_to))
+        cur.execute(SQL("UPDATE {table} SET GEOMETRY = SetSRID(GEOMETRY, {srid})",
+                        table=table, srid=srid_to))
 
 
 def create_attribute_table( cur, name,  dtype='real'):

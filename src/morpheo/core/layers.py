@@ -31,6 +31,29 @@ def check_layer(layer, wkbtypes):
        raise InvalidLayerError("Invalid CRS (lat/long) for layer")
 
 
+
+
+def import_as_layer( dbname, layer, name ):
+    """
+    """
+    if 'OGR2OGR' in os.environ:
+        import_shapefile( dbname, layer, name )
+    else:
+        from qgis.core import QgsDataSourceURI, QgsVectorLayer, QgsVectorLayerImport
+        if isinstance(places, QgsVectorLayer):
+            # Create Spatialite URI
+            uri = QgsDataSourceURI()
+            uri.setDatabase(self._dbname)
+            uri.setDataSource('', name, 'GEOMETRY')
+            options = {}
+            options['overwrite'] = True
+            error, errMsg = QgsVectorLayerImport.importLayer(places, uri.uri(False), 'spatialite', places.crs(), False, False, options)
+            if error != QgsVectorLayerImport.NoError:
+                raise IOError("Failed to add layer to database '{}': error {}".format(self._dbname, errMsg))
+        else:
+            import_shapefile( dbname, layer, name )
+
+
 def import_shapefile( dbname, path, name ):
     """ Add shapefile as new table in database
 
@@ -53,7 +76,7 @@ def import_shapefile( dbname, path, name ):
         if rc != 0:
             raise IOError("Failed to add layer to database '{}'".format(dbname))
     else:
-        # Export with QGIS API
+        # Import with QGIS API
         from qgis.core import QgsDataSourceURI, QgsVectorLayer, QgsVectorLayerImport
         # Create shapefile QgsVectorLayer
         if not os.path.exists(path):

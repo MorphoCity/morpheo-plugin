@@ -34,7 +34,7 @@ def get_closest_feature( cur, table, radius, x, y, srid=None ):
             :return: the fid of the closest feature from the input table
         """
         if srid is None:
-            [srid] = cur.execute(SQL("SELECT srid FROM deometry_columns WHERE f_table_name='{table}'",table=table))
+            [srid] = cur.execute(SQL("SELECT srid FROM deometry_columns WHERE f_table_name='{table}'",table=table)).fetchone()
         result = cur.execute(SQL("""SELECT t.OGC_FID FROM {table} AS t, 
                 (SELECT ST_Buffer(GeomFromText('POINT({x},{y})',{srid}),{radius}) AS GEOMETRY) AS p
                 WHERE ST_Intersects(t.GEOMETRY,p.GEOMETRY)
