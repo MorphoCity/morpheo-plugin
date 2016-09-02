@@ -7,8 +7,7 @@ import os
 import logging
 import networkx as nx
 
-from ..logger import log_progress
-
+from .logger import log_progress
 from .errors import BuilderError, ErrorGraphNotFound
 from .sql import (SQL, execute_sql, 
                   create_indexed_table,

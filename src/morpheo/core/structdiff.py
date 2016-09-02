@@ -5,8 +5,7 @@ import os
 import logging
 import networkx as nx
 
-from ..logger import Progress
-
+from .logger import Progress
 from .sql    import connect_database, SQL, execute_sql, attr_table
 from .layers import import_shapefile, export_shapefile
 from .ways   import read_ways_graph

@@ -16,7 +16,7 @@ Contents
    :maxdepth: 4 
 
    guide
-   morpheo
+   core
 
 
 Indices and tables

@@ -52,12 +52,12 @@ from processing.tools import dataobjects
 from processing.tools.system import tempFolder
 
 from math import pi
-from ..core.builder.errors import BuilderError
-from ..core.builder.graph_builder import SpatialiteBuilder
-from ..core.builder.structdiff import structural_diff
-from ..core.builder import horizon as hrz
-from ..core.builder.ways import read_ways_graph
-from ..core.builder.sql  import connect_database
+from ..core.errors import BuilderError
+from ..core.graph_builder import SpatialiteBuilder
+from ..core.structdiff import structural_diff
+from ..core import horizon as hrz
+from ..core.ways import read_ways_graph
+from ..core.sql  import connect_database
 
 Builder = SpatialiteBuilder
 

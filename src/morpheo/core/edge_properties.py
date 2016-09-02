@@ -2,7 +2,7 @@
 
 import logging
 import networkx as nx
-from ..logger import Progress
+from .logger import Progress
 from .sql import SQL, attr_table, table_exists
 from .angles import azimuth, angle_from_azimuth
 from .classes import compute_classes
@@ -167,20 +167,19 @@ def compute_global_attributes(conn, path, betweenness=False, closeness=False, st
 
 
 def compute_betweenness(G):
-    """ Compute betweeness for each way
+    r""" Compute betweeness for each way
 
         .. math::
             
-                c_B(v) =\sum_{s,t \in V} \frac{\sigma(s, t|v)}{\sigma(s, t)}
+            c_B(v) = \sum_{s,t \in V}\frac{\sigma(s, t|v)}{\sigma(s, t)}
 
         where `V` is the set of nodes, `\sigma(s, t)` is the number of
         shortest `(s, t)`-paths,  and `\sigma(s, t|v)` is the number of those
         paths  passing through some  node `v` other than `s, t`.
         If `s = t`, `\sigma(s, t) = 1`, and if `v \in {s, t}`,
-        `\sigma(s, t|v) = 0` [2]_.
+        `\sigma(s, t|v) = 0`.
 
         see: http://networkx.readthedocs.io/en/networkx-1.11/reference/generated/networkx.algorithms.centrality.betweenness_centrality.html#networkx.algorithms.centrality.betweenness_centrality
-
     """
     logging.info("Edges: computing betweenness centrality")
     return nx.betweenness_centrality(G, normalized=False)

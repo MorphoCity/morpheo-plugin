@@ -28,7 +28,7 @@ setup(
     package_dir={'': 'src'},
     package_data={'morpheo.core.builders':['*.sql'], },
     entry_points={
-        'console_scripts': ['morpheo = morpheo.core.morpheo_cli:main']
+        'console_scripts': ['morpheo = morpheo.cli:main']
     },
     install_requires=get_requirements('requirements.txt'),
     classifiers=[

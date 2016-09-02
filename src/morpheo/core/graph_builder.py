@@ -5,8 +5,7 @@
 import os
 import logging
 
-from ..logger import log_progress
-
+from .logger import log_progress
 from .errors import BuilderError, FileNotFoundError, DatabaseNotFound
 from .sql import SQL, execute_sql, delete_table, connect_database
 from .layers import check_layer, open_shapefile, import_shapefile, export_shapefile

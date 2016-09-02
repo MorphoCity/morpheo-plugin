@@ -7,8 +7,7 @@ import logging
 from contextlib import contextmanager
 
 from .errors import BuilderError
-
-from ..logger import log_progress
+from .logger import log_progress
 
 class SQLNotFoundError(BuilderError):
     pass

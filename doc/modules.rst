@@ -1,7 +1,7 @@
-morpheo
-=======
+core
+====
 
 .. toctree::
    :maxdepth: 4
 
-   morpheo
+   core

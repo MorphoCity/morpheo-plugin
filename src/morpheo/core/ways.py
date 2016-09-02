@@ -11,8 +11,7 @@ import numpy as np
 
 from numpy import sin
 from numpy import pi
-from ..logger import Progress
-
+from .logger import Progress
 from .errors import BuilderError, ErrorGraphNotFound
 from .sql import SQL, execute_sql, attr_table, table_exists
 from .classes import compute_classes
@@ -327,17 +326,17 @@ class WayBuilder(object):
                 compute_way_classes(attrs, cur, 'USE', classes)
 
     def compute_betweenness(self):
-        """ Compute betweeness for each way
+        r""" Compute betweeness for each way
 
             .. math::
             
-                    c_B(v) =\sum_{s,t \in V} \frac{\sigma(s, t|v)}{\sigma(s, t)}
+                c_B(v) =\sum_{s,t \in V} \frac{\sigma(s, t|v)}{\sigma(s, t)}
 
             where `V` is the set of nodes, `\sigma(s, t)` is the number of
             shortest `(s, t)`-paths,  and `\sigma(s, t|v)` is the number of those
             paths  passing through some  node `v` other than `s, t`.
-            If `s = t`, `\sigma(s, t) = 1`, and if `v \in {s, t}`,
-            `\sigma(s, t|v) = 0` [2]_.
+            If `s = t`, `\sigma(s, t) = 1`, and if `v \in {s, t}`,:
+            `\sigma(s, t|v) = 0`.
 
             see: http://networkx.readthedocs.io/en/networkx-1.11/reference/generated/networkx.algorithms.centrality.betweenness_centrality.html#networkx.algorithms.centrality.betweenness_centrality
 
@@ -363,14 +362,14 @@ class WayBuilder(object):
         return nx.closeness_centrality(G)
 
     def compute_use(self):
-        """ Compute stress/use centrality
+        r""" Compute stress/use centrality
  
             .. math::
             
                 c_S(v) =\sum_{s,t \in V} \sigma(s, t|v)
 
             We use a modified algorithm of betweenness as described in 
-                http://algo.uni-konstanz.de/publications/b-vspbc-08.pdf
+            http://algo.uni-konstanz.de/publications/b-vspbc-08.pdf
 
         """
         from .algorithms import stress_centrality

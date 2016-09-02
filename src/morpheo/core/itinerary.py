@@ -5,8 +5,7 @@ import os
 import logging
 import networkx as nx
 
-from ..logger import Progress
-
+from .logger import Progress
 from .errors import BuilderError
 from .sql    import connect_database, SQL, execute_sql, attr_table, table_exists
 from .layers import export_shapefile
@@ -430,7 +429,7 @@ def mesh_simplest_path(dbname, path, source, target, edges, conn=None, output=No
             :param source: The feature id of the starting place
             :param target: The feature id of the destination place 
                            shortest path
-            :param edges: List 3-tuples edges as returned from edges_from_... functions
+            :param edges: List 3-tuples edges as returned from edges_from... functions
     """
     return _edge_components_path(dbname, path, source, target, edges, conn=conn, 
                                  output=output)

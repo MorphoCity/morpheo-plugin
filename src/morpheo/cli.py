@@ -8,9 +8,9 @@ import logging
 
 from functools import partial
 from math import pi
-from builder.errors import BuilderError
-from builder.graph_builder import SpatialiteBuilder
-from builder.layers import export_shapefile
+from core.errors import BuilderError
+from core.graph_builder import SpatialiteBuilder
+from core.layers import export_shapefile
 
 Builder = SpatialiteBuilder
 
@@ -171,7 +171,7 @@ def build_ways_graph( args ):
 def compute_structural_diff( args ):
     """ Compute structural diff
     """
-    from builder.structdiff import structural_diff
+    from core.structdiff import structural_diff
 
     output = args.output or "morpheo-diff-{}-{}".format(
                 os.path.basename(args.initial),
@@ -185,8 +185,8 @@ def compute_structural_diff( args ):
 def compute_path( args ):
     """ Compute shortest paths
     """
-    import builder.itinerary as iti
-    from   builder.sql  import connect_database
+    import core.itinerary as iti
+    from   core.sql  import connect_database
 
     path   = args.path           # input path
     output = args.output or path # output path
@@ -228,8 +228,8 @@ def compute_mesh( args ):
     """ Compute mesh
     """
 
-    import builder.mesh as mesh
-    from   builder.sql  import connect_database
+    import core.mesh as mesh
+    from   core.sql  import connect_database
 
     dbname = args.dbname+'.sqlite'
     conn = connect_database(dbname)
@@ -249,9 +249,9 @@ def compute_horizon( args ):
     """ Compute horizon
     """
 
-    import builder.horizon as hrz
-    from   builder.ways import read_ways_graph
-    from   builder.sql  import connect_database
+    import core.horizon as hrz
+    from   core.ways import read_ways_graph
+    from   core.sql  import connect_database
 
     path   = args.path
     dbname = args.dbname or path +'.sqlite'
@@ -274,7 +274,7 @@ def main():
     """
     import argparse
     from time import time
-    from .logger import setup_log_handler
+    from core.logger import setup_log_handler
 
     def range_type(strval, min=0, max=100):
         val = int(strval)
