@@ -241,7 +241,7 @@ def compute_mesh( args ):
         mesh_fun = mesh.create_indexed_table_from_edge_attribute
 
     mesh_fun(conn, name, args.attribute, args.percentile)
-    if output is not None:
+    if args.output is not None:
         export_shapefile(dbname, name, args.output)
 
 

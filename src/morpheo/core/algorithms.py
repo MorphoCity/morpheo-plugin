@@ -135,8 +135,6 @@ def shortest_subgraph_path( G, source, target, mesh, weight=None ):
     # Resolve shortest_path
     p = nx.shortest_path(Gs, source, target, weight=weight)
 
-    nx.write_gpickle(Gs,"GS.nx")
-
     # Resolve shortcuts
     path = [source]
     for u,v in izip(p[:-1],p[1:]):
