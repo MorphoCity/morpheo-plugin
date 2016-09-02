@@ -107,10 +107,6 @@ def read_ways_graph( path ):
                 "Error while reading graph {}: {}".format(graph_path,e))
 
 
-def azimuth(x1,y1,x2,y2):
-    return atan2(x2-x1, y2-y1)
-
-
 def distance(x1,y1,x2,y2):
     return np.sqrt((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1))
 
@@ -133,7 +129,7 @@ class WayBuilder(object):
         """
         from .angles import (create_partition, resolve, update, num_partitions, get_index_table,
                              create_matrix, next_argmin, get_value, pop_args, get_remaining_elements,
-                             angle_from_azimuth)
+                             azimuth, angle_from_azimuth)
       
         # Invalidate current line graph
         self._line_graph = None
