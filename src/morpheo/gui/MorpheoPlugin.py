@@ -6,11 +6,23 @@ from qgis.core import *
 
 from MorpheoDialog import MorpheoDialog
 from MorpheoAlgorithmProvider import MorpheoAlgorithmProvider
+from MorpheoAlgorithm import add_vector_layer
 from processing.core.Processing import Processing
 from processing.core.parameters import ParameterTableField
+from processing.tools.system import tempFolder
+
+from math import pi
+from ..core.builder.errors import BuilderError
+from ..core.builder.graph_builder import SpatialiteBuilder
+from ..core.builder.structdiff import structural_diff
+from ..core.builder import horizon as hrz
+from ..core.builder.ways import read_ways_graph
+from ..core.builder.sql  import connect_database
+
+Builder = SpatialiteBuilder
 
 import os.path
-import locale
+import locale, time
 
 class MorpheoPlugin:
     """QGIS Plugin Implementation."""
@@ -163,9 +175,12 @@ class MorpheoPlugin:
         self.connectFileSelectionPanel(self.dlg.letStructuralDiffDBPath2, self.dlg.pbnStructuralDiffDBPath2, True)
         self.connectFileSelectionPanel(self.dlg.letStructuralDiffDirectoryPath, self.dlg.pbnStructuralDiffDirectoryPath, True)
 
-        # Iitialize attribute list
+        # Initialize attribute list
         self.connectComboboxLayerAttribute(self.dlg.cbxWaysBuilderWayAttribute, self.dlg.cbxWaysBuilderInputLayer, ParameterTableField.DATA_TYPE_STRING)
         self.connectComboboxLayerAttribute(self.dlg.cbxHorizonWayAttribute, self.dlg.cbxHorizonWayLayer, ParameterTableField.DATA_TYPE_NUMBER)
+
+        # Connect compute
+        self.dlg.pbnComputeWaysBuilder.clicked.connect(self.computeWaysBuilder)
 
         # add to processing
         self.morpheoAlgoProvider = MorpheoAlgorithmProvider()
@@ -253,6 +268,65 @@ class MorpheoPlugin:
             elif l.geometryType() == QGis.Polygon:
                 self.dlg.cbxWaysBuilderPlacesLayer.addItem(l.name(), l.id())
 
+
+    def computeWaysBuilder(self):
+        self.dlg.scrollAreaWidgetContents.setEnabled(False)
+        self.dlg.pgbComputeWaysBuilder.setMaximum(0)
+        self.dlg.pbnComputeWaysBuilder.setEnabled(False)
+        self.dlg.scrollAreaWidgetContents.repaint()
+
+        layerIdx = self.dlg.cbxWaysBuilderInputLayer.currentIndex()
+        layerId = self.dlg.cbxWaysBuilderInputLayer.itemData( layerIdx )
+        layer = QgsMapLayerRegistry.instance().mapLayer(layerId)
+
+        output    = self.dlg.letWaysBuilderDirectoryPath.text() or tempFolder()
+        dbname    = self.dlg.letWaysBuilderDBName.text() or 'morpheo_'+layer.name().replace(" ", "_")
+
+        if not os.path.exists(output):
+            self.dlg.scrollAreaWidgetContents.setEnabled(True)
+            QMessageBox.warning(self.dlg, 'Morpheo warning', self.tr('Output dir does not exist!'))
+            return
+
+        if not os.path.exists(os.path.join(output, dbname)):
+            os.mkdir(os.path.join(output, dbname))
+
+        builder = Builder.from_layer( layer, os.path.join(output, dbname) )
+        time.sleep(1)
+
+        # Compute graph
+        builder.build_graph(self.dlg.spxWaysBuilderSnapDist.value(),
+                            self.dlg.spxWaysBuilderMinEdgeLength.value(),
+                            self.dlg.grpWaysBuilderStreetName.isChecked() and self.dlg.cbxWaysBuilderWayAttribute.currentText() or '',
+                            output=os.path.join(output, dbname))
+        time.sleep(1)
+
+        # Compute places
+        placesIdx = self.dlg.cbxWaysBuilderPlacesLayer.currentIndex()
+        placesId = self.dlg.cbxWaysBuilderPlacesLayer.itemData(placesIdx)
+        QMessageBox.warning(self.dlg, 'Morpheo warning', 'placesIdx: %s and placesId: "%s"' % (placesIdx, placesId))
+        places = None
+        if placesId :
+            places = QgsMapLayerRegistry.instance().mapLayer(placesId)
+        builder.build_places(buffer_size=self.dlg.spxWaysBuilderBuffer.value(),
+                             places=places,
+                             output=os.path.join(output, dbname),
+                             export_graph=True)
+        time.sleep(1)
+
+        # Compute ways
+        if self.dlg.grpWaysBuilderStreetName.isChecked():
+            builder.build_ways_from_attribute(output=os.path.join(output, dbname))
+        else:
+            builder.build_ways(threshold=self.dlg.spxWaysBuilderThreshold.value()/180.0 * pi,
+                           output=os.path.join(output, dbname))
+
+        add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'places', "%s_%s" % ('places',dbname))
+        add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'place_edges', "%s_%s" % ('place_edges',dbname))
+        add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'ways', "%s_%s" % ('ways',dbname))
+
+        self.dlg.pbnComputeWaysBuilder.setEnabled(True)
+        self.dlg.pgbComputeWaysBuilder.setMaximum(100)
+        self.dlg.scrollAreaWidgetContents.setEnabled(True)
 
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""

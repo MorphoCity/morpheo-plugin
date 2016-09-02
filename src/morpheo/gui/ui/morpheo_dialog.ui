@@ -145,9 +145,9 @@
               <property name="geometry">
                <rect>
                 <x>0</x>
-                <y>-73</y>
+                <y>0</y>
                 <width>437</width>
-                <height>482</height>
+                <height>455</height>
                </rect>
               </property>
               <property name="sizePolicy">
@@ -225,20 +225,6 @@
                     </property>
                     <property name="text">
                      <string>Min. edge Length</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="3" column="0">
-                   <widget class="QLabel" name="label">
-                    <property name="text">
-                     <string>Export graphes</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="3" column="1">
-                   <widget class="QCheckBox" name="cbxWaysBuilderExportGraphes">
-                    <property name="text">
-                     <string/>
                     </property>
                    </widget>
                   </item>
@@ -429,6 +415,16 @@
                 </size>
                </property>
               </spacer>
+             </item>
+             <item>
+              <widget class="QProgressBar" name="pgbComputeWaysBuilder">
+               <property name="maximum">
+                <number>100</number>
+               </property>
+               <property name="value">
+                <number>0</number>
+               </property>
+              </widget>
              </item>
              <item>
               <widget class="QPushButton" name="pbnComputeWaysBuilder">
@@ -1019,6 +1015,54 @@
    </item>
   </layout>
  </widget>
+ <tabstops>
+  <tabstop>mAlgosListWidget</tabstop>
+  <tabstop>scrollArea</tabstop>
+  <tabstop>cbxWaysBuilderInputLayer</tabstop>
+  <tabstop>spxWaysBuilderSnapDist</tabstop>
+  <tabstop>spxWaysBuilderMinEdgeLength</tabstop>
+  <tabstop>grpWaysBuilderStreetName</tabstop>
+  <tabstop>cbxWaysBuilderWayAttribute</tabstop>
+  <tabstop>grpWaysBuilderGeomProps</tabstop>
+  <tabstop>spxWaysBuilderThreshold</tabstop>
+  <tabstop>spxWaysBuilderBuffer</tabstop>
+  <tabstop>cbxWaysBuilderPlacesLayer</tabstop>
+  <tabstop>letWaysBuilderDirectoryPath</tabstop>
+  <tabstop>pbnWaysBuilderDirectoryPath</tabstop>
+  <tabstop>letWaysBuilderDBName</tabstop>
+  <tabstop>pbnComputeWaysBuilder</tabstop>
+  <tabstop>buttonBox</tabstop>
+  <tabstop>scrollArea_2</tabstop>
+  <tabstop>letWayAttributesDBPath</tabstop>
+  <tabstop>pbnWayAttributesDBPath</tabstop>
+  <tabstop>cbxWayAttributesOrthogonality</tabstop>
+  <tabstop>cbxWayAttributesRtopo</tabstop>
+  <tabstop>cbxWayAttributesBetweenness</tabstop>
+  <tabstop>cbxWayAttributesCloseness</tabstop>
+  <tabstop>cbxWayAttributesStress</tabstop>
+  <tabstop>spxWayAttributesClasses</tabstop>
+  <tabstop>pbnComputeWayAttributes</tabstop>
+  <tabstop>scrollArea_4</tabstop>
+  <tabstop>cbxHorizonWayAttribute</tabstop>
+  <tabstop>letHorizonDBPath</tabstop>
+  <tabstop>pbnHorizonDBPath</tabstop>
+  <tabstop>cbxHorizonWayLayer</tabstop>
+  <tabstop>spxHorizonPercentile</tabstop>
+  <tabstop>spxHorizonPlotBins</tabstop>
+  <tabstop>letHorizonPlotColor</tabstop>
+  <tabstop>spxHorizonPlotWidth</tabstop>
+  <tabstop>spxHorizonPlotHeight</tabstop>
+  <tabstop>pushButton</tabstop>
+  <tabstop>scrollArea_3</tabstop>
+  <tabstop>letStructuralDiffDBPath1</tabstop>
+  <tabstop>pbnStructuralDiffDBPath1</tabstop>
+  <tabstop>letStructuralDiffDBPath2</tabstop>
+  <tabstop>pbnStructuralDiffDBPath2</tabstop>
+  <tabstop>letStructuralDiffDBName</tabstop>
+  <tabstop>letStructuralDiffDirectoryPath</tabstop>
+  <tabstop>pbnStructuralDiffDirectoryPath</tabstop>
+  <tabstop>pbnComputeStructuralDiff</tabstop>
+ </tabstops>
  <resources/>
  <connections>
   <connection>
