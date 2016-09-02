@@ -119,7 +119,7 @@ def build_ways( args ):
                       stress        = args.stress)
 
     if args.way_attribute is not None:
-        builder_build_ways_from_attribute(output=args.output, **kwargs)
+        builder.build_ways_from_attribute(args.way_attribute, output=args.output, **kwargs)
     else:
         builder.build_ways(threshold=args.threshold/180.0 * pi,
                            output=output,

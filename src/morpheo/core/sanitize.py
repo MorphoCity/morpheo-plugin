@@ -513,13 +513,13 @@ class Sanitizer(object):
                     AND split_lines.ROWID IN (
                       SELECT ROWID FROM SpatialIndex 
                       WHERE f_table_name='split_lines' AND search_frame={input_table}.GEOMETRY)
-                )"""))
+                )""",input_table=self._table))
 
         self._create_indexed_table(cur, self.work_table, 'LINESTRING')
         
         if attribute:
             cur.execute(SQL("ALTER TABLE "+self.work_table+" ADD COLUMN "+attribute))
-            cur.execute(SQL("INSERT INTO "+self.work_table+" (GEOMETRY, "+atribute\
+            cur.execute(SQL("INSERT INTO "+self.work_table+" (GEOMETRY, "+attribute\
                     +") SELECT GEOMETRY, "+attribute+" from split_lines"))
         else:
             cur.execute(SQL("INSERT INTO "+self.work_table+"(GEOMETRY) SELECT Simplify(GEOMETRY,.1) from split_lines"))

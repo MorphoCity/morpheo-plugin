@@ -201,6 +201,7 @@ CREATE INDEX place_vtx_place_idx ON place_vtx(PLACE);
 
 CREATE TABLE place_edges(
    OGC_FID   integer PRIMARY KEY,
+   NAME      text default NULL,
    LENGTH    real,
    DEGREE    integer,
    START_PL  integer, -- REFERENCES places(OGC_FID),

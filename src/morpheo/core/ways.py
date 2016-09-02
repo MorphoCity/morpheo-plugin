@@ -118,6 +118,90 @@ class WayBuilder(object):
        self._conn = conn
        self._line_graph = None
 
+    def build_ways_from_attribute( self, name ):
+        """ Compute ways using attribute name on edges
+        """
+        from itertools import combinations
+        from .angles import (create_partition, resolve, update, num_partitions)
+ 
+        # Invalidate current line graph
+        self._line_graph = None
+        cur = self._conn.cursor()
+
+        # Clean up way id on edges
+        cur.execute(SQL("UPDATE place_edges SET WAY = NULL"))
+
+        # Get the (max) number of edges and places
+        max_edges = cur.execute(SQL("SELECT Max(OGC_FID) FROM place_edges")).fetchone()[0]
+
+        # Get the entry vector for edges in each place
+        rows = cur.execute(SQL("""SELECT 
+            pl, fid, name, ST_X(p1), ST_Y(p1)
+            FROM (
+                SELECT 
+                OGC_FID AS fid,
+                START_PL AS pl,
+                NAME AS name,
+                ST_StartPoint(GEOMETRY) AS p1
+                FROM place_edges
+                WHERE name NOT NULL
+            UNION ALL
+                SELECT 
+                OGC_FID AS fid,
+                END_PL AS pl,
+                NAME AS name,
+                ST_EndPoint(GEOMETRY) AS p1
+                FROM place_edges)
+                WHERE name NOT NULL
+            ORDER BY pl
+        """)).fetchall()
+ 
+        # Array to store distance corrections for ways
+        distances = np.zeros(max_edges+1)
+  
+        # Way partition: resolve each pair by assigning them
+        # to the same equivalent class. Partition are computed 
+        # by resolving transitive relationship. 
+        ways = create_partition(max_edges+1)
+        def add_pair( e1, e2 ):
+            resolve(ways,e1[1],e2[1])
+            # Compute distance correction
+            # Split the distance between the two paired edges
+            # The correction will be the sum of all values for the same way
+            d = distance(e1[3],e1[4],e2[3],e2[4])
+            distances[e1[1]] = distances[e1[1]] + d/2.0
+            distances[e2[1]] = distances[e2[1]] + d/2.0
+
+        logging.info("Ways: Pairing edges by name")
+
+        progress = Progress(len(rows))
+        count_places = 0
+        for place, edges in iter_places(rows):
+            count_places = count_places+1
+            n = len(edges)
+            progress(n)
+            for (e1,e2) in combinations(edges,2):
+                if e1[2] == e2[2]:
+                    add_pair(e1,e2)
+
+        # Update partition
+        logging.info("Ways: updating partition")
+        update(ways)
+        num_ways = num_partitions(ways)
+
+        logging.info("Ways: computed {} ways (num places={}, num edges={})".format(num_ways,count_places,max_edges))
+       
+        cur.execute(SQL("DELETE FROM way_partition"))
+        cur.executemany(SQL("INSERT INTO way_partition(EDGE,WAY,DIST) SELECT ?,?,?"),
+                [(fid,way,distances[fid]) for fid,way in enumerate(ways)])
+
+        logging.info("Ways: build ways table")
+        execute_sql(self._conn, "ways.sql")
+
+        self._conn.commit()
+        return num_ways
+
+
     def build_ways(self, threshold):
         """ Compute ways
 
@@ -139,7 +223,6 @@ class WayBuilder(object):
 
         # Get the (max) number of edges and places
         max_edges  = cur.execute(SQL("SELECT Max(OGC_FID) FROM place_edges")).fetchone()[0]
-        max_places = cur.execute(SQL("SELECT Max(OGC_FID) FROM places")).fetchone()[0] 
 
         # Get the entry vector for edges in each place
         rows = cur.execute(SQL("""SELECT 

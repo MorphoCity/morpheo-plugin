@@ -29,7 +29,6 @@ class SpatialiteBuilder(object):
         self._basename = os.path.basename(os.path.splitext(dbname)[0])
 
         self._input_table   = table or self._basename.lower()
-        self._way_build_attribute = None
         self._way_builder = None
 
     @property
@@ -82,8 +81,6 @@ class SpatialiteBuilder(object):
         else:
             working_table = self._input_table
 
-        self._way_build_attribute = way_attribute
-
         # Compute edges, way, vertices
         logging.info("Builder: Computing vertices and edges")
 
@@ -94,7 +91,7 @@ class SpatialiteBuilder(object):
             cur = self._conn.cursor()
             cur.execute(SQL("UPDATE edges SET NAME = ("
                             "SELECT {attribute} FROM {input_table} AS b "
-                            "WHERE edges.OGC_FID = b.OGC_GID)",
+                            "WHERE edges.OGC_FID = b.OGC_FID)",
                             input_table=working_table,
                             attribute=way_attribute))
             cur.close()
@@ -219,7 +216,8 @@ class SpatialiteBuilder(object):
             export_shapefile(self._dbname, 'place_edges', output)
 
 
-    def build_ways_from_attribute(self, output=None):
+    def build_ways_from_attribute(self, attribute, output=None, attributes=False, rtopo=False,
+                   export_graph=False, **kwargs):
         """ Build way's hypergraph from street names.
 
             Note that the attribute name need to be spcified
@@ -227,10 +225,18 @@ class SpatialiteBuilder(object):
 
             :param output_file: Output shapefile to store result
         """
-        if self._way_attribute is None:
-            raise BuilderError("Way attribute is not defined !")
+        builder = self.way_builder
+        builder.build_ways_from_attribute(attribute)
 
-        raise NotImplementedError()
+        if rtopo:
+            builder.compute_topological_radius()
+
+        if attributes:
+            self.compute_way_attributes( **kwargs )
+
+        if output is not None:
+            builder.export(self._dbname, output, export_graph=export_graph)
+
 
     def execute_sql(self, name, **kwargs):
         """ Execute statements from sql file
