@@ -303,7 +303,6 @@ class MorpheoPlugin:
         # Compute places
         placesIdx = self.dlg.cbxWaysBuilderPlacesLayer.currentIndex()
         placesId = self.dlg.cbxWaysBuilderPlacesLayer.itemData(placesIdx)
-        QMessageBox.warning(self.dlg, 'Morpheo warning', 'placesIdx: %s and placesId: "%s"' % (placesIdx, placesId))
         places = None
         if placesId :
             places = QgsMapLayerRegistry.instance().mapLayer(placesId)
@@ -315,10 +314,11 @@ class MorpheoPlugin:
 
         # Compute ways
         if self.dlg.grpWaysBuilderStreetName.isChecked():
-            builder.build_ways_from_attribute(output=os.path.join(output, dbname))
+            builder.build_ways_from_attribute(self.dlg.cbxWaysBuilderWayAttribute.currentText(),
+                                              output=os.path.join(output, dbname))
         else:
             builder.build_ways(threshold=self.dlg.spxWaysBuilderThreshold.value()/180.0 * pi,
-                           output=os.path.join(output, dbname))
+                               output=os.path.join(output, dbname))
 
         add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'places', "%s_%s" % ('places',dbname))
         add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'place_edges', "%s_%s" % ('place_edges',dbname))
