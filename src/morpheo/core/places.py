@@ -115,13 +115,17 @@ class PlaceBuilder(object):
         logging.info("Places: building places from buffers (buffer size={})".format(buffer_size))
         def union_buffers():
             count = cur.execute(SQL("SELECT Max(OGC_FID) FROM {buffer_table}", buffer_table=BUFFER_TABLE)).fetchone()[0]
-            if count <= self._chunks:
-                cur.execute(SQL("""
-                    INSERT INTO  {buffer_table}(GEOMETRY)
-                    SELECT ST_Union(GEOMETRY) FROM {buffer_table}
-                """, buffer_table=BUFFER_TABLE))
-                cur.execute(SQL("DELETE FROM {buffer_table} WHERE OGC_FID <= {count}",
-                        buffer_table=BUFFER_TABLE,count=count))
+            if count is None:
+                logging.warn("No items in buffer_table !")
+                return False
+            elif count <= self._chunks:
+                if count > 1:
+                    cur.execute(SQL("""
+                        INSERT INTO  {buffer_table}(GEOMETRY)
+                        SELECT ST_Union(GEOMETRY) FROM {buffer_table}
+                    """, buffer_table=BUFFER_TABLE))
+                    cur.execute(SQL("DELETE FROM {buffer_table} WHERE OGC_FID <= {count}",
+                            buffer_table=BUFFER_TABLE,count=count))
             else:            
                 try:
                     # Create temporary buffer table
@@ -153,6 +157,7 @@ class PlaceBuilder(object):
                     """, tmp_table=table, buffer_table=BUFFER_TABLE))
                 finally:
                     delete_table(cur, table)
+            return True
 
         cur = self._conn.cursor()
 
@@ -200,14 +205,13 @@ class PlaceBuilder(object):
         """,buffer_table=BUFFER_TABLE))
 
         # Create buffers
-        union_buffers()
-
-        # Explode buffer blob into elementary geometries
-        logging.info("Places: computing convex hulls")
-        cur.execute(SQL("""
-           INSERT INTO places(GEOMETRY)
-           SELECT ST_ConvexHull(GEOMETRY) FROM ElementaryGeometries WHERE f_table_name='{buffer_table}' AND origin_rowid=1
-        """, buffer_table=BUFFER_TABLE))
+        if union_buffers():
+            # Explode buffer blob into elementary geometries
+            logging.info("Places: computing convex hulls")
+            cur.execute(SQL("""
+                INSERT INTO places(GEOMETRY)
+                SELECT ST_ConvexHull(GEOMETRY) FROM ElementaryGeometries WHERE f_table_name='{buffer_table}' AND origin_rowid=1
+            """, buffer_table=BUFFER_TABLE))
         
         if input_places is not None:
             # Cleanup places
@@ -286,10 +290,14 @@ class PlaceBuilder(object):
                             )""",place=place, buffers=bufstr))
                     
                         # Clean up merged buffers
-                        cur.execute(SQL("""DELETE FROM places WHERE OGC_FID in ({buffers})""",
+                        cur.execute(SQL("DELETE FROM tmp_places WHERE OGC_FID={place}",place=place))
+                        cur.execute(SQL("DELETE FROM places WHERE OGC_FID in ({buffers})",
                                         buffers=bufstr))
+                # Add remaining places
+                cur.execute("INSERT INTO places(GEOMETRY) SELECT GEOMETRY FROM tmp_places")
             finally:
-                delete_table(cur, 'tmp_places')
+                #delete_table(cur, 'tmp_places')
+                pass
 
         delete_table(cur, BUFFER_TABLE)
         
