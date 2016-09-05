@@ -24,9 +24,8 @@ morpheo --help
 
 # Install as QGIS plugin
 
-Copy the 
-
-
+Copy or extract the morpheo python package (found in src/) in the .qgis/python/plugins folder of your
+home directory. This will add a Extension/Morpheo menu.
 
 ## What's computed
 
@@ -54,7 +53,7 @@ Indicators computed on ways and arcs:
     ACCES            real, -- accessibility
 
 
-## Tables computed
+## Geographic features computed
 
 These are the tables computed in the working database of morpheo: these table
 can be accessed in qgis for debug purpose.
