@@ -218,8 +218,6 @@ def compute_path( args ):
             _path_fun = iti.azimuth_path
         elif args.path_type=='naive-azimuth':
             _path_fun = iti.naive_azimuth_path
-        elif args.path=='way-simplest':
-            _path_fun = iti.way_simplest
 
     _path_fun(dbname, path, args.source, args.destination, conn=conn, output=output)
 

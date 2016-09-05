@@ -540,6 +540,7 @@ def way_simplest_path(conn, G, dbname, path, sources, targets, start_place, end_
 
     # Reconstruct the list of physical edges from that list of place
     # For that we compute the shortest path between two places for
+    # each way
 
     edges = []
     for (w1,p1),(w2,p2) in izip(places[:-1],places[1:]):
