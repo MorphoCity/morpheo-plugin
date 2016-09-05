@@ -136,7 +136,8 @@ def compute_way_attributes( args ):
             closeness     = args.closeness,
             stress        = args.stress,
             rtopo         = args.rtopo,
-            output        = args.output)
+            output        = args.output,
+            classes       = algs.classes)
 
 
 def compute_edge_attributes( args ):
@@ -149,7 +150,8 @@ def compute_edge_attributes( args ):
             betweenness   = args.betweenness,
             closeness     = args.closeness,
             stress        = args.stress,
-            output        = args.output)
+            output        = args.output,
+            classes       = arg.classes)
 
 
 def build_edges_graph( args ):
