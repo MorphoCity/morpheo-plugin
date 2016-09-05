@@ -141,7 +141,7 @@
              <property name="widgetResizable">
               <bool>true</bool>
              </property>
-             <widget class="QWidget" name="scrollAreaWidgetContents">
+             <widget class="QWidget" name="scrollAreaWidgetContentsWaysBuilder">
               <property name="geometry">
                <rect>
                 <x>0</x>
@@ -444,7 +444,7 @@
              <property name="widgetResizable">
               <bool>true</bool>
              </property>
-             <widget class="QWidget" name="scrollAreaWidgetContents_2">
+             <widget class="QWidget" name="scrollAreaWidgetContentsWayAttributes">
               <property name="geometry">
                <rect>
                 <x>0</x>
@@ -644,12 +644,12 @@
              <property name="widgetResizable">
               <bool>true</bool>
              </property>
-             <widget class="QWidget" name="scrollAreaWidgetContents_4">
+             <widget class="QWidget" name="scrollAreaWidgetContentsHorizon">
               <property name="geometry">
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>278</width>
+                <width>453</width>
                 <height>314</height>
                </rect>
               </property>
@@ -843,12 +843,12 @@
              <property name="widgetResizable">
               <bool>true</bool>
              </property>
-             <widget class="QWidget" name="scrollAreaWidgetContents_3">
+             <widget class="QWidget" name="scrollAreaWidgetContentsStructuralDiff">
               <property name="geometry">
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>305</width>
+                <width>453</width>
                 <height>222</height>
                </rect>
               </property>

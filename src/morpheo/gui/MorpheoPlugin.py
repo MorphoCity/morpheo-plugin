@@ -271,10 +271,10 @@ class MorpheoPlugin:
 
 
     def computeWaysBuilder(self):
-        self.dlg.scrollAreaWidgetContents.setEnabled(False)
+        self.dlg.scrollAreaWidgetContentsWaysBuilder.setEnabled(False)
         self.dlg.pgbComputeWaysBuilder.setMaximum(0)
         self.dlg.pbnComputeWaysBuilder.setEnabled(False)
-        self.dlg.scrollAreaWidgetContents.repaint()
+        self.dlg.scrollAreaWidgetContentsWaysBuilder.repaint()
 
         layerIdx = self.dlg.cbxWaysBuilderInputLayer.currentIndex()
         layerId = self.dlg.cbxWaysBuilderInputLayer.itemData( layerIdx )
@@ -286,7 +286,7 @@ class MorpheoPlugin:
         if not os.path.exists(output):
             self.dlg.pbnComputeWaysBuilder.setEnabled(True)
             self.dlg.pgbComputeWaysBuilder.setMaximum(100)
-            self.dlg.scrollAreaWidgetContents.setEnabled(True)
+            self.dlg.scrollAreaWidgetContentsWaysBuilder.setEnabled(True)
             QMessageBox.warning(self.dlg, 'Morpheo warning', self.tr('Output dir does not exist!'))
             return
 
@@ -329,11 +329,11 @@ class MorpheoPlugin:
 
         self.dlg.pbnComputeWaysBuilder.setEnabled(True)
         self.dlg.pgbComputeWaysBuilder.setMaximum(100)
-        self.dlg.scrollAreaWidgetContents.setEnabled(True)
+        self.dlg.scrollAreaWidgetContentsWaysBuilder.setEnabled(True)
 
 
     def computeWayAttributes(self):
-        self.dlg.scrollAreaWidgetContents_2.setEnabled(False)
+        self.dlg.scrollAreaWidgetContentsWayAttributes.setEnabled(False)
         self.dlg.pgbComputeWayAttributes.setMaximum(0)
         self.dlg.pbnComputeWayAttributes.setEnabled(False)
 
@@ -341,7 +341,7 @@ class MorpheoPlugin:
         if not os.path.isfile( dbpath ):
             self.dlg.pbnComputeWayAttributes.setEnabled(True)
             self.dlg.pgbComputeWayAttributes.setMaximum(100)
-            self.dlg.scrollAreaWidgetContents_2.setEnabled(True)
+            self.dlg.scrollAreaWidgetContentsWayAttributes.setEnabled(True)
             QMessageBox.warning(self.dlg, 'Morpheo warning', self.tr('DB Path does not exist!'))
             return
 
@@ -365,7 +365,7 @@ class MorpheoPlugin:
 
         self.dlg.pbnComputeWayAttributes.setEnabled(True)
         self.dlg.pgbComputeWayAttributes.setMaximum(100)
-        self.dlg.scrollAreaWidgetContents_2.setEnabled(True)
+        self.dlg.scrollAreaWidgetContentsWayAttributes.setEnabled(True)
 
 
     def unload(self):
