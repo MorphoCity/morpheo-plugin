@@ -105,7 +105,6 @@ class MorpheoBuildAlgorithm(GeoAlgorithm):
     # Options controlling graph
     SNAP_DISTANCE = 'SNAP_DISTANCE'
     MIN_EDGE_LENGTH = 'MIN_EDGE_LENGTH'
-    EXPORT_GRAPHES = 'EXPORT_GRAPHES'
 
     # Options controlling places
     BUFFER = 'BUFFER'
@@ -156,7 +155,6 @@ class MorpheoBuildAlgorithm(GeoAlgorithm):
             ParameterNumber(self.SNAP_DISTANCE, 'Snap distance (no cleanup if zero)', 0., 99., 0.2))
         self.addParameter(
             ParameterNumber(self.MIN_EDGE_LENGTH, 'Min edge length', 0., 99., 4.))
-        self.addParameter(ParameterBoolean(self.EXPORT_GRAPHES, 'Export graphes', False))
 
         # Options controlling places
         self.addParameter(
@@ -204,8 +202,7 @@ class MorpheoBuildAlgorithm(GeoAlgorithm):
         # Compute places
         builder.build_places(buffer_size=self.getParameterValue(self.BUFFER),
                              places=self.getParameterValue(self.INPUT_PLACES),
-                             output=os.path.join(output, dbname),
-                             export_graph=self.getParameterValue(self.EXPORT_GRAPHES))
+                             output=os.path.join(output, dbname))
 
         # Compute ways
         kwargs = dict(classes=self.getParameterValue(self.CLASSES), rtopo=self.getParameterValue(self.RTOPO))

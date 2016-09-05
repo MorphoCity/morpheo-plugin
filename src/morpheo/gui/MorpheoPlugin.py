@@ -321,8 +321,7 @@ class MorpheoPlugin:
             places = QgsMapLayerRegistry.instance().mapLayer(placesId)
         builder.build_places(buffer_size=self.dlg.spxWaysBuilderBuffer.value(),
                              places=places,
-                             output=os.path.join(output, dbname),
-                             export_graph=True)
+                             output=os.path.join(output, dbname))
         time.sleep(1)
 
         # Compute ways
