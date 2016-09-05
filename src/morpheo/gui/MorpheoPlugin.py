@@ -181,6 +181,7 @@ class MorpheoPlugin:
 
         # Connect compute
         self.dlg.pbnComputeWaysBuilder.clicked.connect(self.computeWaysBuilder)
+        self.dlg.pbnComputeWayAttributes.clicked.connect(self.computeWayAttributes)
 
         # add to processing
         self.morpheoAlgoProvider = MorpheoAlgorithmProvider()
@@ -283,6 +284,8 @@ class MorpheoPlugin:
         dbname    = self.dlg.letWaysBuilderDBName.text() or 'morpheo_'+layer.name().replace(" ", "_")
 
         if not os.path.exists(output):
+            self.dlg.pbnComputeWaysBuilder.setEnabled(True)
+            self.dlg.pgbComputeWaysBuilder.setMaximum(100)
             self.dlg.scrollAreaWidgetContents.setEnabled(True)
             QMessageBox.warning(self.dlg, 'Morpheo warning', self.tr('Output dir does not exist!'))
             return
@@ -327,6 +330,43 @@ class MorpheoPlugin:
         self.dlg.pbnComputeWaysBuilder.setEnabled(True)
         self.dlg.pgbComputeWaysBuilder.setMaximum(100)
         self.dlg.scrollAreaWidgetContents.setEnabled(True)
+
+
+    def computeWayAttributes(self):
+        self.dlg.scrollAreaWidgetContents_2.setEnabled(False)
+        self.dlg.pgbComputeWayAttributes.setMaximum(0)
+        self.dlg.pbnComputeWayAttributes.setEnabled(False)
+
+        dbpath    = self.dlg.letWayAttributesDBPath.text()
+        if not os.path.isfile( dbpath ):
+            self.dlg.pbnComputeWayAttributes.setEnabled(True)
+            self.dlg.pgbComputeWayAttributes.setMaximum(100)
+            self.dlg.scrollAreaWidgetContents_2.setEnabled(True)
+            QMessageBox.warning(self.dlg, 'Morpheo warning', self.tr('DB Path does not exist!'))
+            return
+
+        output    = os.path.dirname(dbpath)
+        dbname    = os.path.basename(dbpath).replace('.sqlite','')
+
+        builder = Builder.from_database( os.path.join(output, dbname) )
+        builder.compute_way_attributes(
+                orthogonality = self.dlg.cbxWayAttributesOrthogonality.isChecked(),
+                betweenness   = self.dlg.cbxWayAttributesBetweenness.isChecked(),
+                closeness     = self.dlg.cbxWayAttributesCloseness.isChecked(),
+                stress        = self.dlg.cbxWayAttributesStress.isChecked(),
+                rtopo         = self.dlg.cbxWayAttributesRtopo.isChecked(),
+                classes       = self.dlg.spxWayAttributesClasses.value(),
+                output        = os.path.join(output, dbname))
+
+        # Visualize data
+        add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'places', "%s_%s" % ('places',dbname))
+        add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'place_edges', "%s_%s" % ('place_edges',dbname))
+        add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'ways', "%s_%s" % ('ways',dbname))
+
+        self.dlg.pbnComputeWayAttributes.setEnabled(True)
+        self.dlg.pgbComputeWayAttributes.setMaximum(100)
+        self.dlg.scrollAreaWidgetContents_2.setEnabled(True)
+
 
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
