@@ -315,6 +315,78 @@ class MorpheoWayAttributesAlgorithm(GeoAlgorithm):
         self.setOutputValue(self.OUTPUT_DBPATH, os.path.join(output, dbname)+'.sqlite')
 
 
+class MorpheoEdgeAttributesAlgorithm(GeoAlgorithm):
+
+    DBPATH = 'DBPATH'
+
+    # Options controlling edges
+    ORTHOGONALITY = 'ORTHOGONALITY'
+    BETWEENNESS = 'BETWEENNESS'
+    CLOSENESS = 'CLOSENESS'
+    STRESS = 'STRESS'
+    CLASSES = 'CLASSES'
+
+    # Ouput
+    OUTPUT_DBPATH = 'OUTPUT_DBPATH'
+
+    def __init__(self):
+        GeoAlgorithm.__init__(self)
+        print "loading morpheo way_attributes algo at ", time.strftime("%H:%M:%S")
+
+    def getIcon(self):
+        return QIcon(os.path.join(os.path.dirname(__file__),'..','morpheo.png'))
+
+    def helpFile(self):
+        return None
+
+    def commandLineName(self):
+        return 'morpheo:edge_attributes'
+
+    def defineCharacteristics(self):
+        self.name = 'Compute attributes on edges'
+        self.group = 'Compute'
+
+        self.addParameter(ParameterFile(self.DBPATH, 'Morpheo database path',
+                          isFolder=False, optional=False, ext='sqlite'))
+
+        # Options controlling ways
+        self.addParameter(ParameterBoolean(self.ORTHOGONALITY, 'Compute orthogonality', False))
+        self.addParameter(ParameterBoolean(self.BETWEENNESS, 'Compute betweenness centrality', False))
+        self.addParameter(ParameterBoolean(self.CLOSENESS, 'Compute closeness centrality', False))
+        self.addParameter(ParameterBoolean(self.STRESS, 'Compute stress centrality', False))
+        self.addParameter(
+            ParameterNumber(self.CLASSES, 'Number of classes', 2, 99, 10))
+
+        self.addOutput(OutputString(self.OUTPUT_DBPATH, 'Database path'))
+
+    def checkBeforeOpeningParametersDialog(self):
+        return None
+
+    def processAlgorithm(self, progress):
+        """ Compute way attributes
+        """
+        dbpath    = self.getParameterValue(self.DBPATH)
+        if not os.path.isfile( dbpath ):
+            log_error('Morpheo database path not found')
+
+        output    = os.path.dirname(dbpath)
+        dbname    = os.path.basename(dbpath).replace('.sqlite','')
+
+        builder = Builder.from_database( os.path.join(output, dbname) )
+        builder.compute_edge_attributes( os.path.join(output, dbname),
+                orthogonality = self.getParameterValue(self.ORTHOGONALITY),
+                betweenness   = self.getParameterValue(self.BETWEENNESS),
+                closeness     = self.getParameterValue(self.CLOSENESS),
+                stress        = self.getParameterValue(self.STRESS),
+                classes       = self.getParameterValue(self.CLASSES),
+                output        = os.path.join(output, dbname))
+
+        # Visualize data
+        add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'place_edges', "%s_%s" % ('place_edges',dbname))
+
+        self.setOutputValue(self.OUTPUT_DBPATH, os.path.join(output, dbname)+'.sqlite')
+
+
 class MorpheoEdgesGraphAlgorithm(GeoAlgorithm):
 
     DBPATH = 'DBPATH'

@@ -450,7 +450,7 @@
                 <x>0</x>
                 <y>0</y>
                 <width>453</width>
-                <height>364</height>
+                <height>397</height>
                </rect>
               </property>
               <property name="sizePolicy">
@@ -492,6 +492,30 @@
                      </widget>
                     </item>
                    </layout>
+                  </item>
+                  <item row="1" column="1">
+                   <widget class="QComboBox" name="cbxWayAttributesComputeOn">
+                    <property name="currentIndex">
+                     <number>0</number>
+                    </property>
+                    <item>
+                     <property name="text">
+                      <string>Ways</string>
+                     </property>
+                    </item>
+                    <item>
+                     <property name="text">
+                      <string>Edges</string>
+                     </property>
+                    </item>
+                   </widget>
+                  </item>
+                  <item row="1" column="0">
+                   <widget class="QLabel" name="lWayAttributesComputeOn">
+                    <property name="text">
+                     <string>Compute on</string>
+                    </property>
+                   </widget>
                   </item>
                  </layout>
                 </widget>
@@ -1042,6 +1066,7 @@
   <tabstop>scrollArea_2</tabstop>
   <tabstop>letWayAttributesDBPath</tabstop>
   <tabstop>pbnWayAttributesDBPath</tabstop>
+  <tabstop>cbxWayAttributesComputeOn</tabstop>
   <tabstop>cbxWayAttributesOrthogonality</tabstop>
   <tabstop>cbxWayAttributesRtopo</tabstop>
   <tabstop>cbxWayAttributesBetweenness</tabstop>

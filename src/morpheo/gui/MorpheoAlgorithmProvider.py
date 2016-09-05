@@ -34,6 +34,7 @@ from processing.core.ProcessingLog import ProcessingLog
 from MorpheoAlgorithm import \
         MorpheoBuildAlgorithm, \
         MorpheoWayAttributesAlgorithm, \
+        MorpheoEdgeAttributesAlgorithm, \
         MorpheoEdgesGraphAlgorithm, \
         MorpheoWaysGraphAlgorithm, \
         MorpheoStructuralDiffAlgorithm, \
@@ -64,6 +65,7 @@ class MorpheoAlgorithmProvider(AlgorithmProvider):
         try:
             self.algs.append(MorpheoBuildAlgorithm())
             self.algs.append(MorpheoWayAttributesAlgorithm())
+            self.algs.append(MorpheoEdgeAttributesAlgorithm())
             self.algs.append(MorpheoEdgesGraphAlgorithm())
             self.algs.append(MorpheoWaysGraphAlgorithm())
             self.algs.append(MorpheoStructuralDiffAlgorithm())

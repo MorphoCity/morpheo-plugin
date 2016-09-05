@@ -179,6 +179,9 @@ class MorpheoPlugin:
         self.connectComboboxLayerAttribute(self.dlg.cbxWaysBuilderWayAttribute, self.dlg.cbxWaysBuilderInputLayer, ParameterTableField.DATA_TYPE_STRING)
         self.connectComboboxLayerAttribute(self.dlg.cbxHorizonWayAttribute, self.dlg.cbxHorizonWayLayer, ParameterTableField.DATA_TYPE_NUMBER)
 
+        # Connect compute attributes on
+        self.dlg.cbxWayAttributesComputeOn.currentIndexChanged.connect(self.cbxWayAttributesComputeOnCurrentIndexChanged)
+
         # Connect compute
         self.dlg.pbnComputeWaysBuilder.clicked.connect(self.computeWaysBuilder)
         self.dlg.pbnComputeWayAttributes.clicked.connect(self.computeWayAttributes)
@@ -192,6 +195,13 @@ class MorpheoPlugin:
 
     def grpWaysBuilderStreetNameToggled(self, toggle):
         self.dlg.grpWaysBuilderGeomProps.setChecked(not toggle)
+
+    def cbxWayAttributesComputeOnCurrentIndexChanged(self, idx):
+        if self.dlg.cbxWayAttributesComputeOn.currentText() == self.tr('Edges'):
+            self.dlg.cbxWayAttributesRtopo.setChecked(False)
+            self.dlg.cbxWayAttributesRtopo.setEnabled(False)
+        else:
+            self.dlg.cbxWayAttributesRtopo.setEnabled(True)
 
     def connectFileSelectionPanel(self, leText, btnSelect, isFolder, ext=None):
 
@@ -349,19 +359,31 @@ class MorpheoPlugin:
         dbname    = os.path.basename(dbpath).replace('.sqlite','')
 
         builder = Builder.from_database( os.path.join(output, dbname) )
-        builder.compute_way_attributes(
-                orthogonality = self.dlg.cbxWayAttributesOrthogonality.isChecked(),
-                betweenness   = self.dlg.cbxWayAttributesBetweenness.isChecked(),
-                closeness     = self.dlg.cbxWayAttributesCloseness.isChecked(),
-                stress        = self.dlg.cbxWayAttributesStress.isChecked(),
-                rtopo         = self.dlg.cbxWayAttributesRtopo.isChecked(),
-                classes       = self.dlg.spxWayAttributesClasses.value(),
-                output        = os.path.join(output, dbname))
+        if self.dlg.cbxWayAttributesComputeOn.currentText() == self.tr('Edges'):
+            builder.compute_edge_attributes( os.path.join(output, dbname),
+                    orthogonality = self.dlg.cbxWayAttributesOrthogonality.isChecked(),
+                    betweenness   = self.dlg.cbxWayAttributesBetweenness.isChecked(),
+                    closeness     = self.dlg.cbxWayAttributesCloseness.isChecked(),
+                    stress        = self.dlg.cbxWayAttributesStress.isChecked(),
+                    classes       = self.dlg.spxWayAttributesClasses.value(),
+                    output        = os.path.join(output, dbname))
 
-        # Visualize data
-        add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'places', "%s_%s" % ('places',dbname))
-        add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'place_edges', "%s_%s" % ('place_edges',dbname))
-        add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'ways', "%s_%s" % ('ways',dbname))
+            # Visualize data
+            add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'place_edges', "%s_%s" % ('place_edges',dbname))
+        else:
+            builder.compute_way_attributes(
+                    orthogonality = self.dlg.cbxWayAttributesOrthogonality.isChecked(),
+                    betweenness   = self.dlg.cbxWayAttributesBetweenness.isChecked(),
+                    closeness     = self.dlg.cbxWayAttributesCloseness.isChecked(),
+                    stress        = self.dlg.cbxWayAttributesStress.isChecked(),
+                    rtopo         = self.dlg.cbxWayAttributesRtopo.isChecked(),
+                    classes       = self.dlg.spxWayAttributesClasses.value(),
+                    output        = os.path.join(output, dbname))
+
+            # Visualize data
+            add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'places', "%s_%s" % ('places',dbname))
+            add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'place_edges', "%s_%s" % ('place_edges',dbname))
+            add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'ways', "%s_%s" % ('ways',dbname))
 
         self.dlg.pbnComputeWayAttributes.setEnabled(True)
         self.dlg.pgbComputeWayAttributes.setMaximum(100)
