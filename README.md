@@ -22,6 +22,12 @@ From this, Moprpheo will ba available as command line, i.e:
 morpheo --help
 ```
 
+# Install as QGIS plugin
+
+Copy the 
+
+
+
 ## What's computed
 
 * Viary geometries as topological graph (arcs and vertices)
@@ -65,7 +71,8 @@ can be accessed in qgis for debug purpose.
 * mesh_shortest: last computed shortest path using structural mesh as topological shortcut
 * mesh_simplest: last computed simplest path using structucal mesh as topological shortcut
 * way_simplest: last computed path on ways using the simplest path in the way's line graph. 
-
+* paired_edges: Computed invariants edges between two graphs (structural diff)
+ 
 
 
 
