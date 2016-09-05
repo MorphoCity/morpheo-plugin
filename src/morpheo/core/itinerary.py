@@ -492,23 +492,97 @@ def edges_from_way_fid( conn, fids ):
 
    
 
-def way_simplest(dbname, path, source, target, output):
+def way_simplest_path(conn, G, dbname, path, sources, targets, start_place, end_place, output):
     """ Compute the way simplest path
 
         The way simplest path is computed on the line graph of the ways connectivity:
         compute all paths from  all the accessibles ways from the starting place to all
         accessibles ways to the destination place and take the shortests in a topological
         sense.
-            
-        :prama conn: The path to  the morpheo working database
+       
+        :param conn: Connection the morpheo working database
+        :param G: Way line graph
+        :param dbname: the database name
         :param path: The path location of morpheo data
-        :param source: The feature id of the starting place
-        :param target: The feature id of the destination place
-        :param output: Path to output results
+        :param sources: List of candidate ways as source
+        :param targets: List of candidate ways as destination
+        :param start_place: The starting place
+        :param end_place: The destination place
+        :param start_place: The starting place
+      
+        if the starting place gives the physical  location
+        where we are starting
 
         :return the list of edge feature id that represent the shortest path
     """
-    raise NotImplementedError()     
+    from itertools import izip, chain
+
+    logging.debug("Way path sources: {}, destinations={}".format(sources,targets))
+
+    minlen = 1e6
+    for wfrom in sources:
+        for wto in targets:
+            p = nx.shortest_path(G, source=wfrom, target=wto)
+            if len(p) < minlen:
+                minlen = len(p)
+                ways  = p
+
+    logging.debug("Way minimum path: {}".format(ways))
+
+    # Get the edges wich are actually places
+    places = [(u,G[u][v]['place']) for u,v in zip(ways[:-1],ways[1:])]
+
+    places.insert( 0, (ways[0] , start_place) )
+    places.append( (ways[-1], end_place) )
+    logging.debug("Way path places: {}".format(places))
+
+    cur = conn.cursor()
+
+    # Reconstruct the list of physical edges from that list of place
+    # For that we compute the shortest path between two places for
+
+    edges = []
+    for (w1,p1),(w2,p2) in izip(places[:-1],places[1:]):
+        rows = cur.execute(SQL("SELECT START_PL,END_PL,OGC_FID FROM place_edges WHERE WAY={way}",
+                    way=w2)).fetchall()
+        # Create the subgraph
+        g = nx.Graph()
+        g.add_weighted_edges_from(rows,weight='fid')
+        p = nx.shortest_path(g,p1,p2)
+        edges.extend( g[u][v]['fid'] for u,v in izip(p[:-1],p[1:]) ) 
+
+    path_type = 'way_simplest'
+
+    _store_path(cur, dbname, edges, path_type, output=output, manifest=dict(
+                input=path,
+                source="{}".format(sources),
+                destination="{}".format(targets),
+                type="way_simplest"))
+
+    cur.close()
+    conn.commit()
+    conn.close()
+    return edges
+
+
+def ways_from_places( conn, place ):
+    """ Return all ways connected to 'place'
+    """
+    cur = conn.cursor()
+    rows = cur.execute(SQL("SELECT WAY_ID FROM way_places WHERE PLACE={p}",p=place)).fetchall()
+    return [r[0] for r in rows], place
+
+
+def ways_from_edge( conn, edge_id ):
+    """ Return way and starting place from edge 
+    """
+    cur  = conn.cursor()
+    [way,place] = cur.execute(SQL("""SELECT 
+            WAY_ID, START_PL FROM  place_edges WHERE OGC_FID={e}
+          """,e=edge_id)).fetchone()
+    return [way],place
+
+
 
 
 

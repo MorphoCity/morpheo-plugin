@@ -296,8 +296,7 @@ class PlaceBuilder(object):
                 # Add remaining places
                 cur.execute("INSERT INTO places(GEOMETRY) SELECT GEOMETRY FROM tmp_places")
             finally:
-                #delete_table(cur, 'tmp_places')
-                pass
+                delete_table(cur, 'tmp_places')
 
         delete_table(cur, BUFFER_TABLE)
         

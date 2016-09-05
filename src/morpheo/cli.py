@@ -224,6 +224,30 @@ def compute_path( args ):
     _path_fun(dbname, path, args.source, args.destination, conn=conn, output=output)
 
 
+def compute_way_path( args ):
+    """ Compute way simplest path
+    """
+    import core.itinerary as iti
+    from core.sql  import connect_database
+    from core.ways import read_ways_graph
+
+    path   = args.path           # input path
+    output = args.output or path # output path
+    dbname = args.dbname or path+'.sqlite'
+
+    conn = connect_database(dbname)
+
+    if args.E:
+        ways1,place1 = iti.ways_from_edge(conn, args.source)
+        ways2,place2 = iti.ways_from_edge(conn, args.destination)
+    else:
+        ways1,place1 = iti.ways_from_places(conn, args.source)
+        ways2,place2 = iti.ways_from_places(conn, args.destination)
+
+    G = read_ways_graph(path)
+    iti.way_simplest_path(conn, G, dbname, path, ways1, ways2, place1, place2, output) 
+
+
 def compute_mesh( args ):
     """ Compute mesh
     """
@@ -419,6 +443,20 @@ def main():
     hrz_cmd.add_argument("--color"     , metavar='NAME'    , default='blue',help="Histogram color")
     hrz_cmd.add_argument("--size"      , metavar='SIZE'    , default='400x300',type=size_type, help="Image size")
     hrz_cmd.set_defaults(func=compute_horizon)
+
+    # Compute way simplest path
+    path_cmd = sub.add_parser('way_path', description="Compute way simple path")
+    path_cmd.add_argument("path", metavar='PATH', help="Path to morpheo graph data")
+    path_cmd.add_argument("--dbname", metavar='PATH', help="Database")
+    path_cmd.add_argument("--output", metavar='PATH' , default=None, help="Output destination")
+    path_cmd.add_argument("-from-","--from", metavar='NUMBER' , type=int, dest='source'     , 
+            required=True, help="FID of starting place or edge")
+    path_cmd.add_argument("-to"  ,"--to"  , metavar='NUMBER' , type=int, dest='destination', 
+            required=True, help="FID of destination place or edge")
+    path_cmd.add_argument("-E", action='store_true', default=False, help="Use edges instead of places")
+    path_cmd.set_defaults(func=compute_way_path)
+
+
 
     #--------------------------
     args = parser.parse_args()
