@@ -104,8 +104,7 @@ def build_ways( args ):
         # Compute places
         builder.build_places(buffer_size=args.buffer,
                              places=args.input_places,
-                             output=output,
-                             export_graph=args.graph)
+                             output=output)
 
     if args.P: return
 
@@ -122,8 +121,7 @@ def build_ways( args ):
         builder.build_ways_from_attribute(args.way_attribute, output=args.output, **kwargs)
     else:
         builder.build_ways(threshold=args.threshold/180.0 * pi,
-                           output=output,
-                           export_graph=args.graph, **kwargs)
+                           output=output,**kwargs)
 
 
 def compute_way_attributes( args ):
@@ -338,7 +336,6 @@ def main():
     # Options controlling places
     ways_cmd.add_argument("--buffer"         , metavar='VALUE', type=float, default=4 , help="Place Buffer size")
     ways_cmd.add_argument("--input-places"   , metavar='PATH' , default=None, help="Default input polygons for places")
-    ways_cmd.add_argument("--graph"          , action='store_true', default=False, help="Export graphes")
     # Options controlling ways
     ways_cmd.add_argument("--way-attribute"  , metavar='NAME', default=None, help="Attribute for building street ways")
     ways_cmd.add_argument("--threshold"      , metavar='VALUE', type=float, default=30, help="Treshold angle (in degree)")

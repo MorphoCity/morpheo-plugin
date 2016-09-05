@@ -116,7 +116,7 @@ class SpatialiteBuilder(object):
         builder = self.way_builder
         builder.save_line_graph(output, create=True)
 
-    def build_places(self, buffer_size, places=None, output=None, export_graph=False):
+    def build_places(self, buffer_size, places=None, output=None):
         """ Build places
 
             Build places from buffer and/or external places definition.
@@ -144,10 +144,9 @@ class SpatialiteBuilder(object):
         builder.build_places(buffer_size, input_places_table)
 
         if output is not None:
-            builder.export(self._dbname, output, export_graph=export_graph)
+            builder.export(self._dbname, output, export_graph=True)
 
-    def build_ways(self,  threshold, output=None, attributes=False, rtopo=False,
-                   export_graph=False, **kwargs) :
+    def build_ways(self,  threshold, output=None, attributes=False, rtopo=False, **kwargs) :
         """ Build way's hypergraph
 
             :param threshold: Angle treshold
@@ -164,7 +163,7 @@ class SpatialiteBuilder(object):
             self.compute_way_attributes( **kwargs )
 
         if output is not None:
-            builder.export(self._dbname, output, export_graph=export_graph)
+            builder.export(self._dbname, output, export_graph=True)
 
     def compute_way_attributes( self, orthogonality, betweenness, closeness, stress,
                                 classes=10, rtopo=False, output=None):
