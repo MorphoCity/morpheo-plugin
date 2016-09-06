@@ -54,7 +54,7 @@ def import_as_layer( dbname, layer, name ):
             import_shapefile( dbname, layer, name )
 
 
-def import_shapefile( dbname, path, name ):
+def import_shapefile( dbname, path, name, forceSinglePartGeometryType=False ):
     """ Add shapefile as new table in database
 
         :param dbname: Path of the database
@@ -84,15 +84,34 @@ def import_shapefile( dbname, path, name ):
         layer = QgsVectorLayer(path, name, 'ogr')
         if not layer.isValid():
             raise IOError("Shapefile '{}' is not valid".format(path))
+        from pyspatialite import dbapi2 as db
+        # create spatialite database if does not exist
+        if not os.path.exists(dbname):
+            conn = db.connect(dbname)
+            cur  = conn.cursor()
+            cur.execute('SELECT initspatialmetadata(1)')
+            cur.close()
+            conn.close()
+            del cur
+            del conn
         # Create Spatialite URI
         uri = QgsDataSourceURI()
         uri.setDatabase(dbname)
         uri.setDataSource('', name, 'GEOMETRY')
         options = {}
         options['overwrite'] = True
+        options['forceSinglePartGeometryType'] = forceSinglePartGeometryType
         error, errMsg = QgsVectorLayerImport.importLayer(layer, uri.uri(False), 'spatialite', layer.crs(), False, False, options)
         if error != QgsVectorLayerImport.NoError:
             raise IOError("Failed to add layer to database '{}': error {}".format(dbname, errMsg))
+        # add spatial index
+        conn = db.connect(dbname)
+        cur  = conn.cursor()
+        cur.execute("SELECT CreateSpatialIndex('{table}', 'GEOMETRY')".format(table=name))
+        cur.close()
+        conn.close()
+        del cur
+        del conn
 
 
 def export_shapefile( dbname, table, output ):
