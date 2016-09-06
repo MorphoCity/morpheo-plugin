@@ -92,5 +92,10 @@ def init_log_custom_hooks( level=logging.INFO,
     logging.addLevelName(PROGRESS,"PROGRESS")
     logger = logging.getLogger()
     logger.setLevel(level)
+
+    # Remove previous handler
+    for hdlr in logger.handlers:
+        logger.removeHandler(hdlr)
+
     logger.addHandler(handler)
 
