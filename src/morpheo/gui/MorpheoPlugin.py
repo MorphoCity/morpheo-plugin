@@ -185,6 +185,7 @@ class MorpheoPlugin:
         # Connect compute
         self.dlg.pbnComputeWaysBuilder.clicked.connect(self.computeWaysBuilder)
         self.dlg.pbnComputeWayAttributes.clicked.connect(self.computeWayAttributes)
+        self.dlg.pbnComputeStructuralDiff.clicked.connect(self.computeStructuralDiff)
 
         # add to processing
         self.morpheoAlgoProvider = MorpheoAlgorithmProvider()
@@ -387,6 +388,54 @@ class MorpheoPlugin:
         self.dlg.pbnComputeWayAttributes.setEnabled(True)
         self.dlg.pgbComputeWayAttributes.setMaximum(100)
         self.dlg.scrollAreaWidgetContentsWayAttributes.setEnabled(True)
+
+
+    def computeStructuralDiff(self):
+        self.dlg.scrollAreaWidgetContentsStructuralDiff.setEnabled(False)
+        self.dlg.pgbComputeStructuralDiff.setMaximum(0)
+        self.dlg.pbnComputeStructuralDiff.setEnabled(False)
+
+        def check_dbpath(path):
+            basename = os.path.basename(path)
+            shp = os.path.join(path,'place_edges_%s.shp' % basename)
+            gpickle = os.path.join(path,'way_graph_%s.gpickle' % basename)
+            return os.path.isfile(shp) and os.path.isfile(gpickle)
+
+        dbpath1    = self.dlg.letStructuralDiffDBPath1.text()
+        if not check_dbpath(dbpath1):
+            self.dlg.pbnComputeStructuralDiff.setEnabled(True)
+            self.dlg.pgbComputeStructuralDiff.setMaximum(100)
+            self.dlg.scrollAreaWidgetContentsStructuralDiff.setEnabled(True)
+            QMessageBox.warning(self.dlg, 'Morpheo warning', self.tr('Initial Morpheo directory is incomplete'))
+            return
+
+        dbpath2    = self.dlg.letStructuralDiffDBPath2.text()
+        if not check_dbpath(dbpath2):
+            self.dlg.pbnComputeStructuralDiff.setEnabled(True)
+            self.dlg.pgbComputeStructuralDiff.setMaximum(100)
+            self.dlg.scrollAreaWidgetContentsStructuralDiff.setEnabled(True)
+            QMessageBox.warning(self.dlg, 'Morpheo warning', self.tr('Final Morpheo directory is incomplete'))
+            return
+
+
+        output    = self.dlg.letStructuralDiffDirectoryPath.text() or tempFolder()
+        dbname    = self.dlg.letStructuralDiffDBName.text() or 'morpheo_%s_%s' % (os.path.basename(dbpath1), os.path.basename(dbpath2))
+
+        if not os.path.exists(os.path.join(output, dbname)):
+            os.mkdir(os.path.join(output, dbname))
+
+        structural_diff( dbpath1, dbpath2,
+                         output=os.path.join(output, dbname),
+                         buffersize=self.dlg.spxStructuralDiffTolerance.value())
+
+        # Visualize data
+        add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'paired_edges', "%s_%s" % ('paired_edges',dbname))
+        add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'removed_edges', "%s_%s" % ('removed_edges',dbname))
+        add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'added_edges', "%s_%s" % ('added_edges',dbname))
+
+        self.dlg.pbnComputeStructuralDiff.setEnabled(True)
+        self.dlg.pgbComputeStructuralDiff.setMaximum(100)
+        self.dlg.scrollAreaWidgetContentsStructuralDiff.setEnabled(True)
 
 
     def unload(self):
