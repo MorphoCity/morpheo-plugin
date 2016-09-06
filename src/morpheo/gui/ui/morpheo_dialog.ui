@@ -43,13 +43,13 @@
         <widget class="QListWidget" name="mAlgosListWidget">
          <property name="minimumSize">
           <size>
-           <width>58</width>
+           <width>60</width>
            <height>0</height>
           </size>
          </property>
          <property name="maximumSize">
           <size>
-           <width>200</width>
+           <width>225</width>
            <height>16777215</height>
           </size>
          </property>
@@ -100,6 +100,11 @@
          <item>
           <property name="text">
            <string>Compute Structural Changes</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Log</string>
           </property>
          </item>
         </widget>
@@ -401,40 +406,6 @@
              </widget>
             </widget>
            </item>
-           <item>
-            <layout class="QHBoxLayout" name="horizontalLayout_3">
-             <item>
-              <spacer name="horizontalSpacer">
-               <property name="orientation">
-                <enum>Qt::Horizontal</enum>
-               </property>
-               <property name="sizeHint" stdset="0">
-                <size>
-                 <width>40</width>
-                 <height>20</height>
-                </size>
-               </property>
-              </spacer>
-             </item>
-             <item>
-              <widget class="QProgressBar" name="pgbComputeWaysBuilder">
-               <property name="maximum">
-                <number>100</number>
-               </property>
-               <property name="value">
-                <number>0</number>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QPushButton" name="pbnComputeWaysBuilder">
-               <property name="text">
-                <string>Compute</string>
-               </property>
-              </widget>
-             </item>
-            </layout>
-           </item>
           </layout>
          </widget>
          <widget class="QWidget" name="mAlgo_02">
@@ -627,37 +598,6 @@
              </widget>
             </widget>
            </item>
-           <item>
-            <layout class="QHBoxLayout" name="horizontalLayout_4">
-             <item>
-              <spacer name="horizontalSpacer_2">
-               <property name="orientation">
-                <enum>Qt::Horizontal</enum>
-               </property>
-               <property name="sizeHint" stdset="0">
-                <size>
-                 <width>40</width>
-                 <height>20</height>
-                </size>
-               </property>
-              </spacer>
-             </item>
-             <item>
-              <widget class="QProgressBar" name="pgbComputeWayAttributes">
-               <property name="value">
-                <number>0</number>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QPushButton" name="pbnComputeWayAttributes">
-               <property name="text">
-                <string>Compute</string>
-               </property>
-              </widget>
-             </item>
-            </layout>
-           </item>
           </layout>
          </widget>
          <widget class="QWidget" name="mAlgo_03"/>
@@ -834,30 +774,6 @@
              </widget>
             </widget>
            </item>
-           <item>
-            <layout class="QHBoxLayout" name="horizontalLayout_10">
-             <item>
-              <spacer name="horizontalSpacer_4">
-               <property name="orientation">
-                <enum>Qt::Horizontal</enum>
-               </property>
-               <property name="sizeHint" stdset="0">
-                <size>
-                 <width>40</width>
-                 <height>20</height>
-                </size>
-               </property>
-              </spacer>
-             </item>
-             <item>
-              <widget class="QPushButton" name="pushButton">
-               <property name="text">
-                <string>Compute</string>
-               </property>
-              </widget>
-             </item>
-            </layout>
-           </item>
           </layout>
          </widget>
          <widget class="QWidget" name="mAlgo_05">
@@ -1004,36 +920,16 @@
              </widget>
             </widget>
            </item>
+          </layout>
+         </widget>
+         <widget class="QWidget" name="mAlgo_06">
+          <layout class="QVBoxLayout" name="verticalLayout_12">
            <item>
-            <layout class="QHBoxLayout" name="horizontalLayout_6">
-             <item>
-              <spacer name="horizontalSpacer_3">
-               <property name="orientation">
-                <enum>Qt::Horizontal</enum>
-               </property>
-               <property name="sizeHint" stdset="0">
-                <size>
-                 <width>40</width>
-                 <height>20</height>
-                </size>
-               </property>
-              </spacer>
-             </item>
-             <item>
-              <widget class="QProgressBar" name="pgbComputeStructuralDiff">
-               <property name="value">
-                <number>0</number>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QPushButton" name="pbnComputeStructuralDiff">
-               <property name="text">
-                <string>Compute</string>
-               </property>
-              </widget>
-             </item>
-            </layout>
+            <widget class="QTextEdit" name="txtLog">
+             <property name="readOnly">
+              <bool>true</bool>
+             </property>
+            </widget>
            </item>
           </layout>
          </widget>
@@ -1044,25 +940,27 @@
     </widget>
    </item>
    <item>
-    <widget class="QFrame" name="mButtonBoxFrame">
-     <property name="sizePolicy">
-      <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
-       <horstretch>0</horstretch>
-       <verstretch>0</verstretch>
-      </sizepolicy>
+    <widget class="QLabel" name="lblProgress">
+     <property name="text">
+      <string/>
      </property>
-     <layout class="QHBoxLayout" name="horizontalLayout">
-      <item>
-       <widget class="QDialogButtonBox" name="buttonBox">
-        <property name="orientation">
-         <enum>Qt::Horizontal</enum>
-        </property>
-        <property name="standardButtons">
-         <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
-        </property>
-       </widget>
-      </item>
-     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QProgressBar" name="progressBar">
+     <property name="value">
+      <number>0</number>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="buttonBox">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Close|QDialogButtonBox::Ok</set>
+     </property>
     </widget>
    </item>
   </layout>
@@ -1082,8 +980,6 @@
   <tabstop>letWaysBuilderDirectoryPath</tabstop>
   <tabstop>pbnWaysBuilderDirectoryPath</tabstop>
   <tabstop>letWaysBuilderDBName</tabstop>
-  <tabstop>pbnComputeWaysBuilder</tabstop>
-  <tabstop>buttonBox</tabstop>
   <tabstop>scrollArea_2</tabstop>
   <tabstop>letWayAttributesDBPath</tabstop>
   <tabstop>pbnWayAttributesDBPath</tabstop>
@@ -1094,7 +990,6 @@
   <tabstop>cbxWayAttributesCloseness</tabstop>
   <tabstop>cbxWayAttributesStress</tabstop>
   <tabstop>spxWayAttributesClasses</tabstop>
-  <tabstop>pbnComputeWayAttributes</tabstop>
   <tabstop>scrollArea_4</tabstop>
   <tabstop>cbxHorizonWayAttribute</tabstop>
   <tabstop>letHorizonDBPath</tabstop>
@@ -1105,7 +1000,6 @@
   <tabstop>letHorizonPlotColor</tabstop>
   <tabstop>spxHorizonPlotWidth</tabstop>
   <tabstop>spxHorizonPlotHeight</tabstop>
-  <tabstop>pushButton</tabstop>
   <tabstop>scrollArea_3</tabstop>
   <tabstop>letStructuralDiffDBPath1</tabstop>
   <tabstop>pbnStructuralDiffDBPath1</tabstop>
@@ -1114,7 +1008,6 @@
   <tabstop>letStructuralDiffDBName</tabstop>
   <tabstop>letStructuralDiffDirectoryPath</tabstop>
   <tabstop>pbnStructuralDiffDirectoryPath</tabstop>
-  <tabstop>pbnComputeStructuralDiff</tabstop>
  </tabstops>
  <resources/>
  <connections>

@@ -18,6 +18,7 @@ from ..core.structdiff import structural_diff
 from ..core import horizon as hrz
 from ..core.ways import read_ways_graph
 from ..core.sql  import connect_database
+from logger import init_log_custom_hooks
 
 Builder = SpatialiteBuilder
 
@@ -183,9 +184,10 @@ class MorpheoPlugin:
         self.dlg.cbxWayAttributesComputeOn.currentIndexChanged.connect(self.cbxWayAttributesComputeOnCurrentIndexChanged)
 
         # Connect compute
-        self.dlg.pbnComputeWaysBuilder.clicked.connect(self.computeWaysBuilder)
-        self.dlg.pbnComputeWayAttributes.clicked.connect(self.computeWayAttributes)
-        self.dlg.pbnComputeStructuralDiff.clicked.connect(self.computeStructuralDiff)
+        self.computeRow = 0
+        self.dlg.mAlgosListWidget.setCurrentRow(self.computeRow)
+        self.init_log_handler()
+        self.dlg.buttonBox.accepted.connect(self.accept)
 
         # add to processing
         self.morpheoAlgoProvider = MorpheoAlgorithmProvider()
@@ -240,6 +242,8 @@ class MorpheoPlugin:
 
     def getFields(self, layer, datatype):
         fieldTypes = []
+        if not layer or not layer.isValid():
+            return set()
         if datatype == ParameterTableField.DATA_TYPE_STRING:
             fieldTypes = [QVariant.String]
         elif datatype == ParameterTableField.DATA_TYPE_NUMBER:
@@ -282,23 +286,22 @@ class MorpheoPlugin:
 
 
     def computeWaysBuilder(self):
-        self.dlg.scrollAreaWidgetContentsWaysBuilder.setEnabled(False)
-        self.dlg.pgbComputeWaysBuilder.setMaximum(0)
-        self.dlg.pbnComputeWaysBuilder.setEnabled(False)
-        self.dlg.scrollAreaWidgetContentsWaysBuilder.repaint()
 
+        self.setText(self.tr('Compute ways builder'))
         layerIdx = self.dlg.cbxWaysBuilderInputLayer.currentIndex()
         layerId = self.dlg.cbxWaysBuilderInputLayer.itemData( layerIdx )
         layer = QgsMapLayerRegistry.instance().mapLayer(layerId)
+        if not layer:
+            QMessageBox.warning(self.dlg, 'Morpheo warning', self.tr('No available layer!'))
+            self.finish()
+            return
 
         output    = self.dlg.letWaysBuilderDirectoryPath.text() or tempFolder()
         dbname    = self.dlg.letWaysBuilderDBName.text() or 'morpheo_'+layer.name().replace(" ", "_")
 
         if not os.path.exists(output):
-            self.dlg.pbnComputeWaysBuilder.setEnabled(True)
-            self.dlg.pgbComputeWaysBuilder.setMaximum(100)
-            self.dlg.scrollAreaWidgetContentsWaysBuilder.setEnabled(True)
             QMessageBox.warning(self.dlg, 'Morpheo warning', self.tr('Output dir does not exist!'))
+            self.finish()
             return
 
         if not os.path.exists(os.path.join(output, dbname)):
@@ -337,22 +340,13 @@ class MorpheoPlugin:
         add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'place_edges', "%s_%s" % ('place_edges',dbname))
         add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'ways', "%s_%s" % ('ways',dbname))
 
-        self.dlg.pbnComputeWaysBuilder.setEnabled(True)
-        self.dlg.pgbComputeWaysBuilder.setMaximum(100)
-        self.dlg.scrollAreaWidgetContentsWaysBuilder.setEnabled(True)
-
 
     def computeWayAttributes(self):
-        self.dlg.scrollAreaWidgetContentsWayAttributes.setEnabled(False)
-        self.dlg.pgbComputeWayAttributes.setMaximum(0)
-        self.dlg.pbnComputeWayAttributes.setEnabled(False)
 
         dbpath    = self.dlg.letWayAttributesDBPath.text()
         if not os.path.isfile( dbpath ):
-            self.dlg.pbnComputeWayAttributes.setEnabled(True)
-            self.dlg.pgbComputeWayAttributes.setMaximum(100)
-            self.dlg.scrollAreaWidgetContentsWayAttributes.setEnabled(True)
             QMessageBox.warning(self.dlg, 'Morpheo warning', self.tr('DB Path does not exist!'))
+            self.finish()
             return
 
         output    = os.path.dirname(dbpath)
@@ -385,15 +379,8 @@ class MorpheoPlugin:
             add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'place_edges', "%s_%s" % ('place_edges',dbname))
             add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'ways', "%s_%s" % ('ways',dbname))
 
-        self.dlg.pbnComputeWayAttributes.setEnabled(True)
-        self.dlg.pgbComputeWayAttributes.setMaximum(100)
-        self.dlg.scrollAreaWidgetContentsWayAttributes.setEnabled(True)
-
 
     def computeStructuralDiff(self):
-        self.dlg.scrollAreaWidgetContentsStructuralDiff.setEnabled(False)
-        self.dlg.pgbComputeStructuralDiff.setMaximum(0)
-        self.dlg.pbnComputeStructuralDiff.setEnabled(False)
 
         def check_dbpath(path):
             basename = os.path.basename(path)
@@ -403,18 +390,14 @@ class MorpheoPlugin:
 
         dbpath1    = self.dlg.letStructuralDiffDBPath1.text()
         if not check_dbpath(dbpath1):
-            self.dlg.pbnComputeStructuralDiff.setEnabled(True)
-            self.dlg.pgbComputeStructuralDiff.setMaximum(100)
-            self.dlg.scrollAreaWidgetContentsStructuralDiff.setEnabled(True)
             QMessageBox.warning(self.dlg, 'Morpheo warning', self.tr('Initial Morpheo directory is incomplete'))
+            self.finish()
             return
 
         dbpath2    = self.dlg.letStructuralDiffDBPath2.text()
         if not check_dbpath(dbpath2):
-            self.dlg.pbnComputeStructuralDiff.setEnabled(True)
-            self.dlg.pgbComputeStructuralDiff.setMaximum(100)
-            self.dlg.scrollAreaWidgetContentsStructuralDiff.setEnabled(True)
             QMessageBox.warning(self.dlg, 'Morpheo warning', self.tr('Final Morpheo directory is incomplete'))
+            self.finish()
             return
 
 
@@ -433,9 +416,84 @@ class MorpheoPlugin:
         add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'removed_edges', "%s_%s" % ('removed_edges',dbname))
         add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'added_edges', "%s_%s" % ('added_edges',dbname))
 
-        self.dlg.pbnComputeStructuralDiff.setEnabled(True)
-        self.dlg.pgbComputeStructuralDiff.setMaximum(100)
-        self.dlg.scrollAreaWidgetContentsStructuralDiff.setEnabled(True)
+    def setInfo(self, msg, error=False):
+        if error:
+            self.dlg.txtLog.append('<span style="color:red"><br>%s<br></span>' % msg)
+        else:
+            self.dlg.txtLog.append(msg)
+        QCoreApplication.processEvents()
+
+    def setPercentage(self, value):
+        if self.dlg.progressBar.maximum() == 0:
+            self.dlg.progressBar.setMaximum(100)
+        self.dlg.progressBar.setValue(value)
+        QCoreApplication.processEvents()
+
+    def setText(self, text):
+        self.dlg.lblProgress.setText(text)
+        self.setInfo(text, False)
+        QCoreApplication.processEvents()
+
+    def setError(self, text):
+        self.dlg.lblProgress.setText(text)
+        self.setInfo(text, True)
+        QCoreApplication.processEvents()
+
+    def init_log_handler(self):
+
+        def on_info(msg):
+            # do something with msg
+            self.setText(msg)
+
+        def on_warn(msg):
+            # do something with msg
+            self.setText(msg)
+
+        def on_error(msg):
+            # do something with msg
+            self.setError(msg)
+
+        def on_critical(msg):
+            # do something with msg
+            self.setError(msg)
+
+        def on_progress(value, msg):
+            # de something with value and message
+            self.dlg.lblProgress.setText(msg)
+            self.setPercentage(value)
+
+        init_log_custom_hooks(on_info=on_info,
+                              on_warn=on_warn,
+                              on_error=on_error,
+                              on_critical=on_critical,
+                              on_progress=on_progress)
+
+
+    def start(self):
+        self.dlg.mAlgosListWidget.setEnabled(False)
+        self.dlg.progressBar.setMaximum(0)
+        self.dlg.lblProgress.setText(self.tr('Start'))
+
+    def finish(self):
+        self.dlg.progressBar.setValue(0)
+        self.dlg.progressBar.setMaximum(100)
+        self.dlg.lblProgress.setText(self.tr(''))
+        self.dlg.mAlgosListWidget.setEnabled(True)
+        self.dlg.mAlgosListWidget.setCurrentRow(self.computeRow)
+
+
+    def accept(self):
+        self.computeRow = self.dlg.mAlgosListWidget.currentRow()
+        self.dlg.mAlgosListWidget.setCurrentRow(5)
+        self.start()
+        if self.computeRow == 0:
+            self.computeWaysBuilder()
+        elif self.computeRow == 1:
+            self.computeWayAttributes()
+        elif self.computeRow == 4:
+            self.computeStructuralDiff()
+        self.finish()
+        pass
 
 
     def unload(self):
@@ -450,7 +508,6 @@ class MorpheoPlugin:
         # remove from processing
         Processing.removeProvider(self.morpheoAlgoProvider)
 
-
     def run(self):
         """Run method that performs all the real work"""
         # populate layer comboboxes
@@ -463,4 +520,6 @@ class MorpheoPlugin:
         if result:
             # Do something useful here - delete the line containing pass and
             # substitute with your code.
+            self.dlg.mAlgosListWidget.setCurrentIndex(6)
+            QMessageBox.warning(self.dlg, 'Morpheo warning', self.tr('Final Morpheo directory is incomplete'))
             pass
