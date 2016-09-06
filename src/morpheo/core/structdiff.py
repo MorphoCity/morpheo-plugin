@@ -11,9 +11,9 @@ from .layers import import_shapefile, export_shapefile
 from .ways   import read_ways_graph
 
 def structural_diff( path1, path2, output, buffersize ):
-    """ Compute structural diff between two files 
+    """ Compute structural diff between two files
 
-        :param path1: path of the first location for edges shapefile and way line graph 
+        :param path1: path of the first location for edges shapefile and way line graph
         :param path2: path of the second location for edges shapefile and way line graph
         :param output: path where to store output data
 
@@ -31,7 +31,7 @@ def structural_diff( path1, path2, output, buffersize ):
         basename = os.path.basename(path)
         shp = os.path.join(path,'place_edges_%s.shp' % basename)
         logging.info("Structural diff: importing %s" % shp)
-        import_shapefile( dbname, shp, table)
+        import_shapefile( dbname, shp, table, forceSinglePartGeometryType=True)
         logging.info("Structural diff: importing way line graph")
         return read_ways_graph(path)
 
@@ -49,18 +49,18 @@ def structural_diff( path1, path2, output, buffersize ):
 
     cur = conn.cursor()
 
-    added_edges   = cur.execute(SQL("SELECT WAY,LENGTH FROM added"  )).fetchall() 
-    removed_edges = cur.execute(SQL("SELECT WAY,LENGTH FROM removed")).fetchall() 
+    added_edges   = cur.execute(SQL("SELECT WAY,LENGTH FROM added"  )).fetchall()
+    removed_edges = cur.execute(SQL("SELECT WAY,LENGTH FROM removed")).fetchall()
 
     def contrib(cur, wref, g, data):
         """ Compute the contribution of the
-            accessibility relativ to wref from the set of edges 
+            accessibility relativ to wref from the set of edges
             in table
         """
         sp   = path_length(g,wref)
         return sum(sp[r[0]]*r[1] for r in data)
 
-    edges    = cur.execute(SQL("SELECT EDGE2,WAY1,WAY2,DIFF FROM paired")).fetchall() 
+    edges    = cur.execute(SQL("SELECT EDGE2,WAY1,WAY2,DIFF FROM paired")).fetchall()
     progress = Progress(len(edges))
 
     def compute(edge, w1, w2, diff):
@@ -73,8 +73,8 @@ def structural_diff( path1, path2, output, buffersize ):
 
 
     logging.info("Structural Diff: comuputing accessibility delta")
-    results = [compute(*r) for r in edges] 
-    
+    results = [compute(*r) for r in edges]
+
     # Update edge table
     logging.info("Structural Diff: updating edges table")
     with attr_table(cur, "edgge_attr") as attrs:
@@ -87,10 +87,12 @@ def structural_diff( path1, path2, output, buffersize ):
 
     # Export files
     logging.info("Diff: exporting files")
-    export_shapefile(dbname, 'paired_edges', output) 
-    
+    export_shapefile(dbname, 'paired_edges', output)
+    export_shapefile(dbname, 'removed_edges', output)
+    export_shapefile(dbname, 'added_edges', output)
+
     # Write manifest
-    with open(os.path.join(output,'morpheo_%s.manifest' % output),'w') as f:
+    with open(os.path.join(output,'morpheo_%s.manifest' % os.path.basename(output)),'w') as f:
             f.write("tolerance={}".format(buffersize))
             f.write("file1=%s\n" % path1)
             f.write("file2=%s\n" % path2)
