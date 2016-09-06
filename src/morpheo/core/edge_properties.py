@@ -2,18 +2,56 @@
 
 import logging
 import networkx as nx
+from numpy import sin
 from .logger import Progress
 from .sql import SQL, attr_table, table_exists
 from .angles import azimuth, angle_from_azimuth
 from .classes import compute_classes
 
 
-def compute_angles(conn):
-    """ Compute angles between edges at places
+def iter_places(rows):
+    """ Generator for iterating throught places 
+
+        :param rows: A ordered list of squences whose first element
+                     is an place index which is the sort 
+                     criteria. Thus, element which have the same index
+                     are all adjacent in the list.
+
+        At each invocation, the iterator return a tuple (place,list)
+        where place is the place index and list the list of elements
+        for the same index.
     """
+    s = 0
+    size = len(rows)
+    def takew(p,s):
+        while s<size:
+            x = rows[s]
+            if x[0]==p:
+                yield x
+                s = s+1
+            else:
+                break
+
+    while s<size:
+        p = rows[s][0]
+        l = list(takew(p,s))
+        s = s+len(l)
+        yield p,l
+
+
+def compute_angles(conn, force=False):
+    """ Compute angles between edges at places
+
+        :param force: if True, force recomputing angles
+    """
+    cur  = conn.cursor()
+    if not force:
+        [count] = cur.execute("SELECT Count(*)>0 FROM way_angles").fetchone()
+        if count:
+            return
+
     logging.info("Computing angles between edges")
 
-    cur  = conn.cursor()
     rows = cur.execute(SQL("""SELECT 
         pl, way, edge,  ST_X(p1), ST_Y(p1), ST_X(p2), ST_Y(p2)
         FROM (
@@ -81,12 +119,11 @@ def compute_orthogonality(conn):
         Note the table way_angle must have been 
         computed !
     """
-    cur = conn.cursor()
-    if not table_exists(cur, "way_angles"):
-       compute_angles(conn)   
+    compute_angles(conn)   
 
    # Update orthogonality
     logging.info("Edges: computing orthogonality")
+    cur = conn.cursor()
     cur.execute(SQL("UPDATE place_edges SET ORTHOG = NULL"))
     cur.execute(SQL("""UPDATE place_edges SET ORTHOG = (
         SELECT Sum(inner)/place_edges.DEGREE FROM (

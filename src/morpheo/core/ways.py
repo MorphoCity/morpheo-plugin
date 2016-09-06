@@ -16,36 +16,7 @@ from .errors import BuilderError, ErrorGraphNotFound
 from .sql import SQL, execute_sql, attr_table, table_exists
 from .classes import compute_classes
 from .layers import export_shapefile
-
-
-def iter_places(rows):
-    """ Generator for iterating throught places 
-
-        :param rows: A ordered list of squences whose first element
-                     is an place index which is the sort 
-                     criteria. Thus, element which have the same index
-                     are all adjacent in the list.
-
-        At each invocation, the iterator return a tuple (place,list)
-        where place is the place index and list the list of elements
-        for the same index.
-    """
-    s = 0
-    size = len(rows)
-    def takew(p,s):
-        while s<size:
-            x = rows[s]
-            if x[0]==p:
-                yield x
-                s = s+1
-            else:
-                break
-
-    while s<size:
-        p = rows[s][0]
-        l = list(takew(p,s))
-        s = s+len(l)
-        yield p,l
+from .edge_properties import iter_places, compute_angles
 
 
 def compute_way_classes(attr_table, cur, attribute, classes):
@@ -357,14 +328,13 @@ class WayBuilder(object):
     def compute_orthogonality(self):
         """ Compute orthogonality on ways
         """
-        cur = self._conn.cursor()
-        if not table_exists(cur, "way_angles"):
-            import edges_properties as props
-            props.compute_angles(self._conn)   
+        from .edge_properties import compute_angles
+        compute_angles(self._conn)   
 
         # Update orthogonality
         logging.info("Ways: computing orthogonality")
 
+        cur = self._conn.cursor()
         cur.execute(SQL("UPDATE ways SET ORTHOG = NULL"))
         cur.execute(SQL("""UPDATE ways SET ORTHOG = (
             SELECT Sum(inner)/ways.CONN FROM (
