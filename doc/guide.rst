@@ -5,5 +5,4 @@ User's guide
 
     guide/intro
     guide/install
-    guide/command
 
