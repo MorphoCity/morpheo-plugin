@@ -387,6 +387,43 @@ class MorpheoPlugin:
         except Exception, e:
             self.setError(self.tr('Attributes exception: %s') % e)
 
+    def computeHorizon(self):
+
+        self.setText(self.tr('Compute horizon'))
+
+        dbpath    = self.dlg.letHorizonDBPath.text()
+        if not os.path.isfile( dbpath ):
+            self.setError(self.tr('DB Path does not exist!'))
+            return
+
+        output    = os.path.dirname(dbpath)
+        dbname    = os.path.basename(dbpath).replace('.sqlite','')
+
+        attribute = self.dlg.cbxHorizonWayAttribute.currentText()
+        percentile = self.dlg.spxHorizonPercentile.value()
+
+        try:
+
+            conn = connect_database(dbpath)
+            G    = read_ways_graph(os.path.join(output, dbname))
+            data = hrz.horizon_from_attribute(conn, G, attribute, percentile,
+                                              output=os.path.join(output, dbname, '%s_%s_%s.txt' % (attribute, percentile, dbname)))
+            hrz.plot_histogram(data, os.path.join(output, dbname, '%s_%s_%s.png' % (attribute, percentile, dbname)),
+                               bins=self.dlg.spxHorizonPlotBins.value(),
+                               color=self.dlg.letHorizonPlotColor.text() or 'blue',
+                               size=(self.dlg.spxHorizonPlotWidth.value(), self.dlg.spxHorizonPlotHeight.value()))
+
+            imgDlg = QDialog(self.dlg)
+            imgDlg.setLayout(QVBoxLayout())
+            imgDlg.layout().setContentsMargins(0, 0, 0, 0)
+            imgLabel = QLabel()
+            imgPixmap = QPixmap(os.path.join(output, dbname, '%s_%s_%s.png' % (attribute, percentile, dbname)))
+            imgLabel.setPixmap(imgPixmap)
+            imgDlg.layout().insertWidget(0, imgLabel)
+            imgDlg.show()
+        except Exception, e:
+            self.setError(self.tr('Horizon exception: %s') % e)
+
     def computeStructuralDiff(self):
 
         self.setText(self.tr('Compute structural differences'))
@@ -524,6 +561,8 @@ class MorpheoPlugin:
             self.computeWaysBuilder()
         elif self.computeRow == 1:
             self.computeWayAttributes()
+        elif self.computeRow == 3:
+            self.computeHorizon()
         elif self.computeRow == 4:
             self.computeStructuralDiff()
         self.finish()

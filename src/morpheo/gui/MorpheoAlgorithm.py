@@ -636,7 +636,7 @@ class MorpheoHorizonAlgorithm(GeoAlgorithm):
         conn = connect_database(dbpath)
         G    = read_ways_graph(os.path.join(output, dbname))
         data = hrz.horizon_from_attribute(conn, G, attribute, percentile,
-                                          output=os.path.join(output, dbname, '%s_%s.txt' % (attribute, percentile)))
+                                          output=os.path.join(output, dbname, '%s_%s_%s.txt' % (attribute, percentile, dbname)))
 
         hrz.plot_histogram(data, self.getOutputValue(self.PLOT),
                            bins=self.getParameterValue(self.PLOT_BINS),
