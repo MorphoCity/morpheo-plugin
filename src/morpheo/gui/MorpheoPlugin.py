@@ -3,6 +3,7 @@
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 from qgis.core import *
+from qgis.gui import QgsMessageBar
 
 from MorpheoDialog import MorpheoDialog
 from MorpheoAlgorithmProvider import MorpheoAlgorithmProvider
@@ -164,7 +165,7 @@ class MorpheoPlugin:
             parent=self.iface.mainWindow())
 
         # Rename OK button to Run
-        self.buttonBox.button(QDialogButtonBox.Ok).setText(self.tr('Run'))
+        self.dlg.buttonBox.button(QDialogButtonBox.Ok).setText(self.tr('Run'))
 
         # connect group toggle
         self.dlg.grpWaysBuilderStreetName.setChecked(False)
@@ -294,95 +295,101 @@ class MorpheoPlugin:
         layerId = self.dlg.cbxWaysBuilderInputLayer.itemData( layerIdx )
         layer = QgsMapLayerRegistry.instance().mapLayer(layerId)
         if not layer:
-            QMessageBox.warning(self.dlg, 'Morpheo warning', self.tr('No available layer!'))
-            self.finish()
+            self.setError(self.tr('No available layer!'))
             return
 
         output    = self.dlg.letWaysBuilderDirectoryPath.text() or tempFolder()
         dbname    = self.dlg.letWaysBuilderDBName.text() or 'morpheo_'+layer.name().replace(" ", "_")
 
         if not os.path.exists(output):
-            QMessageBox.warning(self.dlg, 'Morpheo warning', self.tr('Output dir does not exist!'))
-            self.finish()
+            self.setError(self.tr('Output dir does not exist!'))
             return
 
         if not os.path.exists(os.path.join(output, dbname)):
             os.mkdir(os.path.join(output, dbname))
+        try:
+            builder = Builder.from_layer( layer, os.path.join(output, dbname) )
 
-        builder = Builder.from_layer( layer, os.path.join(output, dbname) )
-        time.sleep(1)
+            # Compute graph
+            builder.build_graph(self.dlg.spxWaysBuilderSnapDist.value(),
+                                self.dlg.spxWaysBuilderMinEdgeLength.value(),
+                                self.dlg.grpWaysBuilderStreetName.isChecked() and self.dlg.cbxWaysBuilderWayAttribute.currentText() or '',
+                                output=os.path.join(output, dbname))
 
-        # Compute graph
-        builder.build_graph(self.dlg.spxWaysBuilderSnapDist.value(),
-                            self.dlg.spxWaysBuilderMinEdgeLength.value(),
-                            self.dlg.grpWaysBuilderStreetName.isChecked() and self.dlg.cbxWaysBuilderWayAttribute.currentText() or '',
-                            output=os.path.join(output, dbname))
-        time.sleep(1)
+            # Compute places
+            placesIdx = self.dlg.cbxWaysBuilderPlacesLayer.currentIndex()
+            placesId = self.dlg.cbxWaysBuilderPlacesLayer.itemData(placesIdx)
+            places = None
+            if placesId :
+                places = QgsMapLayerRegistry.instance().mapLayer(placesId)
+            builder.build_places(buffer_size=self.dlg.spxWaysBuilderBuffer.value(),
+                                 places=places,
+                                 output=os.path.join(output, dbname))
 
-        # Compute places
-        placesIdx = self.dlg.cbxWaysBuilderPlacesLayer.currentIndex()
-        placesId = self.dlg.cbxWaysBuilderPlacesLayer.itemData(placesIdx)
-        places = None
-        if placesId :
-            places = QgsMapLayerRegistry.instance().mapLayer(placesId)
-        builder.build_places(buffer_size=self.dlg.spxWaysBuilderBuffer.value(),
-                             places=places,
-                             output=os.path.join(output, dbname))
-        time.sleep(1)
+            # Compute ways
+            if self.dlg.grpWaysBuilderStreetName.isChecked():
+                builder.build_ways_from_attribute(self.dlg.cbxWaysBuilderWayAttribute.currentText(),
+                                                  output=os.path.join(output, dbname))
+            else:
+                builder.build_ways(threshold=self.dlg.spxWaysBuilderThreshold.value()/180.0 * pi,
+                                   output=os.path.join(output, dbname))
 
-        # Compute ways
-        if self.dlg.grpWaysBuilderStreetName.isChecked():
-            builder.build_ways_from_attribute(self.dlg.cbxWaysBuilderWayAttribute.currentText(),
-                                              output=os.path.join(output, dbname))
-        else:
-            builder.build_ways(threshold=self.dlg.spxWaysBuilderThreshold.value()/180.0 * pi,
-                               output=os.path.join(output, dbname))
+            add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'places', "%s_%s" % ('places',dbname))
+            add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'place_edges', "%s_%s" % ('place_edges',dbname))
+            add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'ways', "%s_%s" % ('ways',dbname))
 
-        add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'places', "%s_%s" % ('places',dbname))
-        add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'place_edges', "%s_%s" % ('place_edges',dbname))
-        add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'ways', "%s_%s" % ('ways',dbname))
+            self.setText(self.tr('Compute ways builder finished'), withMessageBar=True)
+        except Exception, e:
+            self.setError(self.tr('Ways builder exception: %s') % e)
 
 
     def computeWayAttributes(self):
 
+        self.setText(self.tr('Compute attributes'))
+
         dbpath    = self.dlg.letWayAttributesDBPath.text()
         if not os.path.isfile( dbpath ):
-            QMessageBox.warning(self.dlg, 'Morpheo warning', self.tr('DB Path does not exist!'))
-            self.finish()
+            self.setError(self.tr('DB Path does not exist!'))
             return
 
         output    = os.path.dirname(dbpath)
         dbname    = os.path.basename(dbpath).replace('.sqlite','')
 
-        builder = Builder.from_database( os.path.join(output, dbname) )
-        if self.dlg.cbxWayAttributesComputeOn.currentText() == self.tr('Edges'):
-            builder.compute_edge_attributes( os.path.join(output, dbname),
-                    orthogonality = self.dlg.cbxWayAttributesOrthogonality.isChecked(),
-                    betweenness   = self.dlg.cbxWayAttributesBetweenness.isChecked(),
-                    closeness     = self.dlg.cbxWayAttributesCloseness.isChecked(),
-                    stress        = self.dlg.cbxWayAttributesStress.isChecked(),
-                    classes       = self.dlg.spxWayAttributesClasses.value(),
-                    output        = os.path.join(output, dbname))
+        try:
+            builder = Builder.from_database( os.path.join(output, dbname) )
+            if self.dlg.cbxWayAttributesComputeOn.currentText() == self.tr('Edges'):
+                builder.compute_edge_attributes( os.path.join(output, dbname),
+                        orthogonality = self.dlg.cbxWayAttributesOrthogonality.isChecked(),
+                        betweenness   = self.dlg.cbxWayAttributesBetweenness.isChecked(),
+                        closeness     = self.dlg.cbxWayAttributesCloseness.isChecked(),
+                        stress        = self.dlg.cbxWayAttributesStress.isChecked(),
+                        classes       = self.dlg.spxWayAttributesClasses.value(),
+                        output        = os.path.join(output, dbname))
 
-            # Visualize data
-            add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'place_edges', "%s_%s" % ('place_edges',dbname))
-        else:
-            builder.compute_way_attributes(
-                    orthogonality = self.dlg.cbxWayAttributesOrthogonality.isChecked(),
-                    betweenness   = self.dlg.cbxWayAttributesBetweenness.isChecked(),
-                    closeness     = self.dlg.cbxWayAttributesCloseness.isChecked(),
-                    stress        = self.dlg.cbxWayAttributesStress.isChecked(),
-                    rtopo         = self.dlg.cbxWayAttributesRtopo.isChecked(),
-                    classes       = self.dlg.spxWayAttributesClasses.value(),
-                    output        = os.path.join(output, dbname))
+                # Visualize data
+                add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'place_edges', "%s_%s" % ('place_edges',dbname))
+            else:
+                builder.compute_way_attributes(
+                        orthogonality = self.dlg.cbxWayAttributesOrthogonality.isChecked(),
+                        betweenness   = self.dlg.cbxWayAttributesBetweenness.isChecked(),
+                        closeness     = self.dlg.cbxWayAttributesCloseness.isChecked(),
+                        stress        = self.dlg.cbxWayAttributesStress.isChecked(),
+                        rtopo         = self.dlg.cbxWayAttributesRtopo.isChecked(),
+                        classes       = self.dlg.spxWayAttributesClasses.value(),
+                        output        = os.path.join(output, dbname))
 
-            # Visualize data
-            add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'places', "%s_%s" % ('places',dbname))
-            add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'place_edges', "%s_%s" % ('place_edges',dbname))
-            add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'ways', "%s_%s" % ('ways',dbname))
+                # Visualize data
+                add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'places', "%s_%s" % ('places',dbname))
+                add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'place_edges', "%s_%s" % ('place_edges',dbname))
+                add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'ways', "%s_%s" % ('ways',dbname))
 
+            self.setText(self.tr('Compute attributes finished'), withMessageBar=True)
+        except Exception, e:
+            self.setError(self.tr('Attributes exception: %s') % e)
 
     def computeStructuralDiff(self):
+
+        self.setText(self.tr('Compute structural differences'))
 
         def check_dbpath(path):
             basename = os.path.basename(path)
@@ -392,14 +399,12 @@ class MorpheoPlugin:
 
         dbpath1    = self.dlg.letStructuralDiffDBPath1.text()
         if not check_dbpath(dbpath1):
-            QMessageBox.warning(self.dlg, 'Morpheo warning', self.tr('Initial Morpheo directory is incomplete'))
-            self.finish()
+            self.setError(self.tr('Initial Morpheo directory is incomplete'))
             return
 
         dbpath2    = self.dlg.letStructuralDiffDBPath2.text()
         if not check_dbpath(dbpath2):
-            QMessageBox.warning(self.dlg, 'Morpheo warning', self.tr('Final Morpheo directory is incomplete'))
-            self.finish()
+            self.setError(self.tr('Final Morpheo directory is incomplete'))
             return
 
 
@@ -409,20 +414,38 @@ class MorpheoPlugin:
         if not os.path.exists(os.path.join(output, dbname)):
             os.mkdir(os.path.join(output, dbname))
 
-        structural_diff( dbpath1, dbpath2,
-                         output=os.path.join(output, dbname),
-                         buffersize=self.dlg.spxStructuralDiffTolerance.value())
+        try:
+            structural_diff( dbpath1, dbpath2,
+                             output=os.path.join(output, dbname),
+                             buffersize=self.dlg.spxStructuralDiffTolerance.value())
 
-        # Visualize data
-        add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'paired_edges', "%s_%s" % ('paired_edges',dbname))
-        add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'removed_edges', "%s_%s" % ('removed_edges',dbname))
-        add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'added_edges', "%s_%s" % ('added_edges',dbname))
+            # Visualize data
+            add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'paired_edges', "%s_%s" % ('paired_edges',dbname))
+            add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'removed_edges', "%s_%s" % ('removed_edges',dbname))
+            add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'added_edges', "%s_%s" % ('added_edges',dbname))
+
+            self.setText(self.tr('Compute structural differences'), withMessageBar=True)
+        except Exception, e:
+            self.setError(self.tr('Ways builder exception: %s') % e)
 
     def setInfo(self, msg, error=False):
         if error:
+            self.dlg.bar.pushMessage(self.tr("Error"), msg, level=QgsMessageBar.CRITICAL)
             self.dlg.txtLog.append('<span style="color:red"><br>%s<br></span>' % msg)
         else:
             self.dlg.txtLog.append(msg)
+        QCoreApplication.processEvents()
+
+    def setWarningInfo(self, msg):
+        self.setInfo('<span style="color:orange">%s</span>' % msg)
+        QCoreApplication.processEvents()
+
+    def setDebugInfo(self, msg):
+        self.setInfo('<span style="color:blue">%s</span>' % msg)
+        QCoreApplication.processEvents()
+
+    def setConsoleInfo(self, msg):
+        self.setCommand('<span style="color:darkgray">%s</span>' % msg)
         QCoreApplication.processEvents()
 
     def setPercentage(self, value):
@@ -431,9 +454,18 @@ class MorpheoPlugin:
         self.dlg.progressBar.setValue(value)
         QCoreApplication.processEvents()
 
-    def setText(self, text):
+    def setText(self, text, withMessageBar=False):
         self.dlg.lblProgress.setText(text)
         self.setInfo(text, False)
+        if withMessageBar:
+            self.dlg.bar.pushMessage(self.tr("Info"), text, level=QgsMessageBar.INFO)
+        QCoreApplication.processEvents()
+
+    def setWarning(self, text, withMessageBar=False):
+        self.dlg.lblProgress.setText(text)
+        self.setWarningInfo(text)
+        if withMessageBar:
+            self.dlg.bar.pushMessage(self.tr("Warning"), text, level=QgsMessageBar.WARNING)
         QCoreApplication.processEvents()
 
     def setError(self, text):
@@ -449,7 +481,7 @@ class MorpheoPlugin:
 
         def on_warn(msg):
             # do something with msg
-            self.setText(msg)
+            self.setWarning(msg)
 
         def on_error(msg):
             # do something with msg
@@ -500,6 +532,8 @@ class MorpheoPlugin:
 
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
+        init_log_custom_hooks()
+
         for action in self.actions:
             self.iface.removePluginMenu(
                 self.tr(u'&Morpheo'),
