@@ -75,7 +75,15 @@ def check_requirements( stand_alone = True ):
         import networkx
     except ImportError:
         raise BuilderError("Python Module networkx is required, please update your python environment")
-   
+
+
+
+def check_attribute(conn, attr, ways):
+    from core.edge_properties import computed_properties
+    if attr not in computed_properties(conn,ways=ways):
+        logging.error("Attribute %s is not computed or does not exists" % attr)
+        sys.exit(1)
+
 
 #
 # Morpheo commands
@@ -186,7 +194,7 @@ def compute_path( args ):
     """ Compute shortest paths
     """
     import core.itinerary as iti
-    from   core.sql  import connect_database
+    from core.sql  import connect_database
 
     path   = args.path           # input path
     output = args.output or path # output path
@@ -199,6 +207,8 @@ def compute_path( args ):
             _edges = iti.edges_from_way_attribute
         else:
             _edges = iti.edges_from_edge_attribute
+
+        check_attribute(conn, args.attribute, ways=args.use_way)
 
         if args.path_type=='shortest':
             _path_fun = iti.mesh_shortest_path
@@ -251,10 +261,12 @@ def compute_mesh( args ):
     """
 
     import core.mesh as mesh
-    from   core.sql  import connect_database
+    from core.sql  import connect_database
 
     dbname = args.dbname+'.sqlite'
     conn = connect_database(dbname)
+
+    check_attribute(conn, args.attribute, ways=args.use_way)
 
     name = args.name or 'mesh'
     if args.use_way:
@@ -272,13 +284,16 @@ def compute_horizon( args ):
     """
 
     import core.horizon as hrz
-    from   core.ways import read_ways_graph
-    from   core.sql  import connect_database
-
+    from core.ways import read_ways_graph
+    from core.sql  import connect_database
+    
     path   = args.path
     dbname = args.dbname or path +'.sqlite'
 
     conn = connect_database(dbname)
+
+    check_attribute(conn, args.attribute, ways=True)
+
     G    = read_ways_graph(path)
     data = hrz.horizon_from_attribute(conn, G, args.attribute, args.percentile, 
                                       output=args.output) 
@@ -299,10 +314,13 @@ def main():
     from core.logger import setup_log_handler
 
     def range_type(strval, min=0, max=100):
-        val = int(strval)
+        try:
+            value = float(strval)
+        except ValueError:
+            raise argparse.ArgumentTypeError('value must be a number' % (min,max))
         if not min <= value <= max:
             raise argparse.ArgumentTypeError('value must be in range %s-%s' % (min,max))
-        return val
+        return value
 
     def size_type( strval ):
         try:
@@ -411,7 +429,7 @@ def main():
     path_cmd.add_argument("--use-way", action="store_true", default=False, help="Use ways for computing mesh components")
     path_cmd.add_argument("--attribute" , metavar='NAME'  , default=None, 
             help="Specify attribute name for mesh structure")
-    path_cmd.add_argument("--percentile", metavar='NUMBER', default=5, type=int, 
+    path_cmd.add_argument("--percentile", metavar='NUMBER', default=5, type=range_type, 
             help="The percentile for computing the mesh structure")
     path_cmd.add_argument("--mesh", metavar='NAME', default=None, help="Name of the table to store the mesh geometry")
     path_cmd.set_defaults(func=compute_path)
@@ -422,7 +440,7 @@ def main():
     mesh_cmd.add_argument("--use-way", action="store_true", default=False, help="Use ways for computing mesh components")
     mesh_cmd.add_argument("--attribute" , metavar='NAME', required=True  , default=None, 
             help="Specify attribute name for mesh structure")
-    mesh_cmd.add_argument("--percentile", metavar='NUMBER', default=5, type=int, 
+    mesh_cmd.add_argument("--percentile", metavar='NUMBER', default=5, type=range_type, 
             help="The percentile for computing the mesh structure")
     mesh_cmd.add_argument("--name"  , metavar='NAME', default=None, help="Name of the table to store the mesh geometry")
     mesh_cmd.add_argument("--output", metavar='path', default=None, help="Path to output shapefile")
@@ -434,7 +452,7 @@ def main():
     hrz_cmd.add_argument("--dbname", metavar='PATH', help="Database")
     hrz_cmd.add_argument("--output", metavar='PATH' , default=None, help="Output destination")
     hrz_cmd.add_argument("--attribute" , metavar='NAME'    , required=True, help="Attribute name")
-    hrz_cmd.add_argument("--percentile", metavar='PERCENT' , type=size_type, default=5, help="Percentile of features selected")
+    hrz_cmd.add_argument("--percentile", metavar='PERCENT' , type=range_type, default=5, help="Percentile of features selected")
     hrz_cmd.add_argument("--plot"      , metavar='PATH'    , default=None, help="Complete path to save image to")
     hrz_cmd.add_argument("--bins"      , metavar='NUM'     , default=20, type=int, help="Number of bins in histogram")
     hrz_cmd.add_argument("--color"     , metavar='NAME'    , default='blue',help="Histogram color")

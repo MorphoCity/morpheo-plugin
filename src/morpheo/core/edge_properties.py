@@ -254,5 +254,32 @@ def compute_use(G):
     return stress_centrality(G, normalized=False)
 
 
+def computed_properties(conn, ways=False):
+    """ Return computed properties for edges or ways
+
+        :param ways: Boolean, if False return the computed
+                     properties
+    """
+    cur = conn.cursor()
+    table = 'ways' if ways else 'place_edges'
+    def check_property(prop):
+        [ok] = cur.execute(SQL("SELECT Count(*) FROM {table} WHERE {prop} NOT NULL",
+                               table=table,prop=prop))
+       
+        return prop if ok else None
+
+    props = [
+        'DEGREE',
+        'SPACING',
+        'ORTHOG',
+        'BETWEE',
+        'USE',
+        'RTOPO',
+        'ACCES'
+    ]
+    if ways: 
+        props.append('CONN')
+
+    return [p for p in props if check_property(p)]
 
 

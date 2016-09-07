@@ -17,7 +17,7 @@ def create_indexed_table_from_attribute( cur, name, table, attribute, percentile
                            ordered in decreasing order of attribute value
 
     """
-    assert 1<= percentile <= 100
+    assert 0 <= percentile <= 100
     [total] = cur.execute(SQL("SELECT Count(*) FROM {table} WHERE {attribute} NOT NULL",
                               table=table,attribute=attribute)).fetchone()
     if total == 0:
