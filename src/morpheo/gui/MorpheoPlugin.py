@@ -186,7 +186,6 @@ class MorpheoPlugin:
         # Connect compute
         self.computeRow = 0
         self.dlg.mAlgosListWidget.setCurrentRow(self.computeRow)
-        self.init_log_handler()
         self.dlg.buttonBox.accepted.connect(self.accept)
 
         # add to processing
@@ -512,14 +511,10 @@ class MorpheoPlugin:
         """Run method that performs all the real work"""
         # populate layer comboboxes
         self.populateLayerComboboxes()
-        # show the dialog
-        self.dlg.show()
-        # Run the dialog event loop
-        result = self.dlg.exec_()
-        # See if OK was pressed
-        if result:
-            # Do something useful here - delete the line containing pass and
-            # substitute with your code.
-            self.dlg.mAlgosListWidget.setCurrentIndex(6)
-            QMessageBox.warning(self.dlg, 'Morpheo warning', self.tr('Final Morpheo directory is incomplete'))
-            pass
+        if not self.dlg.isVisible():
+            # show the dialog
+            self.dlg.show()
+            self.init_log_handler()
+            # Run the dialog event loop
+            result = self.dlg.exec_()
+            init_log_custom_hooks()
