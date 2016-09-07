@@ -178,7 +178,9 @@ class MorpheoBuildAlgorithm(GeoAlgorithm):
         self.addParameter(
             ParameterNumber(self.CLASSES, 'Number of classes', 2, 99, 10))
 
-        self.addOutput(OutputString(self.OUTPUT_DBPATH, 'Database path'))
+        outputDBPath = OutputString(self.OUTPUT_DBPATH, 'Database path')
+        outputDBPath.hidden = True
+        self.addOutput(outputDBPath)
 
     def checkBeforeOpeningParametersDialog(self):
         return None
@@ -281,7 +283,9 @@ class MorpheoWayAttributesAlgorithm(GeoAlgorithm):
         self.addParameter(
             ParameterNumber(self.CLASSES, 'Number of classes', 2, 99, 10))
 
-        self.addOutput(OutputString(self.OUTPUT_DBPATH, 'Database path'))
+        outputDBPath = OutputString(self.OUTPUT_DBPATH, 'Database path')
+        outputDBPath.hidden = True
+        self.addOutput(outputDBPath)
 
     def checkBeforeOpeningParametersDialog(self):
         return None
@@ -356,7 +360,9 @@ class MorpheoEdgeAttributesAlgorithm(GeoAlgorithm):
         self.addParameter(
             ParameterNumber(self.CLASSES, 'Number of classes', 2, 99, 10))
 
-        self.addOutput(OutputString(self.OUTPUT_DBPATH, 'Database path'))
+        outputDBPath = OutputString(self.OUTPUT_DBPATH, 'Database path')
+        outputDBPath.hidden = True
+        self.addOutput(outputDBPath)
 
     def checkBeforeOpeningParametersDialog(self):
         return None
@@ -413,7 +419,9 @@ class MorpheoEdgesGraphAlgorithm(GeoAlgorithm):
         self.addParameter(ParameterFile(self.DBPATH, 'Morpheo database path',
                           isFolder=False, optional=False, ext='sqlite'))
 
-        self.addOutput(OutputString(self.OUTPUT_DBPATH, 'Database path'))
+        outputDBPath = OutputString(self.OUTPUT_DBPATH, 'Database path')
+        outputDBPath.hidden = True
+        self.addOutput(outputDBPath)
 
     def checkBeforeOpeningParametersDialog(self):
         return None
@@ -461,7 +469,9 @@ class MorpheoWaysGraphAlgorithm(GeoAlgorithm):
         self.addParameter(ParameterFile(self.DBPATH, 'Morpheo database path',
                           isFolder=False, optional=False, ext='sqlite'))
 
-        self.addOutput(OutputString(self.OUTPUT_DBPATH, 'Database path'))
+        outputDBPath = OutputString(self.OUTPUT_DBPATH, 'Database path')
+        outputDBPath.hidden = True
+        self.addOutput(outputDBPath)
 
     def checkBeforeOpeningParametersDialog(self):
         return None
@@ -527,7 +537,9 @@ class MorpheoStructuralDiffAlgorithm(GeoAlgorithm):
         self.addParameter(
             ParameterNumber(self.TOLERANCE, 'Tolerance value', 0., 99.99, 1.))
 
-        self.addOutput(OutputString(self.OUTPUT_DBPATH, 'Structural difference database path'))
+        outputDBPath = OutputString(self.OUTPUT_DBPATH, 'Structural difference database path')
+        outputDBPath.hidden = True
+        self.addOutput(outputDBPath)
 
     def checkBeforeOpeningParametersDialog(self):
         return None
@@ -690,7 +702,9 @@ class MorpheoHorizonAlgorithm(GeoAlgorithm):
         self.addParameter(
             ParameterNumber(self.PLOT_HEIGHT, 'Height of image histogram', 10, 2000, 300))
 
-        self.addOutput(OutputFile(self.PLOT, 'Path to save image to', ext='png'))
+        plot = OutputFile(self.PLOT, 'Path to save image to', ext='png')
+        plot.hidden = True
+        self.addOutput(plot)
 
     def checkBeforeOpeningParametersDialog(self):
         return None
@@ -718,4 +732,5 @@ class MorpheoHorizonAlgorithm(GeoAlgorithm):
                            color=self.getParameterValue(self.PLOT_COLOR),
                            size=(self.getParameterValue(self.PLOT_WIDTH), self.getParameterValue(self.PLOT_HEIGHT)))
 
+        self.setOutputValue(self.PLOT, os.path.join(output, dbname, '%s_%s_%s.png' % (attribute, percentile, dbname)))
 
