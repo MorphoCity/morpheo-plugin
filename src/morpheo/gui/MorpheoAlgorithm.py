@@ -523,10 +523,10 @@ class MorpheoStructuralDiffAlgorithm(GeoAlgorithm):
         self.group = 'Compute'
 
         self.addParameter(ParameterFile(self.DBPATH1, 'Initial Morpheo directory',
-                          isFolder=True, optional=False))
+                          isFolder=False, optional=False, ext='sqlite'))
 
         self.addParameter(ParameterFile(self.DBPATH2, 'Final Morpheo directory',
-                          isFolder=True, optional=False))
+                          isFolder=False, optional=False, ext='sqlite'))
 
         self.addParameter(ParameterFile(self.DIRECTORY, 'Output directory to store database and data',
                           isFolder=True))
@@ -554,18 +554,22 @@ class MorpheoStructuralDiffAlgorithm(GeoAlgorithm):
             gpickle = os.path.join(path,'way_graph_%s.gpickle' % basename)
             return os.path.isfile(shp) and os.path.isfile(gpickle)
 
-        dbpath1    = self.getParameterValue(self.DBPATH1)
-        if not check_dbpath(dbpath1):
+        dbpath1   = self.getParameterValue(self.DBPATH1)
+        dirname1  = os.path.dirname(dbpath1)
+        dbname1   = os.path.basename(dbpath1).replace('.sqlite','')
+        if not check_dbpath(os.path.join(dirname1, dbname1)):
             log_error('Initial Morpheo directory is incomplete')
 
         dbpath2    = self.getParameterValue(self.DBPATH2)
-        if not check_dbpath(dbpath1):
+        dirname2  = os.path.dirname(dbpath2)
+        dbname2   = os.path.basename(dbpath2).replace('.sqlite','')
+        if not check_dbpath(os.path.join(dirname2, dbname2)):
             log_error('Final Morpheo directory is incomplete')
 
         output    = self.getParameterValue(self.DIRECTORY) or tempFolder()
-        dbname    = self.getParameterValue(self.DBNAME) or 'morpheo_%s_%s' % (os.path.basename(dbpath1), os.path.basename(dbpath2))
+        dbname    = self.getParameterValue(self.DBNAME) or 'morpheo_%s_%s' % (dbname1, dbname2)
 
-        structural_diff( dbpath1, dbpath2,
+        structural_diff( os.path.join(dirname1, dbname1), os.path.join(dirname2, dbname2),
                          output=os.path.join(output, dbname),
                          buffersize=self.getParameterValue(self.TOLERANCE))
 

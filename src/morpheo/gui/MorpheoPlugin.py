@@ -177,8 +177,8 @@ class MorpheoPlugin:
         self.connectFileSelectionPanel(self.dlg.letWaysBuilderDirectoryPath, self.dlg.pbnWaysBuilderDirectoryPath, True)
         self.connectFileSelectionPanel(self.dlg.letWayAttributesDBPath, self.dlg.pbnWayAttributesDBPath, False, 'sqlite')
         self.connectFileSelectionPanel(self.dlg.letHorizonDBPath, self.dlg.pbnHorizonDBPath, False, 'sqlite')
-        self.connectFileSelectionPanel(self.dlg.letStructuralDiffDBPath1, self.dlg.pbnStructuralDiffDBPath1, True)
-        self.connectFileSelectionPanel(self.dlg.letStructuralDiffDBPath2, self.dlg.pbnStructuralDiffDBPath2, True)
+        self.connectFileSelectionPanel(self.dlg.letStructuralDiffDBPath1, self.dlg.pbnStructuralDiffDBPath1, False, 'sqlite')
+        self.connectFileSelectionPanel(self.dlg.letStructuralDiffDBPath2, self.dlg.pbnStructuralDiffDBPath2, False, 'sqlite')
         self.connectFileSelectionPanel(self.dlg.letStructuralDiffDirectoryPath, self.dlg.pbnStructuralDiffDirectoryPath, True)
 
         # Initialize attribute list
@@ -429,24 +429,28 @@ class MorpheoPlugin:
             return os.path.isfile(shp) and os.path.isfile(gpickle)
 
         dbpath1    = self.dlg.letStructuralDiffDBPath1.text()
-        if not check_dbpath(dbpath1):
+        dirname1  = os.path.dirname(dbpath1)
+        dbname1   = os.path.basename(dbpath1).replace('.sqlite','')
+        if not check_dbpath(os.path.join(dirname1, dbname1)):
             self.setError(self.tr('Initial Morpheo directory is incomplete'))
             return
 
         dbpath2    = self.dlg.letStructuralDiffDBPath2.text()
-        if not check_dbpath(dbpath2):
+        dirname2  = os.path.dirname(dbpath2)
+        dbname2   = os.path.basename(dbpath2).replace('.sqlite','')
+        if not check_dbpath(os.path.join(dirname2, dbname2)):
             self.setError(self.tr('Final Morpheo directory is incomplete'))
             return
 
 
         output    = self.dlg.letStructuralDiffDirectoryPath.text() or tempFolder()
-        dbname    = self.dlg.letStructuralDiffDBName.text() or 'morpheo_%s_%s' % (os.path.basename(dbpath1), os.path.basename(dbpath2))
+        dbname    = self.dlg.letStructuralDiffDBName.text() or 'morpheo_%s_%s' % (dbname1, dbname2)
 
         if not os.path.exists(os.path.join(output, dbname)):
             os.mkdir(os.path.join(output, dbname))
 
 
-        structural_diff( dbpath1, dbpath2,
+        structural_diff( os.path.join(dirname1, dbname1), os.path.join(dirname2, dbname2),
                          output=os.path.join(output, dbname),
                          buffersize=self.dlg.spxStructuralDiffTolerance.value())
 
