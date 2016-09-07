@@ -58,6 +58,8 @@ from ..core.structdiff import structural_diff
 from ..core import horizon as hrz
 from ..core.ways import read_ways_graph
 from ..core.sql  import connect_database
+from ..core.layers  import export_shapefile
+from ..core import mesh
 
 Builder = SpatialiteBuilder
 
@@ -561,6 +563,79 @@ class MorpheoStructuralDiffAlgorithm(GeoAlgorithm):
         self.setOutputValue(self.OUTPUT_DBPATH, os.path.join(output, dbname)+'.sqlite')
 
 
+class MorpheoMeshAlgorithm(GeoAlgorithm):
+
+    DBPATH = 'DBPATH'
+    WAY_LAYER = 'WAY_LAYER'
+    WAY_ATTRIBUTE = 'WAY_ATTRIBUTE'
+    PERCENTILE = 'PERCENTILE'
+    USE_WAY = 'USE_WAY'
+
+    def __init__(self):
+        GeoAlgorithm.__init__(self)
+        print "loading morpheo mesh algo at ", time.strftime("%H:%M:%S")
+
+    def getIcon(self):
+        return QIcon(os.path.join(os.path.dirname(__file__),'..','morpheo.png'))
+
+    def helpFile(self):
+        return None
+
+    def commandLineName(self):
+        return 'morpheo:mesh'
+
+    def defineCharacteristics(self):
+        self.name = 'Compute mesh'
+        self.group = 'Compute'
+
+        self.addParameter(ParameterFile(self.DBPATH, 'Morpheo database path',
+                          isFolder=False, optional=False, ext='sqlite'))
+
+        self.addParameter(ParameterVector(self.WAY_LAYER, 'Ways layer',
+                          [ParameterVector.VECTOR_TYPE_LINE]))
+
+        self.addParameter(ParameterTableField(self.WAY_ATTRIBUTE,
+            'Attribute for mesh structure', self.WAY_LAYER, ParameterTableField.DATA_TYPE_NUMBER, True))
+
+        self.addParameter(
+            ParameterNumber(self.PERCENTILE, 'The percentile for computing the mesh structure', 1, 99, 5))
+
+        self.addParameter(ParameterBoolean(self.USE_WAY, 'Use ways for computing mesh components', False))
+
+    def checkBeforeOpeningParametersDialog(self):
+        return None
+
+    def processAlgorithm(self, progress):
+        """ Compute mesh
+        """
+        dbpath    = self.getParameterValue(self.DBPATH)
+        if not os.path.isfile( dbpath ):
+            log_error('Morpheo database path not found')
+
+        output    = os.path.dirname(dbpath)
+        dbname    = os.path.basename(dbpath).replace('.sqlite','')
+
+        attribute = self.getParameterValue(self.WAY_ATTRIBUTE)
+        percentile = self.getParameterValue(self.PERCENTILE)
+
+        use_way = self.getParameterValue(self.USE_WAY)
+
+        conn = connect_database(dbpath)
+        name = 'mesh_%s_%s_%s' % (use_way and 'way' or 'edge', attribute, percentile)
+
+        if use_way:
+            mesh_fun = mesh.create_indexed_table_from_way_attribute
+        else:
+            mesh_fun = mesh.create_indexed_table_from_edge_attribute
+
+        mesh_fun(conn, name, attribute, percentile)
+
+        export_shapefile(dbpath, name, os.path.join(output, dbname))
+
+        # Visualize data
+        add_vector_layer( os.path.join(output, dbname)+'.sqlite', name, "%s_%s" % (name,dbname))
+
+
 class MorpheoHorizonAlgorithm(GeoAlgorithm):
 
     DBPATH = 'DBPATH'
@@ -601,7 +676,7 @@ class MorpheoHorizonAlgorithm(GeoAlgorithm):
                           [ParameterVector.VECTOR_TYPE_LINE]))
 
         self.addParameter(ParameterTableField(self.WAY_ATTRIBUTE,
-            'Attribute for building street ways', self.WAY_LAYER, ParameterTableField.DATA_TYPE_NUMBER, True))
+            'Attribute for building horizon', self.WAY_LAYER, ParameterTableField.DATA_TYPE_NUMBER, True))
 
         self.addParameter(
             ParameterNumber(self.PERCENTILE, 'Percentile of features', 1, 99, 5))
@@ -638,7 +713,7 @@ class MorpheoHorizonAlgorithm(GeoAlgorithm):
         data = hrz.horizon_from_attribute(conn, G, attribute, percentile,
                                           output=os.path.join(output, dbname, '%s_%s_%s.txt' % (attribute, percentile, dbname)))
 
-        hrz.plot_histogram(data, self.getOutputValue(self.PLOT),
+        hrz.plot_histogram(data, os.path.join(output, dbname, '%s_%s_%s.png' % (attribute, percentile, dbname)),
                            bins=self.getParameterValue(self.PLOT_BINS),
                            color=self.getParameterValue(self.PLOT_COLOR),
                            size=(self.getParameterValue(self.PLOT_WIDTH), self.getParameterValue(self.PLOT_HEIGHT)))

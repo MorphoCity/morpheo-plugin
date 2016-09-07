@@ -38,6 +38,7 @@ from MorpheoAlgorithm import \
         MorpheoEdgesGraphAlgorithm, \
         MorpheoWaysGraphAlgorithm, \
         MorpheoStructuralDiffAlgorithm, \
+        MorpheoMeshAlgorithm, \
         MorpheoHorizonAlgorithm
 
 class MorpheoAlgorithmProvider(AlgorithmProvider):
@@ -69,6 +70,7 @@ class MorpheoAlgorithmProvider(AlgorithmProvider):
             self.algs.append(MorpheoEdgesGraphAlgorithm())
             self.algs.append(MorpheoWaysGraphAlgorithm())
             self.algs.append(MorpheoStructuralDiffAlgorithm())
+            self.algs.append(MorpheoMeshAlgorithm())
             self.algs.append(MorpheoHorizonAlgorithm())
         except Exception, e:
             print "error: unable to load morpheo algo because ", e
