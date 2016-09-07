@@ -163,6 +163,9 @@ class MorpheoPlugin:
             callback=self.run,
             parent=self.iface.mainWindow())
 
+        # Rename OK button to Run
+        self.buttonBox.button(QDialogButtonBox.Ok).setText(self.tr('Run'))
+
         # connect group toggle
         self.dlg.grpWaysBuilderStreetName.setChecked(False)
         self.dlg.grpWaysBuilderGeomProps.toggled.connect(self.grpWaysBuilderGeomPropsToggled)
