@@ -315,6 +315,8 @@ class Sanitizer(object):
             # Merge all touching segments joined with nodes of DEGREE=2
             from .angles import create_partition, update, resolve
             [max_lines] = cur.execute("SELECT Max(OGC_FID) FROM split_lines").fetchone()      
+            if max_lines is None:
+                raise BuilderError("No elements in table split_lines: check your input is valid !") 
             part = create_partition(max_lines+1) 
             cur.execute(SQL("SELECT OGC_FID FROM crossing_points WHERE DEGREE = 2"))
             for [pid] in cur.fetchall():
@@ -408,8 +410,8 @@ class Sanitizer(object):
         # Sanity check ?
         cur.execute(SQL("SELECT COUNT(1) FROM split_lines WHERE END_VTX IS NULL OR START_VTX IS NULL"))
         [bug] = cur.fetchone()
-        #if bug: 
-        #    raise BuilderError("Graph build error: NULL vertices in 'merge_lines'") 
+        if bug: 
+            raise BuilderError("Graph build error: NULL vertices in 'merge_lines'") 
 
     def _5_remove_small_edges(self, cur, min_edge_length):
         """ Remove small egdes and merge extremities
