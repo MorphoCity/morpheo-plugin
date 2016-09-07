@@ -12,7 +12,6 @@ from processing.core.Processing import Processing
 from processing.core.parameters import ParameterTableField
 from processing.tools.system import tempFolder
 
-from math import pi
 from ..core.errors import BuilderError
 from ..core.graph_builder import SpatialiteBuilder
 from ..core.structdiff import structural_diff
@@ -25,6 +24,8 @@ Builder = SpatialiteBuilder
 
 import os.path
 import locale, time
+from math import pi
+from datetime import datetime
 
 class MorpheoPlugin:
     """QGIS Plugin Implementation."""
@@ -544,11 +545,13 @@ class MorpheoPlugin:
         self.dlg.mAlgosListWidget.setEnabled(False)
         self.dlg.progressBar.setMaximum(0)
         self.dlg.lblProgress.setText(self.tr('Start'))
+        self.dlg.txtLog.append('======== %s %s ========' % (self.tr('Start'), datetime.now()))
 
     def finish(self):
         self.dlg.progressBar.setValue(0)
         self.dlg.progressBar.setMaximum(100)
         self.dlg.lblProgress.setText(self.tr(''))
+        self.dlg.txtLog.append('======== %s %s ========' % (self.tr('Finish'), datetime.now()))
         self.dlg.mAlgosListWidget.setEnabled(True)
         self.dlg.mAlgosListWidget.setCurrentRow(self.computeRow)
 
