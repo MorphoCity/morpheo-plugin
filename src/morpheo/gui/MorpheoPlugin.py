@@ -406,7 +406,6 @@ class MorpheoPlugin:
                                           output=os.path.join(output, dbname, '%s_%s_%s.txt' % (attribute, percentile, dbname)))
         hrz.plot_histogram(data, os.path.join(output, dbname, '%s_%s_%s.png' % (attribute, percentile, dbname)),
                            bins=self.dlg.spxHorizonPlotBins.value(),
-                           color=self.dlg.letHorizonPlotColor.text() or 'blue',
                            size=(self.dlg.spxHorizonPlotWidth.value(), self.dlg.spxHorizonPlotHeight.value()))
 
         imgDlg = QDialog(self.dlg)

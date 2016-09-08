@@ -151,7 +151,7 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>437</width>
+                <width>412</width>
                 <height>455</height>
                </rect>
               </property>
@@ -233,6 +233,30 @@
                     </property>
                    </widget>
                   </item>
+                  <item row="3" column="0">
+                   <widget class="QLabel" name="lWaysBuilderBuffer">
+                    <property name="text">
+                     <string>Buffer</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="3" column="1">
+                   <widget class="QDoubleSpinBox" name="spxWaysBuilderBuffer">
+                    <property name="value">
+                     <double>4.000000000000000</double>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="4" column="0">
+                   <widget class="QLabel" name="lWaysBuilderPlacesLayer">
+                    <property name="text">
+                     <string>Places layer</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="4" column="1">
+                   <widget class="QComboBox" name="cbxWaysBuilderPlacesLayer"/>
+                  </item>
                  </layout>
                 </widget>
                </item>
@@ -294,9 +318,6 @@
                   <bool>true</bool>
                  </property>
                  <layout class="QGridLayout" name="gridLayout_3">
-                  <item row="2" column="1">
-                   <widget class="QComboBox" name="cbxWaysBuilderPlacesLayer"/>
-                  </item>
                   <item row="0" column="1">
                    <widget class="QDoubleSpinBox" name="spxWaysBuilderThreshold">
                     <property name="singleStep">
@@ -304,13 +325,6 @@
                     </property>
                     <property name="value">
                      <double>30.000000000000000</double>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="1" column="1">
-                   <widget class="QDoubleSpinBox" name="spxWaysBuilderBuffer">
-                    <property name="value">
-                     <double>4.000000000000000</double>
                     </property>
                    </widget>
                   </item>
@@ -324,20 +338,6 @@
                     </property>
                     <property name="text">
                      <string>Threshold</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="1" column="0">
-                   <widget class="QLabel" name="lWaysBuilderBuffer">
-                    <property name="text">
-                     <string>Buffer</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="2" column="0">
-                   <widget class="QLabel" name="lWaysBuilderPlacesLayer">
-                    <property name="text">
-                     <string>Places layer</string>
                     </property>
                    </widget>
                   </item>
@@ -420,7 +420,7 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>453</width>
+                <width>428</width>
                 <height>397</height>
                </rect>
               </property>
@@ -613,8 +613,8 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>453</width>
-                <height>314</height>
+                <width>428</width>
+                <height>281</height>
                </rect>
               </property>
               <property name="sizePolicy">
@@ -697,9 +697,6 @@
                     </property>
                    </widget>
                   </item>
-                  <item row="5" column="1">
-                   <widget class="QLineEdit" name="letHorizonPlotColor"/>
-                  </item>
                   <item row="2" column="0">
                    <widget class="QLabel" name="lHorizonWayAttribute">
                     <property name="text">
@@ -707,7 +704,7 @@
                     </property>
                    </widget>
                   </item>
-                  <item row="6" column="1">
+                  <item row="5" column="1">
                    <widget class="QSpinBox" name="spxHorizonPlotWidth">
                     <property name="minimum">
                      <number>10</number>
@@ -723,7 +720,7 @@
                     </property>
                    </widget>
                   </item>
-                  <item row="7" column="1">
+                  <item row="6" column="1">
                    <widget class="QSpinBox" name="spxHorizonPlotHeight">
                     <property name="minimum">
                      <number>10</number>
@@ -747,20 +744,13 @@
                    </widget>
                   </item>
                   <item row="5" column="0">
-                   <widget class="QLabel" name="lHorizonPlotColor">
-                    <property name="text">
-                     <string>Color</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="6" column="0">
                    <widget class="QLabel" name="lHorizonPlotWidth">
                     <property name="text">
                      <string>Width img.</string>
                     </property>
                    </widget>
                   </item>
-                  <item row="7" column="0">
+                  <item row="6" column="0">
                    <widget class="QLabel" name="lHorizonPlotHeight">
                     <property name="text">
                      <string>Height img.</string>
@@ -788,7 +778,7 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>453</width>
+                <width>428</width>
                 <height>255</height>
                </rect>
               </property>
@@ -971,12 +961,12 @@
   <tabstop>cbxWaysBuilderInputLayer</tabstop>
   <tabstop>spxWaysBuilderSnapDist</tabstop>
   <tabstop>spxWaysBuilderMinEdgeLength</tabstop>
+  <tabstop>spxWaysBuilderBuffer</tabstop>
+  <tabstop>cbxWaysBuilderPlacesLayer</tabstop>
   <tabstop>grpWaysBuilderStreetName</tabstop>
   <tabstop>cbxWaysBuilderWayAttribute</tabstop>
   <tabstop>grpWaysBuilderGeomProps</tabstop>
   <tabstop>spxWaysBuilderThreshold</tabstop>
-  <tabstop>spxWaysBuilderBuffer</tabstop>
-  <tabstop>cbxWaysBuilderPlacesLayer</tabstop>
   <tabstop>letWaysBuilderDirectoryPath</tabstop>
   <tabstop>pbnWaysBuilderDirectoryPath</tabstop>
   <tabstop>letWaysBuilderDBName</tabstop>
@@ -991,13 +981,12 @@
   <tabstop>cbxWayAttributesStress</tabstop>
   <tabstop>spxWayAttributesClasses</tabstop>
   <tabstop>scrollArea_4</tabstop>
-  <tabstop>cbxHorizonWayAttribute</tabstop>
   <tabstop>letHorizonDBPath</tabstop>
   <tabstop>pbnHorizonDBPath</tabstop>
   <tabstop>cbxHorizonWayLayer</tabstop>
+  <tabstop>cbxHorizonWayAttribute</tabstop>
   <tabstop>spxHorizonPercentile</tabstop>
   <tabstop>spxHorizonPlotBins</tabstop>
-  <tabstop>letHorizonPlotColor</tabstop>
   <tabstop>spxHorizonPlotWidth</tabstop>
   <tabstop>spxHorizonPlotHeight</tabstop>
   <tabstop>scrollArea_3</tabstop>
@@ -1005,9 +994,12 @@
   <tabstop>pbnStructuralDiffDBPath1</tabstop>
   <tabstop>letStructuralDiffDBPath2</tabstop>
   <tabstop>pbnStructuralDiffDBPath2</tabstop>
-  <tabstop>letStructuralDiffDBName</tabstop>
+  <tabstop>spxStructuralDiffTolerance</tabstop>
   <tabstop>letStructuralDiffDirectoryPath</tabstop>
   <tabstop>pbnStructuralDiffDirectoryPath</tabstop>
+  <tabstop>letStructuralDiffDBName</tabstop>
+  <tabstop>txtLog</tabstop>
+  <tabstop>buttonBox</tabstop>
  </tabstops>
  <resources/>
  <connections>
