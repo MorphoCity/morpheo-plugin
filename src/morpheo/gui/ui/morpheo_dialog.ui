@@ -614,7 +614,7 @@
                 <x>0</x>
                 <y>0</y>
                 <width>428</width>
-                <height>281</height>
+                <height>248</height>
                </rect>
               </property>
               <property name="sizePolicy">
@@ -636,7 +636,7 @@
                   <string>Plot an Horizon</string>
                  </property>
                  <layout class="QGridLayout" name="gridLayout_9">
-                  <item row="2" column="1">
+                  <item row="1" column="1">
                    <widget class="QComboBox" name="cbxHorizonWayAttribute"/>
                   </item>
                   <item row="0" column="1">
@@ -653,13 +653,6 @@
                     </item>
                    </layout>
                   </item>
-                  <item row="1" column="0">
-                   <widget class="QLabel" name="lHorizonWayLayer">
-                    <property name="text">
-                     <string>Way layer</string>
-                    </property>
-                   </widget>
-                  </item>
                   <item row="0" column="0">
                    <widget class="QLabel" name="lHorizonDBPath">
                     <property name="text">
@@ -667,17 +660,14 @@
                     </property>
                    </widget>
                   </item>
-                  <item row="1" column="1">
-                   <widget class="QComboBox" name="cbxHorizonWayLayer"/>
-                  </item>
-                  <item row="3" column="0">
+                  <item row="2" column="0">
                    <widget class="QLabel" name="lHorizonPercentile">
                     <property name="text">
                      <string>Percentile</string>
                     </property>
                    </widget>
                   </item>
-                  <item row="3" column="1">
+                  <item row="2" column="1">
                    <widget class="QSpinBox" name="spxHorizonPercentile">
                     <property name="minimum">
                      <number>1</number>
@@ -687,7 +677,7 @@
                     </property>
                    </widget>
                   </item>
-                  <item row="4" column="1">
+                  <item row="3" column="1">
                    <widget class="QSpinBox" name="spxHorizonPlotBins">
                     <property name="minimum">
                      <number>2</number>
@@ -697,14 +687,14 @@
                     </property>
                    </widget>
                   </item>
-                  <item row="2" column="0">
+                  <item row="1" column="0">
                    <widget class="QLabel" name="lHorizonWayAttribute">
                     <property name="text">
                      <string>Attribute</string>
                     </property>
                    </widget>
                   </item>
-                  <item row="5" column="1">
+                  <item row="4" column="1">
                    <widget class="QSpinBox" name="spxHorizonPlotWidth">
                     <property name="minimum">
                      <number>10</number>
@@ -720,7 +710,7 @@
                     </property>
                    </widget>
                   </item>
-                  <item row="6" column="1">
+                  <item row="5" column="1">
                    <widget class="QSpinBox" name="spxHorizonPlotHeight">
                     <property name="minimum">
                      <number>10</number>
@@ -736,21 +726,21 @@
                     </property>
                    </widget>
                   </item>
-                  <item row="4" column="0">
+                  <item row="3" column="0">
                    <widget class="QLabel" name="lHorizonPlotBins">
                     <property name="text">
                      <string>Bins</string>
                     </property>
                    </widget>
                   </item>
-                  <item row="5" column="0">
+                  <item row="4" column="0">
                    <widget class="QLabel" name="lHorizonPlotWidth">
                     <property name="text">
                      <string>Width img.</string>
                     </property>
                    </widget>
                   </item>
-                  <item row="6" column="0">
+                  <item row="5" column="0">
                    <widget class="QLabel" name="lHorizonPlotHeight">
                     <property name="text">
                      <string>Height img.</string>
@@ -983,7 +973,6 @@
   <tabstop>scrollArea_4</tabstop>
   <tabstop>letHorizonDBPath</tabstop>
   <tabstop>pbnHorizonDBPath</tabstop>
-  <tabstop>cbxHorizonWayLayer</tabstop>
   <tabstop>cbxHorizonWayAttribute</tabstop>
   <tabstop>spxHorizonPercentile</tabstop>
   <tabstop>spxHorizonPlotBins</tabstop>

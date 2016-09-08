@@ -18,6 +18,7 @@ from ..core.structdiff import structural_diff
 from ..core import horizon as hrz
 from ..core.ways import read_ways_graph
 from ..core.sql  import connect_database
+from ..core.edge_properties import computed_properties
 from logger import init_log_custom_hooks
 
 Builder = SpatialiteBuilder
@@ -183,7 +184,10 @@ class MorpheoPlugin:
 
         # Initialize attribute list
         self.connectComboboxLayerAttribute(self.dlg.cbxWaysBuilderWayAttribute, self.dlg.cbxWaysBuilderInputLayer, ParameterTableField.DATA_TYPE_STRING)
-        self.connectComboboxLayerAttribute(self.dlg.cbxHorizonWayAttribute, self.dlg.cbxHorizonWayLayer, ParameterTableField.DATA_TYPE_NUMBER)
+        #self.connectComboboxLayerAttribute(self.dlg.cbxHorizonWayAttribute, self.dlg.cbxHorizonWayLayer, ParameterTableField.DATA_TYPE_NUMBER)
+
+        # Connect db path and properties list
+        self.connectDBPathWithAttribute(self.dlg.letHorizonDBPath, self.dlg.cbxHorizonWayAttribute)
 
         # Connect compute attributes on
         self.dlg.cbxWayAttributesComputeOn.currentIndexChanged.connect(self.cbxWayAttributesComputeOnCurrentIndexChanged)
@@ -243,6 +247,21 @@ class MorpheoPlugin:
 
         btnSelect.clicked.connect(showSelectionDialog)
 
+    def connectDBPathWithAttribute(self, dbpathLet ,attributeCbx):
+
+        def updateAttributeCombobox(txt):
+            """update"""
+            attributeCbx.clear()
+            dbpath = dbpathLet.text()
+            try:
+                conn = connect_database(dbpath)
+                for fieldName in computed_properties(conn, True):
+                    attributeCbx.addItem(fieldName)
+            except Exception, e:
+                pass
+
+        dbpathLet.textChanged.connect(updateAttributeCombobox)
+
 
     def getFields(self, layer, datatype):
         fieldTypes = []
@@ -275,7 +294,7 @@ class MorpheoPlugin:
         """Populate all layer comboboxes"""
         # clear comboboxes
         self.dlg.cbxWaysBuilderInputLayer.clear()
-        self.dlg.cbxHorizonWayLayer.clear()
+        #self.dlg.cbxHorizonWayLayer.clear()
         self.dlg.cbxWaysBuilderPlacesLayer.clear()
         self.dlg.cbxWaysBuilderPlacesLayer.addItem(self.tr('No layer'), '')
         # add items to comboboxes
@@ -284,7 +303,7 @@ class MorpheoPlugin:
         for l in layers:
             if l.geometryType() == QGis.Line:
                 self.dlg.cbxWaysBuilderInputLayer.addItem(l.name(), l.id())
-                self.dlg.cbxHorizonWayLayer.addItem(l.name(), l.id())
+                #self.dlg.cbxHorizonWayLayer.addItem(l.name(), l.id())
             elif l.geometryType() == QGis.Polygon:
                 self.dlg.cbxWaysBuilderPlacesLayer.addItem(l.name(), l.id())
 
