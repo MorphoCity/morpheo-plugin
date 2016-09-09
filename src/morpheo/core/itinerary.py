@@ -45,7 +45,7 @@ def get_closest_feature( cur, table, radius, x, y, srid=None ):
                 ORDER BY ST_Distance(t.GEOMETRY, p.GEOMETRY) LIMIT 1
         """, table=table,srid=srid,x=x,y=y,radius=radius)).fetchone()
 
-        if len(result) == 0:
+        if not result or len(result) == 0:
             raise ErrorInvalidFeature("No feature at {},{},radius={}".format(x,y,radius))
 
         return result[0]
