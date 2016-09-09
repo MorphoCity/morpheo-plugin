@@ -177,8 +177,9 @@ class MorpheoPlugin:
 
         # connect group toggle
         self.dlg.grpWaysBuilderStreetName.setChecked(False)
-        self.dlg.grpWaysBuilderGeomProps.toggled.connect(self.grpWaysBuilderGeomPropsToggled)
-        self.dlg.grpWaysBuilderStreetName.toggled.connect(self.grpWaysBuilderStreetNameToggled)
+        self.connectMutuallyExclusiveGroup(self.dlg.grpWaysBuilderGeomProps, self.dlg.grpWaysBuilderStreetName)
+        self.dlg.grpHorizonGeo.setChecked(False)
+        self.connectMutuallyExclusiveGroup(self.dlg.grpHorizonAttribute, self.dlg.grpHorizonGeo)
 
         # Initialize field path selection
         self.connectFileSelectionPanel(self.dlg.letWaysBuilderDirectoryPath, self.dlg.pbnWaysBuilderDirectoryPath, True)
@@ -202,6 +203,7 @@ class MorpheoPlugin:
         # Connect point selection
         self.connectPointSelectionPanel(self.dlg.letPathStartPoint, self.dlg.pbnPathStartPoint)
         self.connectPointSelectionPanel(self.dlg.letPathEndPoint, self.dlg.pbnPathEndPoint)
+        self.connectPointSelectionPanel(self.dlg.letHorizonGeoPoint, self.dlg.pbnHorizonGeoPoint)
 
         # Deactivate path with attribute
         self.dlg.grpPathAttribute.setChecked(False)
@@ -219,18 +221,22 @@ class MorpheoPlugin:
         self.morpheoAlgoProvider = MorpheoAlgorithmProvider()
         Processing.addProvider(self.morpheoAlgoProvider, True)
 
-    def grpWaysBuilderGeomPropsToggled(self, toggle):
-        self.dlg.grpWaysBuilderStreetName.setChecked(not toggle)
-
-    def grpWaysBuilderStreetNameToggled(self, toggle):
-        self.dlg.grpWaysBuilderGeomProps.setChecked(not toggle)
-
     def cbxWayAttributesComputeOnCurrentIndexChanged(self, idx):
         if self.dlg.cbxWayAttributesComputeOn.currentText() == self.tr('Edges'):
             self.dlg.cbxWayAttributesRtopo.setChecked(False)
             self.dlg.cbxWayAttributesRtopo.setEnabled(False)
         else:
             self.dlg.cbxWayAttributesRtopo.setEnabled(True)
+
+    def connectMutuallyExclusiveGroup(self, grp1, grp2):
+        def grp1Toggled(toggle):
+            grp2.setChecked(not toggle)
+
+        def grp2Toggled(toggle):
+            grp1.setChecked(not toggle)
+
+        grp1.toggled.connect(grp1Toggled)
+        grp2.toggled.connect(grp2Toggled)
 
     def connectFileSelectionPanel(self, leText, btnSelect, isFolder, ext=None):
 
@@ -569,15 +575,35 @@ class MorpheoPlugin:
         output    = os.path.dirname(dbpath)
         dbname    = os.path.basename(dbpath).replace('.sqlite','')
 
-        attribute = self.dlg.cbxHorizonWayAttribute.currentText()
-        percentile = self.dlg.spxHorizonPercentile.value()
-
-
         conn = connect_database(dbpath)
         G    = read_ways_graph(os.path.join(output, dbname))
-        data = hrz.horizon_from_attribute(conn, G, attribute, percentile,
-                                          output=os.path.join(output, dbname, '%s_%s_%s.txt' % (attribute, percentile, dbname)))
-        hrz.plot_histogram(data, os.path.join(output, dbname, '%s_%s_%s.png' % (attribute, percentile, dbname)),
+
+        if self.dlg.grpHorizonAttribute.isChecked():
+
+            attribute = self.dlg.cbxHorizonWayAttribute.currentText()
+            percentile = self.dlg.spxHorizonPercentile.value()
+
+            data = hrz.horizon_from_attribute(conn, G, attribute, percentile,
+                                              output=os.path.join(output, dbname, '%s_%s_%s.txt' % (attribute, percentile, dbname)))
+            img_path = os.path.join(output, dbname, '%s_%s_%s.png' % (attribute, percentile, dbname))
+        else:
+
+            pt = self.dlg.letHorizonGeoPoint.text()
+            if len(pt.split(',')) != 2:
+                self.setError(self.tr('Invalid point!'))
+                return
+            pt = [ float(n) for n in pt.split(',') ]
+            radius = self.dlg.spxHorizonGeoRadius.value()
+            features = mesh.features_from_point_radius( conn.cursor(), 'ways', pt[0], pt[1], radius )
+            if len(features) == 0:
+                self.setError(self.tr('No ways found!'))
+                return
+
+            data = hrz.horizon_from_feature_list(G, features,
+                                                 output=os.path.join(output, dbname, '%s_%s_%s_%s.txt' % (pt[0], pt[1], radius, dbname)) )
+            img_path = os.path.join(output, dbname, '%s_%s_%s_%s.png' % (pt[0], pt[1], radius, dbname))
+
+        hrz.plot_histogram(data, img_path,
                            bins=self.dlg.spxHorizonPlotBins.value(),
                            size=(self.dlg.spxHorizonPlotWidth.value(), self.dlg.spxHorizonPlotHeight.value()))
 
@@ -585,7 +611,7 @@ class MorpheoPlugin:
         imgDlg.setLayout(QVBoxLayout())
         imgDlg.layout().setContentsMargins(0, 0, 0, 0)
         imgLabel = QLabel()
-        imgPixmap = QPixmap(os.path.join(output, dbname, '%s_%s_%s.png' % (attribute, percentile, dbname)))
+        imgPixmap = QPixmap(img_path)
         imgLabel.setPixmap(imgPixmap)
         imgDlg.layout().insertWidget(0, imgLabel)
         imgDlg.show()

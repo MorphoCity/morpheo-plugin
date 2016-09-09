@@ -426,7 +426,7 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>299</width>
+                <width>428</width>
                 <height>397</height>
                </rect>
               </property>
@@ -861,8 +861,8 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>278</width>
-                <height>248</height>
+                <width>412</width>
+                <height>424</height>
                </rect>
               </property>
               <property name="sizePolicy">
@@ -884,9 +884,6 @@
                   <string>Plot an Horizon</string>
                  </property>
                  <layout class="QGridLayout" name="gridLayout_9">
-                  <item row="1" column="1">
-                   <widget class="QComboBox" name="cbxHorizonWayAttribute"/>
-                  </item>
                   <item row="0" column="1">
                    <layout class="QHBoxLayout" name="horizontalLayout_11">
                     <item>
@@ -908,23 +905,6 @@
                     </property>
                    </widget>
                   </item>
-                  <item row="2" column="0">
-                   <widget class="QLabel" name="lHorizonPercentile">
-                    <property name="text">
-                     <string>Percentile</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="2" column="1">
-                   <widget class="QSpinBox" name="spxHorizonPercentile">
-                    <property name="minimum">
-                     <number>1</number>
-                    </property>
-                    <property name="value">
-                     <number>5</number>
-                    </property>
-                   </widget>
-                  </item>
                   <item row="3" column="1">
                    <widget class="QSpinBox" name="spxHorizonPlotBins">
                     <property name="minimum">
@@ -935,15 +915,145 @@
                     </property>
                    </widget>
                   </item>
-                  <item row="1" column="0">
+                  <item row="3" column="0">
+                   <widget class="QLabel" name="lHorizonPlotBins">
+                    <property name="text">
+                     <string>Bins</string>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </widget>
+               </item>
+               <item>
+                <widget class="QGroupBox" name="grpHorizonAttribute">
+                 <property name="sizePolicy">
+                  <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
+                   <horstretch>0</horstretch>
+                   <verstretch>0</verstretch>
+                  </sizepolicy>
+                 </property>
+                 <property name="title">
+                  <string>By attribute</string>
+                 </property>
+                 <property name="checkable">
+                  <bool>true</bool>
+                 </property>
+                 <layout class="QGridLayout" name="gridLayout_14">
+                  <item row="0" column="0">
                    <widget class="QLabel" name="lHorizonWayAttribute">
                     <property name="text">
                      <string>Attribute</string>
                     </property>
                    </widget>
                   </item>
-                  <item row="4" column="1">
+                  <item row="0" column="1">
+                   <widget class="QComboBox" name="cbxHorizonWayAttribute">
+                    <property name="sizePolicy">
+                     <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                      <horstretch>0</horstretch>
+                      <verstretch>0</verstretch>
+                     </sizepolicy>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="1" column="0">
+                   <widget class="QLabel" name="lHorizonPercentile">
+                    <property name="text">
+                     <string>Percentile</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="1" column="1">
+                   <widget class="QSpinBox" name="spxHorizonPercentile">
+                    <property name="minimum">
+                     <number>1</number>
+                    </property>
+                    <property name="value">
+                     <number>5</number>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </widget>
+               </item>
+               <item>
+                <widget class="QGroupBox" name="grpHorizonGeo">
+                 <property name="title">
+                  <string>By geolocation</string>
+                 </property>
+                 <property name="checkable">
+                  <bool>true</bool>
+                 </property>
+                 <layout class="QGridLayout" name="gridLayout_15">
+                  <item row="0" column="0">
+                   <widget class="QLabel" name="label">
+                    <property name="text">
+                     <string>Point</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="0" column="1">
+                   <layout class="QHBoxLayout" name="horizontalLayout_6">
+                    <item>
+                     <widget class="QLineEdit" name="letHorizonGeoPoint"/>
+                    </item>
+                    <item>
+                     <widget class="QPushButton" name="pbnHorizonGeoPoint">
+                      <property name="text">
+                       <string>pt</string>
+                      </property>
+                     </widget>
+                    </item>
+                   </layout>
+                  </item>
+                  <item row="1" column="1">
+                   <widget class="QDoubleSpinBox" name="spxHorizonGeoRadius">
+                    <property name="maximum">
+                     <double>99999.990000000005239</double>
+                    </property>
+                    <property name="value">
+                     <double>10.000000000000000</double>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="1" column="0">
+                   <widget class="QLabel" name="label_2">
+                    <property name="text">
+                     <string>Radius</string>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </widget>
+               </item>
+               <item>
+                <widget class="QGroupBox" name="grpHorizonImage">
+                 <property name="sizePolicy">
+                  <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
+                   <horstretch>0</horstretch>
+                   <verstretch>0</verstretch>
+                  </sizepolicy>
+                 </property>
+                 <property name="title">
+                  <string>Image</string>
+                 </property>
+                 <layout class="QGridLayout" name="gridLayout_13">
+                  <item row="0" column="0">
+                   <widget class="QLabel" name="lHorizonPlotWidth">
+                    <property name="text">
+                     <string>Width img.</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="0" column="1">
                    <widget class="QSpinBox" name="spxHorizonPlotWidth">
+                    <property name="sizePolicy">
+                     <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                      <horstretch>0</horstretch>
+                      <verstretch>0</verstretch>
+                     </sizepolicy>
+                    </property>
                     <property name="minimum">
                      <number>10</number>
                     </property>
@@ -958,8 +1068,14 @@
                     </property>
                    </widget>
                   </item>
-                  <item row="5" column="1">
+                  <item row="1" column="1">
                    <widget class="QSpinBox" name="spxHorizonPlotHeight">
+                    <property name="sizePolicy">
+                     <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                      <horstretch>0</horstretch>
+                      <verstretch>0</verstretch>
+                     </sizepolicy>
+                    </property>
                     <property name="minimum">
                      <number>10</number>
                     </property>
@@ -974,21 +1090,7 @@
                     </property>
                    </widget>
                   </item>
-                  <item row="3" column="0">
-                   <widget class="QLabel" name="lHorizonPlotBins">
-                    <property name="text">
-                     <string>Bins</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="4" column="0">
-                   <widget class="QLabel" name="lHorizonPlotWidth">
-                    <property name="text">
-                     <string>Width img.</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="5" column="0">
+                  <item row="1" column="0">
                    <widget class="QLabel" name="lHorizonPlotHeight">
                     <property name="text">
                      <string>Height img.</string>
@@ -1218,12 +1320,28 @@
   <tabstop>cbxWayAttributesCloseness</tabstop>
   <tabstop>cbxWayAttributesStress</tabstop>
   <tabstop>spxWayAttributesClasses</tabstop>
+  <tabstop>scrollArea_5</tabstop>
+  <tabstop>letPathDBPath</tabstop>
+  <tabstop>pbnPathDBPath</tabstop>
+  <tabstop>letPathStartPoint</tabstop>
+  <tabstop>pbnPathStartPoint</tabstop>
+  <tabstop>letPathEndPoint</tabstop>
+  <tabstop>pbnPathEndPoint</tabstop>
+  <tabstop>grpPathAttribute</tabstop>
+  <tabstop>cbxPathWayAttribute</tabstop>
+  <tabstop>spxPathPercentile</tabstop>
+  <tabstop>cbxPathType</tabstop>
   <tabstop>scrollArea_4</tabstop>
   <tabstop>letHorizonDBPath</tabstop>
   <tabstop>pbnHorizonDBPath</tabstop>
+  <tabstop>spxHorizonPlotBins</tabstop>
+  <tabstop>grpHorizonAttribute</tabstop>
   <tabstop>cbxHorizonWayAttribute</tabstop>
   <tabstop>spxHorizonPercentile</tabstop>
-  <tabstop>spxHorizonPlotBins</tabstop>
+  <tabstop>grpHorizonGeo</tabstop>
+  <tabstop>letHorizonGeoPoint</tabstop>
+  <tabstop>pbnHorizonGeoPoint</tabstop>
+  <tabstop>spxHorizonGeoRadius</tabstop>
   <tabstop>spxHorizonPlotWidth</tabstop>
   <tabstop>spxHorizonPlotHeight</tabstop>
   <tabstop>scrollArea_3</tabstop>
@@ -1237,6 +1355,7 @@
   <tabstop>letStructuralDiffDBName</tabstop>
   <tabstop>txtLog</tabstop>
   <tabstop>buttonBox</tabstop>
+  <tabstop>cbxPathComputeOn</tabstop>
  </tabstops>
  <resources/>
  <connections>
