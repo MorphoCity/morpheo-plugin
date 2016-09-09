@@ -640,14 +640,18 @@ class MorpheoPlugin:
         # remove from processing
         Processing.removeProvider(self.morpheoAlgoProvider)
 
-    def close(self):')
+    def close(self):
+        QgsMapLayerRegistry.instance().layerWasAdded.disconnect(self.populateLayerComboboxes)
+        QgsMapLayerRegistry.instance().layersWillBeRemoved.disconnect(self.populateLayerComboboxes)
         init_log_custom_hooks()
 
     def run(self):
         """Run method that performs all the real work"""
-        # populate layer comboboxes
-        self.populateLayerComboboxes()
         if not self.dlg.isVisible():
+            # populate layer comboboxes
+            self.populateLayerComboboxes()
+            QgsMapLayerRegistry.instance().layerWasAdded.connect(self.populateLayerComboboxes)
+            QgsMapLayerRegistry.instance().layersWillBeRemoved.connect(self.populateLayerComboboxes)
             # set the dialog
             if self.settings.contains('/Morpheo/dialog'):
                 self.dlg.restoreGeometry(self.settings.value("/Morpheo/dialog", QByteArray()))
