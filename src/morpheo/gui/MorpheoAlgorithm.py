@@ -73,11 +73,11 @@ def log_error(error):
     print "error: ", error
     ProcessingLog.addToLog(ProcessingLog.LOG_ERROR, error)
 
-def add_vector_layer(dbname, table_name, layer_name):
+def add_vector_layer(dbname, table_name, layer_name, clause=''):
         # Build URI
         uri = QgsDataSourceURI()
         uri.setDatabase(dbname)
-        uri.setDataSource('', table_name, 'GEOMETRY')
+        uri.setDataSource('', table_name, 'GEOMETRY', clause)
         # Find already loaded layer
         layersByName = QgsMapLayerRegistry.instance().mapLayersByName(layer_name)
         if layersByName:
@@ -635,21 +635,14 @@ class MorpheoMeshAlgorithm(GeoAlgorithm):
         percentile = self.getParameterValue(self.PERCENTILE)
 
         use_way = self.getParameterValue(self.USE_WAY)
+        table = use_way and 'ways' or 'edges'
 
         conn = connect_database(dbpath)
-        name = 'mesh_%s_%s_%s' % (use_way and 'way' or 'edge', attribute, percentile)
-
-        if use_way:
-            mesh_fun = mesh.create_indexed_table_from_way_attribute
-        else:
-            mesh_fun = mesh.create_indexed_table_from_edge_attribute
-
-        mesh_fun(conn, name, attribute, percentile)
-
-        export_shapefile(dbpath, name, os.path.join(output, dbname))
+        name = 'mesh_%s_%s_%s' % (table, attribute, percentile)
+        ids = mesh.features_from_attribute(conn.cursor(), table, attribute, percentile)
 
         # Visualize data
-        add_vector_layer( os.path.join(output, dbname)+'.sqlite', name, "%s_%s" % (name,dbname))
+        add_vector_layer( os.path.join(output, dbname)+'.sqlite', table, "%s_%s" % (name,dbname), 'OGC_FID IN ('+','.join(str(i) for i in ids)+')')
 
 
 class MorpheoHorizonAlgorithm(GeoAlgorithm):

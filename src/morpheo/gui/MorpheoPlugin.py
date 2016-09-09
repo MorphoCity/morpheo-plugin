@@ -16,6 +16,8 @@ from ..core.errors import BuilderError
 from ..core.graph_builder import SpatialiteBuilder
 from ..core.structdiff import structural_diff
 from ..core import horizon as hrz
+from ..core import mesh
+from ..core import itinerary
 from ..core.ways import read_ways_graph
 from ..core.sql  import connect_database
 from ..core.edge_properties import computed_properties
@@ -25,6 +27,7 @@ Builder = SpatialiteBuilder
 
 import os.path
 import locale, time
+from functools import partial
 from math import pi
 from datetime import datetime
 
@@ -191,14 +194,20 @@ class MorpheoPlugin:
 
         # Connect db path and properties list
         self.connectDBPathWithAttribute(self.dlg.letHorizonDBPath, self.dlg.cbxHorizonWayAttribute)
-        self.connectDBPathWithAttribute(self.dlg.letPathDBPath, self.dlg.cbxPathWayAttribute)
+        self.connectDBPathWithAttribute(self.dlg.letPathDBPath, self.dlg.cbxPathWayAttribute, self.dlg.cbxPathComputeOn)
 
         # Connect compute attributes on
         self.dlg.cbxWayAttributesComputeOn.currentIndexChanged.connect(self.cbxWayAttributesComputeOnCurrentIndexChanged)
 
-        # Connect
+        # Connect point selection
         self.connectPointSelectionPanel(self.dlg.letPathStartPoint, self.dlg.pbnPathStartPoint)
         self.connectPointSelectionPanel(self.dlg.letPathEndPoint, self.dlg.pbnPathEndPoint)
+
+        # Deactivate path with attribute
+        self.dlg.grpPathAttribute.setChecked(False)
+        self.updatePathType()
+        self.dlg.grpPathAttribute.toggled.connect(self.updatePathType)
+        self.dlg.cbxPathComputeOn.currentIndexChanged.connect(self.updatePathType)
 
         # Connect compute
         self.computeRow = 0
@@ -280,7 +289,7 @@ class MorpheoPlugin:
         btnSelect.clicked.connect(selectOnCanvas)
         tool.canvasClicked.connect(updatePoint)
 
-    def connectDBPathWithAttribute(self, dbpathLet ,attributeCbx):
+    def connectDBPathWithAttribute(self, dbpathLet ,attributeCbx, waysCbx=None):
 
         def updateAttributeCombobox(txt):
             """update"""
@@ -288,12 +297,17 @@ class MorpheoPlugin:
             dbpath = dbpathLet.text()
             try:
                 conn = connect_database(dbpath)
-                for fieldName in computed_properties(conn, True):
+                use_way = True
+                if waysCbx:
+                    use_way = waysCbx.currentText() == self.tr('Ways')
+                for fieldName in computed_properties(conn, use_way):
                     attributeCbx.addItem(fieldName)
             except Exception, e:
                 pass
 
         dbpathLet.textChanged.connect(updateAttributeCombobox)
+        if waysCbx:
+            waysCbx.currentIndexChanged.connect(updateAttributeCombobox)
 
 
     def getFields(self, layer, datatype):
@@ -322,6 +336,18 @@ class MorpheoPlugin:
                 attributeCbx.addItem(fieldName)
 
         layerCbx.currentIndexChanged.connect(updateAttributeCombobox)
+
+    def updatePathType(self):
+        self.dlg.cbxPathType.clear()
+        use_attribute = self.dlg.grpPathAttribute.isChecked()
+        use_way = self.dlg.cbxPathComputeOn.currentText() == self.tr('Ways')
+        types = ['Simplest', 'Shortest', 'Azimuth']
+        if use_attribute:
+            types = types[:2]
+        elif use_way:
+            types = types[:1]
+        for t in types:
+            self.dlg.cbxPathType.addItem(self.tr(t))
 
     def populateLayerComboboxes(self):
         """Populate all layer comboboxes"""
@@ -435,6 +461,101 @@ class MorpheoPlugin:
             add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'ways', "%s_%s" % ('ways',dbname))
 
         self.setText(self.tr('Compute attributes finished'), withMessageBar=True)
+
+    def computePath(self):
+
+        self.setText(self.tr('Compute path'))
+
+        dbpath    = self.dlg.letPathDBPath.text()
+        if not os.path.isfile( dbpath ):
+            self.setError(self.tr('DB Path does not exist!'))
+            return
+
+        output    = os.path.dirname(dbpath)
+        dbname    = os.path.basename(dbpath).replace('.sqlite','')
+
+        attribute = self.dlg.cbxPathWayAttribute.currentText()
+        percentile = self.dlg.spxPathPercentile.value()
+        use_way = self.dlg.cbxPathComputeOn.currentText() == self.tr('Ways')
+        #table = self.dlg.cbxPathComputeOn.currentText() == self.tr('Ways') and 'ways' or 'edges'
+        table = 'edges'
+
+        conn = connect_database(dbpath)
+        cur = conn.cursor()
+
+        start = self.dlg.letPathStartPoint.text()
+        if len(start.split(',')) != 2:
+            self.setError(self.tr('Invalid start point!'))
+            return
+        start = [ float(n) for n in start.split(',') ]
+
+        start = itinerary.get_closest_feature( cur, 'places', 10, start[0], start[1] )
+
+        end = self.dlg.letPathEndPoint.text()
+        if len(end.split(',')) != 2:
+            self.setError(self.tr('Invalid start point!'))
+            return
+        end = [ float(n) for n in end.split(',') ]
+
+        end = itinerary.get_closest_feature( cur, 'places', 10, end[0], end[1] )
+
+        path_type = self.dlg.cbxPathType.currentText()
+        path_name = 'path_%s_%s' % ('edges', path_type)
+        ids = []
+
+        if self.dlg.grpPathAttribute.isChecked():
+            ids = mesh.features_from_attribute(cur, 'edges', attribute, percentile)
+            name = 'mesh_%s_%s_%s' % ('edges', attribute, percentile)
+            add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'edges', "%s_%s" % (name,dbname), 'OGC_FID IN ('+','.join(str(i) for i in ids)+')')
+
+            if use_way:
+                _edges = itinerary.edges_from_way_attribute
+            else:
+                _edges = itinerary.edges_from_edge_attribute
+
+            if attribute not in computed_properties(conn,ways=use_way):
+                self.setError(self.tr('Attribute %s is not computed or does not exists') % attribute)
+                return
+
+            if path_type == self.tr('Shortest'):
+                _path_fun = itinerary.mesh_shortest_path
+            elif path_type == self.tr('Simplest'):
+                _path_fun = itinerary.mesh_simplest_path
+            else:
+                self.setError(self.tr('Attribute is only supported for simplest or shortest path type!'))
+                return
+
+            path_name = '%s_%s_%s' % (path_name, attribute, percentile)
+
+            _path_fun = partial(_path_fun, edges=_edges(conn, attribute, percentile))
+
+            ids = _path_fun( dbpath, os.path.join(output, dbname), start, end)
+
+        elif not use_way:
+            if path_type == self.tr('Shortest'):
+                _path_fun = itinerary.shortest_path
+            elif path_type == self.tr('Simplest'):
+                _path_fun = itinerary.simplest_path
+            elif path_type == self.tr('Azimuth'):
+                _path_fun = itinerary.azimuth_path
+            #elif self.dlg.cbxPathType.getCurrentText() == self.tr('Way simplest'):
+            else:
+                self.setError(self.tr('Way simplest not supported!'))
+                return
+
+            ids = _path_fun( dbpath, os.path.join(output, dbname), start, end)
+        else:
+            path_name = 'path_%s_%s' % ('ways', path_type)
+            ways1,place1 = itinerary.ways_from_places(conn, start)
+            ways2,place2 = itinerary.ways_from_places(conn, end)
+            G = read_ways_graph(os.path.join(output, dbname))
+            ids = itinerary.way_simplest_path(conn, G, dbpath, os.path.join(output, dbname), ways1, ways2, place1, place2)
+
+        if ids:
+            add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'edges', "%s_%s" % (path_name,dbname), 'OGC_FID IN ('+','.join(str(i) for i in ids)+')')
+        else:
+            self.setError(self.tr('No path build!'))
+
 
     def computeHorizon(self):
 
@@ -611,6 +732,8 @@ class MorpheoPlugin:
                 self.computeWaysBuilder()
             elif self.computeRow == 1:
                 self.computeWayAttributes()
+            elif self.computeRow == 2:
+                self.computePath()
             elif self.computeRow == 3:
                 self.computeHorizon()
             elif self.computeRow == 4:
