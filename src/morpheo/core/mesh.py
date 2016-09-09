@@ -60,7 +60,7 @@ def features_from_attribute(cur, table, attribute, percentile, fid_column="OGC_F
 
         :return: A list of features id
     """
-    assert 1<= percentile <= 100
+    assert 0 <= percentile <= 100
     [total] = cur.execute(SQL("SELECT Count(*) FROM {table} WHERE {attribute} NOT NULL",
                               table=table,attribute=attribute)).fetchone()
     if total == 0:
