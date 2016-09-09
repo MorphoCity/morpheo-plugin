@@ -76,6 +76,43 @@ def features_from_attribute(cur, table, attribute, percentile, fid_column="OGC_F
     return [r[0] for r in rows]
 
 
+def features_from_point_radius( cur, table, x, y, radius, within=False, srid=None ):
+    """ Return features that are intersecting the  given geometry
+
+        :param cur: database cursor
+        :param table: The table to get the features from
+        :param x: The E-W location
+        :param y: The N-S location
+        :param radius: The search radius (in meters)
+        :param within: Get only features strictly included in
+                       test geometry
+
+        :return: A list of features id
+    """
+    if srid is None:
+        [srid] = cur.execute(SQL("SELECT srid FROM geometry_columns WHERE f_table_name='{table}'",table=table)).fetchone()
+    if within:
+        rows = cur.execute(SQL("""SELECT OGC_FID FROM {table} AS n,
+            (SELECT ST_Buffer(GeomFromText('POINT({x} {y})',{srid}),{radius}) AS GEOM) AS t
+            WHERE ST_Within(n.GEOMETRY,t.GEOM)
+            AND n.ROWID IN (
+                SELECT ROWID FROM SpatialIndex
+                WHERE f_table_name='{table}' AND search_frame=t.GEOM
+            )
+        """,table=table,srid=srid,x=x,y=y,radius=radius)).fetchall()
+    else:
+         rows = cur.execute(SQL("""SELECT OGC_FID FROM {table} AS n,
+            (SELECT ST_Buffer(GeomFromText('POINT({x} {y})',{srid}),{radius}) AS GEOM) AS t
+            WHERE ST_Intersects(n.GEOMETRY,t.GEOM)
+            AND n.ROWID IN (
+                SELECT ROWID FROM SpatialIndex
+                WHERE f_table_name='{table}' AND search_frame=t.GEOM
+            )
+        """,table=table,srid=srid,x=x,y=y,radius=radius)).fetchall()
+
+    return [r[0] for r in rows]
+
+
 def features_from_geometry( cur, table, wkbgeom, within=False ):
     """ Return features that are intersecting the  given geometry
 
