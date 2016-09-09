@@ -455,7 +455,7 @@ def edges_from_edge_attribute( conn, attribute, percentile ):
             :param percentile: Percentage of objects to retrieve from a list
                               ordered in decreasing order of attribute value
     """
-    from .mesh import edges_from_edge_attributes as _edges
+    from .mesh import edges_from_edge_attribute as _edges
     return _edges(conn.cursor(), attribute, percentile)
 
 
@@ -492,7 +492,7 @@ def edges_from_way_fid( conn, fids ):
 
 
 
-def way_simplest_path(conn, G, dbname, path, sources, targets, start_place, end_place, output):
+def way_simplest_path(conn, G, dbname, path, sources, targets, start_place, end_place, output=None):
     """ Compute the way simplest path
 
         The way simplest path is computed on the line graph of the ways connectivity:
