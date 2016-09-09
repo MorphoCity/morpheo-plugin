@@ -3,9 +3,10 @@
 import os
 
 from PyQt4 import QtGui, uic
-from PyQt4.QtGui import QSizePolicy
-from PyQt4.QtCore import QSettings
+from PyQt4.QtGui import QSizePolicy, QMessageBox
+from PyQt4.QtCore import Qt, QSettings, QByteArray, pyqtSignal
 
+from qgis.utils import iface
 from qgis.gui import QgsMessageBar
 
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
@@ -13,6 +14,9 @@ FORM_CLASS, _ = uic.loadUiType(os.path.join(
 
 
 class MorpheoDialog(QtGui.QDialog, FORM_CLASS):
+
+    closed = pyqtSignal()
+
     def __init__(self, parent=None):
         """Constructor."""
         super(MorpheoDialog, self).__init__(parent)
@@ -23,9 +27,25 @@ class MorpheoDialog(QtGui.QDialog, FORM_CLASS):
         # #widgets-and-dialogs-with-auto-connect
         self.setupUi(self)
 
+        self.setWindowFlags(Qt.WindowMinimizeButtonHint |
+                            Qt.WindowMaximizeButtonHint |
+                            Qt.WindowCloseButtonHint)
+
+        self.settings = QSettings()
+        self.restoreGeometry(self.settings.value("/Morpheo/dialog", QByteArray()))
+
         self.bar = QgsMessageBar()
         self.bar.setSizePolicy( QSizePolicy.Minimum, QSizePolicy.Fixed )
         self.layout().insertWidget(0, self.bar)
 
     def accept(self):
         pass
+
+    def reject(self):
+        self.close()
+        self.hide()
+
+    def closeEvent(self, evt):
+        self.closed.emit()
+        self.settings.setValue("/Morpheo/dialog", self.saveGeometry())
+        super(MorpheoDialog, self).closeEvent(evt)

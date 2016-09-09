@@ -3,7 +3,7 @@
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 from qgis.core import *
-from qgis.gui import QgsMessageBar
+from qgis.gui import QgsMessageBar, QgsMapToolEmitPoint
 
 from MorpheoDialog import MorpheoDialog
 from MorpheoAlgorithmProvider import MorpheoAlgorithmProvider
@@ -56,6 +56,9 @@ class MorpheoPlugin:
 
             if qVersion() > '4.3.3':
                 QCoreApplication.installTranslator(self.translator)
+
+        # settings
+        self.settings = QSettings()
 
         # Create the dialog (after translation) and keep reference
         self.dlg = MorpheoDialog()
@@ -177,6 +180,7 @@ class MorpheoPlugin:
         # Initialize field path selection
         self.connectFileSelectionPanel(self.dlg.letWaysBuilderDirectoryPath, self.dlg.pbnWaysBuilderDirectoryPath, True)
         self.connectFileSelectionPanel(self.dlg.letWayAttributesDBPath, self.dlg.pbnWayAttributesDBPath, False, 'sqlite')
+        self.connectFileSelectionPanel(self.dlg.letPathDBPath, self.dlg.pbnPathDBPath, False, 'sqlite')
         self.connectFileSelectionPanel(self.dlg.letHorizonDBPath, self.dlg.pbnHorizonDBPath, False, 'sqlite')
         self.connectFileSelectionPanel(self.dlg.letStructuralDiffDBPath1, self.dlg.pbnStructuralDiffDBPath1, False, 'sqlite')
         self.connectFileSelectionPanel(self.dlg.letStructuralDiffDBPath2, self.dlg.pbnStructuralDiffDBPath2, False, 'sqlite')
@@ -184,18 +188,23 @@ class MorpheoPlugin:
 
         # Initialize attribute list
         self.connectComboboxLayerAttribute(self.dlg.cbxWaysBuilderWayAttribute, self.dlg.cbxWaysBuilderInputLayer, ParameterTableField.DATA_TYPE_STRING)
-        #self.connectComboboxLayerAttribute(self.dlg.cbxHorizonWayAttribute, self.dlg.cbxHorizonWayLayer, ParameterTableField.DATA_TYPE_NUMBER)
 
         # Connect db path and properties list
         self.connectDBPathWithAttribute(self.dlg.letHorizonDBPath, self.dlg.cbxHorizonWayAttribute)
+        self.connectDBPathWithAttribute(self.dlg.letPathDBPath, self.dlg.cbxPathWayAttribute)
 
         # Connect compute attributes on
         self.dlg.cbxWayAttributesComputeOn.currentIndexChanged.connect(self.cbxWayAttributesComputeOnCurrentIndexChanged)
+
+        # Connect
+        self.connectPointSelectionPanel(self.dlg.letPathStartPoint, self.dlg.pbnPathStartPoint)
+        self.connectPointSelectionPanel(self.dlg.letPathEndPoint, self.dlg.pbnPathEndPoint)
 
         # Connect compute
         self.computeRow = 0
         self.dlg.mAlgosListWidget.setCurrentRow(self.computeRow)
         self.dlg.buttonBox.accepted.connect(self.accept)
+        self.dlg.closed.connect(self.close)
 
         # add to processing
         self.morpheoAlgoProvider = MorpheoAlgorithmProvider()
@@ -219,14 +228,13 @@ class MorpheoPlugin:
         def showSelectionDialog():
             #QMessageBox.warning(self.dlg, 'showSelectionDialog', 'showSelectionDialog')
             # Find the file dialog's working directory
-            settings = QSettings()
             text = leText.text()
             if os.path.isdir(text):
                 path = text
             elif os.path.isdir(os.path.dirname(text)):
                 path = os.path.dirname(text)
-            elif settings.contains('/Morpheo/LastInputPath'):
-                path = settings.value('/Morpheo/LastInputPath')
+            elif self.settings.contains('/Morpheo/LastInputPath'):
+                path = self.settings.value('/Morpheo/LastInputPath')
             else:
                 path = ''
 
@@ -235,17 +243,42 @@ class MorpheoPlugin:
                                                           self.tr('Select folder'), path)
                 if folder:
                     leText.setText(folder)
-                    settings.setValue('/Morpheo/LastInputPath',
+                    self.settings.setValue('/Morpheo/LastInputPath',
                                       folder)
             else:
                 filenames = QFileDialog.getOpenFileNames(self.dlg,
                                                          self.tr('Select file'), path, '*.' + ext)
                 if filenames:
                     leText.setText(u';'.join(filenames))
-                    settings.setValue('/Morpheo/LastInputPath',
+                    self.settings.setValue('/Morpheo/LastInputPath',
                                       os.path.dirname(filenames[0]))
 
         btnSelect.clicked.connect(showSelectionDialog)
+
+    def connectPointSelectionPanel(self, leText, btnSelect):
+
+        dialog = self.dlg
+        canvas = self.iface.mapCanvas()
+        tool = PointMapTool(canvas)
+        prevMapTool = canvas.mapTool()
+
+        def selectOnCanvas():
+            prevMapTool = canvas.mapTool()
+            canvas.setMapTool(tool)
+            dialog.showNormal()
+            dialog.showMinimized()
+
+        def updatePoint(point, button):
+            s = '{},{}'.format(point.x(), point.y())
+
+            leText.setText(s)
+            canvas.setMapTool(prevMapTool)
+            dialog.showNormal()
+            dialog.raise_()
+            dialog.activateWindow()
+
+        btnSelect.clicked.connect(selectOnCanvas)
+        tool.canvasClicked.connect(updatePoint)
 
     def connectDBPathWithAttribute(self, dbpathLet ,attributeCbx):
 
@@ -607,14 +640,37 @@ class MorpheoPlugin:
         # remove from processing
         Processing.removeProvider(self.morpheoAlgoProvider)
 
+    def close(self):')
+        init_log_custom_hooks()
+
     def run(self):
         """Run method that performs all the real work"""
         # populate layer comboboxes
         self.populateLayerComboboxes()
         if not self.dlg.isVisible():
+            # set the dialog
+            if self.settings.contains('/Morpheo/dialog'):
+                self.dlg.restoreGeometry(self.settings.value("/Morpheo/dialog", QByteArray()))
             # show the dialog
             self.dlg.show()
             self.init_log_handler()
-            # Run the dialog event loop
-            result = self.dlg.exec_()
-            init_log_custom_hooks()
+        else:
+            self.dlg.showNormal()
+            self.dlg.raise_()
+            self.dlg.activateWindow()
+
+class PointMapTool(QgsMapToolEmitPoint):
+
+    def __init__(self, canvas):
+        QgsMapToolEmitPoint.__init__(self, canvas)
+
+        self.canvas = canvas
+        self.cursor = Qt.ArrowCursor
+
+    def activate(self):
+        self.canvas.setCursor(self.cursor)
+
+    def canvasPressEvent(self, event):
+        pnt = self.toMapCoordinates(event.pos())
+        self.canvasClicked.emit(pnt, event.button())
+
