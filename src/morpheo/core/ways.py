@@ -71,6 +71,7 @@ def read_ways_graph( path ):
     """
     graph_path = _ways_graph_path(path)
     try:
+        logging.info("Reading way graph %s" % graph_path)
         return nx.read_gpickle(graph_path)
     except Exception as e:
         raise ErrorGraphNotFound(
