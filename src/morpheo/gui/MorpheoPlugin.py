@@ -419,9 +419,9 @@ class MorpheoPlugin:
             builder.build_ways(threshold=self.dlg.spxWaysBuilderThreshold.value()/180.0 * pi,
                                output=os.path.join(output, dbname))
 
-        add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'places', "%s_%s" % ('places',dbname))
-        add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'place_edges', "%s_%s" % ('place_edges',dbname))
-        add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'ways', "%s_%s" % ('ways',dbname))
+        self.add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'places', "%s_%s" % ('places',dbname))
+        self.add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'place_edges', "%s_%s" % ('place_edges',dbname))
+        self.add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'ways', "%s_%s" % ('ways',dbname))
 
         self.setText(self.tr('Compute ways builder finished'), withMessageBar=True)
 
@@ -450,7 +450,7 @@ class MorpheoPlugin:
                     output        = os.path.join(output, dbname))
 
             # Visualize data
-            add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'place_edges', "%s_%s" % ('place_edges',dbname))
+            self.add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'place_edges', "%s_%s" % ('place_edges',dbname))
         else:
             builder.compute_way_attributes(
                     orthogonality = self.dlg.cbxWayAttributesOrthogonality.isChecked(),
@@ -462,9 +462,9 @@ class MorpheoPlugin:
                     output        = os.path.join(output, dbname))
 
             # Visualize data
-            add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'places', "%s_%s" % ('places',dbname))
-            add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'place_edges', "%s_%s" % ('place_edges',dbname))
-            add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'ways', "%s_%s" % ('ways',dbname))
+            self.add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'places', "%s_%s" % ('places',dbname))
+            self.add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'place_edges', "%s_%s" % ('place_edges',dbname))
+            self.add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'ways', "%s_%s" % ('ways',dbname))
 
         self.setText(self.tr('Compute attributes finished'), withMessageBar=True)
 
@@ -512,7 +512,7 @@ class MorpheoPlugin:
         if self.dlg.grpPathAttribute.isChecked():
             ids = mesh.features_from_attribute(cur, 'edges', attribute, percentile)
             name = 'mesh_%s_%s_%s' % ('edges', attribute, percentile)
-            add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'edges', "%s_%s" % (name,dbname), 'OGC_FID IN ('+','.join(str(i) for i in ids)+')')
+            self.add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'edges', "%s_%s" % (name,dbname), 'OGC_FID IN ('+','.join(str(i) for i in ids)+')')
 
             if use_way:
                 _edges = itinerary.edges_from_way_attribute
@@ -558,7 +558,7 @@ class MorpheoPlugin:
             ids = itinerary.way_simplest_path(conn, G, dbpath, os.path.join(output, dbname), ways1, ways2, place1, place2)
 
         if ids:
-            add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'edges', "%s_%s" % (path_name,dbname), 'OGC_FID IN ('+','.join(str(i) for i in ids)+')')
+            self.add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'edges', "%s_%s" % (path_name,dbname), 'OGC_FID IN ('+','.join(str(i) for i in ids)+')')
         else:
             self.setError(self.tr('No path build!'))
 
@@ -599,9 +599,7 @@ class MorpheoPlugin:
                 self.setError(self.tr('No ways found!'))
                 return
 
-            add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'ways', "horizon_%s_%s" % ('ways',dbname), 'OGC_FID IN ('+','.join(str(i) for i in features)+')')
-            self.iface.actionDraw().trigger()
-            self.iface.mapCanvas().refresh()
+            self.add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'ways', "horizon_%s_%s" % ('ways',dbname), 'OGC_FID IN ('+','.join(str(i) for i in features)+')')
 
             data = hrz.horizon_from_feature_list(G, features,
                                                  output=os.path.join(output, dbname, '%s_%s_%s_%s.txt' % (pt[0], pt[1], radius, dbname)) )
@@ -657,9 +655,9 @@ class MorpheoPlugin:
                          buffersize=self.dlg.spxStructuralDiffTolerance.value())
 
         # Visualize data
-        add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'paired_edges', "%s_%s" % ('paired_edges',dbname))
-        add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'removed_edges', "%s_%s" % ('removed_edges',dbname))
-        add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'added_edges', "%s_%s" % ('added_edges',dbname))
+        self.add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'paired_edges', "%s_%s" % ('paired_edges',dbname))
+        self.add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'removed_edges', "%s_%s" % ('removed_edges',dbname))
+        self.add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'added_edges', "%s_%s" % ('added_edges',dbname))
 
         self.setText(self.tr('Compute structural differences'), withMessageBar=True)
 
@@ -707,6 +705,11 @@ class MorpheoPlugin:
         self.dlg.lblProgress.setText(text)
         self.setInfo(text, True)
         QCoreApplication.processEvents()
+
+    def add_vector_layer(self, dbname, table_name, layer_name, clause=''):
+        add_vector_layer(dbname, table_name, layer_name, clause)
+        self.iface.actionDraw().trigger()
+        self.iface.mapCanvas().refresh()
 
     def init_log_handler(self):
 
