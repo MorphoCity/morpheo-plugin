@@ -599,6 +599,10 @@ class MorpheoPlugin:
                 self.setError(self.tr('No ways found!'))
                 return
 
+            add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'ways', "horizon_%s_%s" % ('ways',dbname), 'OGC_FID IN ('+','.join(str(i) for i in features)+')')
+            self.iface.actionDraw().trigger()
+            self.iface.mapCanvas().refresh()
+
             data = hrz.horizon_from_feature_list(G, features,
                                                  output=os.path.join(output, dbname, '%s_%s_%s_%s.txt' % (pt[0], pt[1], radius, dbname)) )
             img_path = os.path.join(output, dbname, '%s_%s_%s_%s.png' % (pt[0], pt[1], radius, dbname))
