@@ -594,12 +594,12 @@ class MorpheoPlugin:
                 return
             pt = [ float(n) for n in pt.split(',') ]
             radius = self.dlg.spxHorizonGeoRadius.value()
-            features = mesh.features_from_point_radius( conn.cursor(), 'ways', pt[0], pt[1], radius )
+            features = mesh.features_from_point_radius( conn.cursor(), 'ways', pt[0], pt[1], radius, 'WAY_ID' )
             if len(features) == 0:
                 self.setError(self.tr('No ways found!'))
                 return
 
-            self.add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'ways', "horizon_%s_%s" % ('ways',dbname), 'OGC_FID IN ('+','.join(str(i) for i in features)+')')
+            self.add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'ways', "horizon_%s_%s" % ('ways',dbname), 'WAY_ID IN ('+','.join(str(i) for i in features)+')')
 
             data = hrz.horizon_from_feature_list(G, features,
                                                  output=os.path.join(output, dbname, '%s_%s_%s_%s.txt' % (pt[0], pt[1], radius, dbname)) )
@@ -615,6 +615,8 @@ class MorpheoPlugin:
         imgLabel = QLabel()
         imgPixmap = QPixmap(img_path)
         imgLabel.setPixmap(imgPixmap)
+        imgLabel.setText(imgHtml)
+        imgLabel.setOpenExternalLinks(True)
         imgDlg.layout().insertWidget(0, imgLabel)
         imgDlg.show()
 
