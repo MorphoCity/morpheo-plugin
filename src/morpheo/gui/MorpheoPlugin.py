@@ -613,8 +613,8 @@ class MorpheoPlugin:
         imgDlg.setLayout(QVBoxLayout())
         imgDlg.layout().setContentsMargins(0, 0, 0, 0)
         imgLabel = QLabel()
-        imgPixmap = QPixmap(img_path)
-        imgLabel.setPixmap(imgPixmap)
+        imgHtml = '<html><head/><body><p><a href="file://{path}" target="_blank"><span style=" text-decoration: underline; color:#0000ff;"/><img src="{path}"/></a></p></body></html>'
+        imgHtml = imgHtml.format(path=img_path)
         imgLabel.setText(imgHtml)
         imgLabel.setOpenExternalLinks(True)
         imgDlg.layout().insertWidget(0, imgLabel)
