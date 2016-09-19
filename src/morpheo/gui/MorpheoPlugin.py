@@ -219,6 +219,13 @@ class MorpheoPlugin:
         if self.settings.contains('/Morpheo/LastInputPath'):
             self.dlg.letWaysBuilderDirectoryPath.setText(self.settings.value('/Morpheo/LastInputPath'))
             self.dlg.letStructuralDiffDirectoryPath.setText(self.settings.value('/Morpheo/LastInputPath'))
+        if self.settings.contains('/Morpheo/LastOutputPath'):
+            self.synchronizeAllDBPathOnChanged(self.settings.value('/Morpheo/LastOutputPath'))
+
+        # Synchronize DBPath
+        self.dlg.letWayAttributesDBPath.textChanged.connect(self.synchronizeAllDBPathOnChanged)
+        self.dlg.letPathDBPath.textChanged.connect(self.synchronizeAllDBPathOnChanged)
+        self.dlg.letHorizonDBPath.textChanged.connect(self.synchronizeAllDBPathOnChanged)
 
         # Connect compute
         self.computeRow = 0
@@ -295,6 +302,16 @@ class MorpheoPlugin:
                                       os.path.dirname(filenames[0]))
 
         btnSelect.clicked.connect(showSelectionDialog)
+
+    def synchronizeAllDBPathOnChanged(self, txt):
+        if self.dlg.letWayAttributesDBPath.text() != txt:
+            self.dlg.letWayAttributesDBPath.setText(txt)
+        if self.dlg.letPathDBPath.text() != txt:
+            self.dlg.letPathDBPath.setText(txt)
+        if self.dlg.letHorizonDBPath.text() != txt:
+            self.dlg.letHorizonDBPath.setText(txt)
+
+        self.settings.setValue('/Morpheo/LastOutputPath', txt)
 
     def connectPointSelectionPanel(self, leText, btnSelect):
 
@@ -450,6 +467,8 @@ class MorpheoPlugin:
         self.add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'ways', "%s_%s" % ('ways',dbname))
 
         self.setText(self.tr('Compute ways builder finished'), withMessageBar=True)
+
+        self.synchronizeAllDBPathOnChanged(os.path.join(output, dbname)+'.sqlite')
 
 
     def computeWayAttributes(self):
@@ -834,6 +853,8 @@ class MorpheoPlugin:
         if not self.dlg.isVisible():
             # populate layer comboboxes
             self.populateLayerComboboxes()
+            # Rename OK button to Run
+            self.dlg.buttonBox.button(QDialogButtonBox.Ok).setText(self.tr('Run'))
             QgsMapLayerRegistry.instance().layerWasAdded.connect(self.populateLayerComboboxes)
             QgsMapLayerRegistry.instance().layersWillBeRemoved.connect(self.populateLayerComboboxes)
             # set the dialog
