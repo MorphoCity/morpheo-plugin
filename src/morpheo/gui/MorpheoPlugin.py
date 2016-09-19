@@ -192,6 +192,8 @@ class MorpheoPlugin:
 
         # Initialize attribute list
         self.connectComboboxLayerAttribute(self.dlg.cbxWaysBuilderWayAttribute, self.dlg.cbxWaysBuilderInputLayer, ParameterTableField.DATA_TYPE_STRING)
+        # connect layer name
+        self.dlg.cbxWaysBuilderInputLayer.currentIndexChanged.connect(self.cbxWaysBuilderInputLayerCurrentIndexChanged)
 
         # Connect db path and properties list
         self.connectDBPathWithAttribute(self.dlg.letHorizonDBPath, self.dlg.cbxHorizonWayAttribute)
@@ -213,6 +215,11 @@ class MorpheoPlugin:
         self.dlg.grpPathAttribute.toggled.connect(self.updatePathType)
         self.dlg.cbxPathComputeOn.currentIndexChanged.connect(self.updatePathType)
 
+        # Set default value
+        if self.settings.contains('/Morpheo/LastInputPath'):
+            self.dlg.letWaysBuilderDirectoryPath.setText(self.settings.value('/Morpheo/LastInputPath'))
+            self.dlg.letStructuralDiffDirectoryPath.setText(self.settings.value('/Morpheo/LastInputPath'))
+
         # Connect compute
         self.computeRow = 0
         self.dlg.mAlgosListWidget.setCurrentRow(self.computeRow)
@@ -222,6 +229,15 @@ class MorpheoPlugin:
         # add to processing
         self.morpheoAlgoProvider = MorpheoAlgorithmProvider()
         Processing.addProvider(self.morpheoAlgoProvider, True)
+
+    def cbxWaysBuilderInputLayerCurrentIndexChanged(self, idx):
+        layerIdx = self.dlg.cbxWaysBuilderInputLayer.currentIndex()
+        layerId = self.dlg.cbxWaysBuilderInputLayer.itemData( layerIdx )
+        layer = QgsMapLayerRegistry.instance().mapLayer(layerId)
+        if layer:
+            self.dlg.letWaysBuilderDBName.setText('morpheo_'+layer.name().replace(" ", "_"))
+        else:
+            self.dlg.letWaysBuilderDBName.setText('')
 
     def cbxWayAttributesComputeOnCurrentIndexChanged(self, idx):
         if self.dlg.cbxWayAttributesComputeOn.currentText() == self.tr('Edges'):
