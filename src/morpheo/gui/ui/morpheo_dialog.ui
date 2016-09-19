@@ -425,9 +425,9 @@
               <property name="geometry">
                <rect>
                 <x>0</x>
-                <y>0</y>
-                <width>299</width>
-                <height>397</height>
+                <y>-24</y>
+                <width>412</width>
+                <height>430</height>
                </rect>
               </property>
               <property name="sizePolicy">
@@ -491,6 +491,13 @@
                    <widget class="QLabel" name="lWayAttributesComputeOn">
                     <property name="text">
                      <string>Compute on</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="2" column="1">
+                   <widget class="QPushButton" name="pbnWayAttributeSelectAll">
+                    <property name="text">
+                     <string>Select all attributes</string>
                     </property>
                    </widget>
                   </item>
@@ -1314,6 +1321,7 @@
   <tabstop>letWayAttributesDBPath</tabstop>
   <tabstop>pbnWayAttributesDBPath</tabstop>
   <tabstop>cbxWayAttributesComputeOn</tabstop>
+  <tabstop>pbnWayAttributeSelectAll</tabstop>
   <tabstop>cbxWayAttributesOrthogonality</tabstop>
   <tabstop>cbxWayAttributesRtopo</tabstop>
   <tabstop>cbxWayAttributesBetweenness</tabstop>

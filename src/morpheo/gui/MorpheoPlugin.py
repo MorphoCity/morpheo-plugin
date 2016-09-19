@@ -199,6 +199,8 @@ class MorpheoPlugin:
 
         # Connect compute attributes on
         self.dlg.cbxWayAttributesComputeOn.currentIndexChanged.connect(self.cbxWayAttributesComputeOnCurrentIndexChanged)
+        # Connect select all attributes
+        self.dlg.pbnWayAttributeSelectAll.clicked.connect(self.pbnWayAttributeSelectAllClicked)
 
         # Connect point selection
         self.connectPointSelectionPanel(self.dlg.letPathStartPoint, self.dlg.pbnPathStartPoint)
@@ -227,6 +229,14 @@ class MorpheoPlugin:
             self.dlg.cbxWayAttributesRtopo.setEnabled(False)
         else:
             self.dlg.cbxWayAttributesRtopo.setEnabled(True)
+
+    def pbnWayAttributeSelectAllClicked(self):
+        self.dlg.cbxWayAttributesOrthogonality.setChecked(True)
+        if self.dlg.cbxWayAttributesComputeOn.currentText() != self.tr('Edges'):
+            self.dlg.cbxWayAttributesRtopo.setChecked(True)
+        self.dlg.cbxWayAttributesBetweenness.setChecked(True)
+        self.dlg.cbxWayAttributesCloseness.setChecked(True)
+        self.dlg.cbxWayAttributesStress.setChecked(True)
 
     def connectMutuallyExclusiveGroup(self, grp1, grp2):
         def grp1Toggled(toggle):
