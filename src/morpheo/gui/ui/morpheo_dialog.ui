@@ -330,7 +330,7 @@
                      <double>10.000000000000000</double>
                     </property>
                     <property name="value">
-                     <double>30.000000000000000</double>
+                     <double>60.000000000000000</double>
                     </property>
                    </widget>
                   </item>
@@ -426,7 +426,7 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>428</width>
+                <width>299</width>
                 <height>397</height>
                </rect>
               </property>
@@ -624,7 +624,7 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>428</width>
+                <width>257</width>
                 <height>357</height>
                </rect>
               </property>
@@ -861,7 +861,7 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>412</width>
+                <width>256</width>
                 <height>424</height>
                </rect>
               </property>

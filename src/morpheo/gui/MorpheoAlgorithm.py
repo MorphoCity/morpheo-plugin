@@ -168,7 +168,7 @@ class MorpheoBuildAlgorithm(GeoAlgorithm):
         self.addParameter(ParameterTableField(self.WAY_ATTRIBUTE,
             'Attribute for building street ways', self.INPUT_LAYER, ParameterTableField.DATA_TYPE_STRING, True))
         self.addParameter(
-            ParameterNumber(self.THRESHOLD, 'Threshold angle (in degree)', 0., 99.99, 30.))
+            ParameterNumber(self.THRESHOLD, 'Threshold angle (in degree)', 0., 99.99, 60.))
         self.addParameter(ParameterBoolean(self.RTOPO, 'Compute topological radius', False))
         self.addParameter(ParameterBoolean(self.ATTRIBUTES, 'Compute attributes', False))
         self.addParameter(ParameterBoolean(self.ORTHOGONALITY, 'Compute orthogonality (require attributes)', False))
