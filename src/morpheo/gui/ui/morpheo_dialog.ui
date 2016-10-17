@@ -425,8 +425,8 @@
               <property name="geometry">
                <rect>
                 <x>0</x>
-                <y>-24</y>
-                <width>412</width>
+                <y>0</y>
+                <width>301</width>
                 <height>430</height>
                </rect>
               </property>
@@ -631,7 +631,7 @@
                <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>428</width>
+                <width>258</width>
                 <height>357</height>
                </rect>
               </property>
@@ -1151,14 +1151,14 @@
                   <item row="1" column="0">
                    <widget class="QLabel" name="lStructuralDiffDBPath2">
                     <property name="text">
-                     <string>Final directory</string>
+                     <string>Final DB</string>
                     </property>
                    </widget>
                   </item>
                   <item row="0" column="0">
                    <widget class="QLabel" name="lStructuralDiffDBPath1">
                     <property name="text">
-                     <string>Initial directory</string>
+                     <string>Initial DB</string>
                     </property>
                    </widget>
                   </item>
