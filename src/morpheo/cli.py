@@ -423,7 +423,6 @@ def main():
         'shortest',
         'simplest',
         'azimuth' ,
-        'way-simplest' ,
         'naive-azimuth',
     ], default='shortest', dest="path_type", help="Type of path (default to shortest)")
     path_cmd.add_argument("--use-way", action="store_true", default=False, help="Use ways for computing mesh components")

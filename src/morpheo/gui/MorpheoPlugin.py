@@ -391,10 +391,6 @@ class MorpheoPlugin:
         use_attribute = self.dlg.grpPathAttribute.isChecked()
         use_way = self.dlg.cbxPathComputeOn.currentText() == self.tr('Ways')
         types = ['Simplest', 'Shortest', 'Azimuth']
-        if use_attribute:
-            types = types[:2]
-        elif use_way:
-            types = types[:1]
         for t in types:
             self.dlg.cbxPathType.addItem(self.tr(t))
 
@@ -528,8 +524,8 @@ class MorpheoPlugin:
         attribute = self.dlg.cbxPathWayAttribute.currentText()
         percentile = self.dlg.spxPathPercentile.value()
         use_way = self.dlg.cbxPathComputeOn.currentText() == self.tr('Ways')
-        #table = self.dlg.cbxPathComputeOn.currentText() == self.tr('Ways') and 'ways' or 'edges'
-        table = 'edges'
+        edge_table = 'place_edges'
+        way_table  = 'ways'
 
         conn = connect_database(dbpath)
         cur = conn.cursor()
@@ -550,14 +546,19 @@ class MorpheoPlugin:
 
         end = itinerary.get_closest_feature( cur, 'places', 10, end[0], end[1] )
 
+        # The mname determine on which table attributes are computed
+        mname, mtable = ('ways', way_table) if use_way else ('edges', edge_table)
+
         path_type = self.dlg.cbxPathType.currentText()
-        path_name = 'path_%s_%s' % ('edges', path_type)
+        path_name = 'path_%s_%s' % (mname, path_type)
         ids = []
 
         if self.dlg.grpPathAttribute.isChecked():
-            ids = mesh.features_from_attribute(cur, 'edges', attribute, percentile)
-            name = 'mesh_%s_%s_%s' % ('edges', attribute, percentile)
-            self.add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'edges', "%s_%s" % (name,dbname), 'OGC_FID IN ('+','.join(str(i) for i in ids)+')')
+
+            ids = mesh.features_from_attribute(cur, mtable, attribute, percentile)
+            name = 'mesh_%s_%s_%s' % (mname, attribute, percentile)
+            self.add_vector_layer( os.path.join(output, dbname)+'.sqlite', mtable, "%s_%s" % (name,dbname), 
+                    'OGC_FID IN ('+','.join(str(i) for i in ids)+')')
 
             if use_way:
                 _edges = itinerary.edges_from_way_attribute
@@ -582,28 +583,27 @@ class MorpheoPlugin:
 
             ids = _path_fun( dbpath, os.path.join(output, dbname), start, end)
 
-        elif not use_way:
+        else:
             if path_type == self.tr('Shortest'):
                 _path_fun = itinerary.shortest_path
             elif path_type == self.tr('Simplest'):
                 _path_fun = itinerary.simplest_path
             elif path_type == self.tr('Azimuth'):
                 _path_fun = itinerary.azimuth_path
-            #elif self.dlg.cbxPathType.getCurrentText() == self.tr('Way simplest'):
-            else:
-                self.setError(self.tr('Way simplest not supported!'))
-                return
+
+            path_name = 'path_%s' % path_type
 
             ids = _path_fun( dbpath, os.path.join(output, dbname), start, end)
-        else:
-            path_name = 'path_%s_%s' % ('ways', path_type)
-            ways1,place1 = itinerary.ways_from_places(conn, start)
-            ways2,place2 = itinerary.ways_from_places(conn, end)
-            G = read_ways_graph(os.path.join(output, dbname))
-            ids = itinerary.way_simplest_path(conn, G, dbpath, os.path.join(output, dbname), ways1, ways2, place1, place2)
+        
+        # XXX way simplest: move to another section
+        #    path_name = 'path_%s_%s' % ('ways', path_type)
+        #    ways1,place1 = itinerary.ways_from_places(conn, start)
+        #    ways2,place2 = itinerary.ways_from_places(conn, end)
+        #    G = read_ways_graph(os.path.join(output, dbname))
+        #    ids = itinerary.way_simplest_path(conn, G, dbpath, os.path.join(output, dbname), ways1, ways2, place1, place2)
 
         if ids:
-            self.add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'edges', "%s_%s" % (path_name,dbname), 'OGC_FID IN ('+','.join(str(i) for i in ids)+')')
+            self.add_vector_layer( os.path.join(output, dbname)+'.sqlite', edge_table, "%s_%s" % (path_name,dbname), 'OGC_FID IN ('+','.join(str(i) for i in ids)+')')
         else:
             self.setError(self.tr('No path build!'))
 
