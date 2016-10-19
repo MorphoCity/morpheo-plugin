@@ -104,6 +104,18 @@ class SpatialiteBuilder(object):
             export_shapefile(self._dbname, 'edges'   , output)
             export_shapefile(self._dbname, 'vertices', output)
 
+            self.write_manifest(output,'build', 
+                                snap_distance=snap_distance, 
+                                min_edge_length=min_edge_length) 
+            
+
+    def write_manifest(self, output, suffix, **kwargs):
+        """ Write  manifest as key=value file 
+        """
+        with open(os.path.join(output, "%s_%s.manifest" % (self._basename,suffix)),'w') as f:
+            for k,v in kwargs.iteritems():
+                f.write("{}={}\n".format(k,v))
+
     def build_edges_graph(self, output):
         """ Build and export edge graph
         """
@@ -145,6 +157,7 @@ class SpatialiteBuilder(object):
 
         if output is not None:
             builder.export(self._dbname, output, export_graph=True)
+            self.write_manifest(output,'places', buffer_size=buffer_size, input_file=places)
 
     def build_ways(self,  threshold, output=None, attributes=False, rtopo=False, **kwargs) :
         """ Build way's hypergraph
@@ -164,6 +177,8 @@ class SpatialiteBuilder(object):
 
         if output is not None:
             builder.export(self._dbname, output, export_graph=True)
+            self.write_manifest(output,'ways', angle_threshold=threshold)
+
 
     def compute_way_attributes( self, orthogonality, betweenness, closeness, stress,
                                 classes=10, rtopo=False, output=None):
