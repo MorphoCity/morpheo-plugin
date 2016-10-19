@@ -7,7 +7,7 @@ import networkx as nx
 
 from .logger import Progress
 from .sql    import connect_database, SQL, execute_sql, attr_table
-from .layers import import_shapefile, export_shapefile
+from .layers import import_shapefile, export_shapefile, import_table
 from .ways   import read_ways_graph
 
 def structural_diff( path1, path2, output, buffersize ):
@@ -18,7 +18,7 @@ def structural_diff( path1, path2, output, buffersize ):
         :param output: path where to store output data
 
         Input edge files must have been computed using the morpheo graph builder
-        and hold data about ways accessebility
+        and hold data about ways accessibility
     """
 
     # Import shapefiles
@@ -28,16 +28,14 @@ def structural_diff( path1, path2, output, buffersize ):
         os.remove(dbname)
 
     def import_data(path, table, create=False):
-        basename = os.path.basename(path)
-        shp = os.path.join(path,'place_edges_%s.shp' % basename)
-        logging.info("Structural diff: importing %s" % shp)
-        import_shapefile( dbname, shp, table, forceSinglePartGeometryType=True)
-        logging.info("Structural diff: importing way line graph")
-        return read_ways_graph(path)
+         basename = os.path.basename(path)
+         logging.info("Structural diff: importing place_edges from %s" % path)
+         import_table( dbname, table, path+'.sqlite', 'place_edges', forceSinglePartGeometryType=True)
+         logging.info("Structural diff: importing way line graph")
+         return read_ways_graph(path)
 
     G1 = import_data(path1, 'edges1')
     G2 = import_data(path2, 'edges2')
-
     # Connect to the database
     conn = connect_database(dbname)
 
