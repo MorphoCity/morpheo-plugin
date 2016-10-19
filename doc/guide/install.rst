@@ -22,6 +22,7 @@ While it doesn't need the QGIS interface in this mode, the  QGIS python api stil
 to run the programm.
 
 Morpheo has a dependency with the spatialite python package: the package provided by QGIS has  
+support for spatialite 4+.
 
 QGIS must have the spatialite support enabled and the gdal tools installed (ogr2ogr)
 
@@ -32,7 +33,7 @@ Installation
 
 The morpheo package can be installed like any python package
 
-From the sources, the moprpheo package cam be installed with the command:
+From the sources, the moprpheo package can be installed with the command:
 
 .. code-block:: bash
     
