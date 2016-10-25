@@ -182,6 +182,7 @@ class PlaceBuilder(object):
         # Remove all vertices that are in input_places
         if input_places is not None:
             # Remove from left vertices all vertices included in places
+            logging.info("Places: Removing vertex included in input places")
             cur.execute(SQL("""DELETE FROM left_vertices WHERE OGC_FID IN (
                     SELECT v.OGC_FID FROM vertices AS v, {input_places} AS p 
                     WHERE ST_Within(v.GEOMETRY,p.GEOMETRY)
@@ -193,7 +194,7 @@ class PlaceBuilder(object):
         # Create buffers from left vertices vertices with degree > 1
         cur.execute(SQL("""
                 INSERT INTO {buffer_table}(OGC_FID,GEOMETRY)
-                SELECT v.OGC_FID, ST_Multi(ST_Buffer( v.GEOMETRY, {buffer_size})) 
+                SELECT v.OGC_FID, ST_Multi(ST_Buffer( v.GEOMETRY, {buffer_size}))
                 FROM vertices AS v, left_vertices AS l
                 WHERE v.DEGREE>1 AND l.OGC_FID=v.OGC_FID
             """, buffer_table=BUFFER_TABLE, buffer_size=buffer_size))
@@ -216,11 +217,26 @@ class PlaceBuilder(object):
         if input_places is not None:
             # Cleanup places
             # copy geometries into buffer table
+            logging.info("Places: handling input places")
             cur.execute(SQL("DELETE from {buffer_table}",buffer_table=BUFFER_TABLE))
             cur.execute(SQL("""
-                    INSERT INTO {buffer_table}(GEOMETRY)
-                    SELECT ST_Multi(CastToXYZ(GEOMETRY)) FROM {input_table}
-            """,input_table=input_places, buffer_table=BUFFER_TABLE))
+                    SELECT coord_dimension
+                    FROM geometry_columns
+                    WHERE f_table_name='{table_ref}'
+            """, table_ref=BUFFER_TABLE))
+            # XXX places have not always the same dimensions as graph input  data
+            [dimension] = cur.fetchone()
+            if dimension > 2:
+                cur.execute(SQL("""
+                        INSERT INTO {buffer_table}(GEOMETRY)
+                        SELECT ST_Multi(CastToXYZ(GEOMETRY)) FROM {input_table}
+                """,input_table=input_places, buffer_table=BUFFER_TABLE))
+            else:
+                cur.execute(SQL("""
+                        INSERT INTO {buffer_table}(GEOMETRY)
+                        SELECT ST_Multi(GEOMETRY) FROM {input_table}
+                """,input_table=input_places, buffer_table=BUFFER_TABLE))
+ 
             union_buffers()
             self._conn.commit()
             create_indexed_table(cur, 'tmp_places', 'POLYGON', 'places')
@@ -298,7 +314,7 @@ class PlaceBuilder(object):
             finally:
                 delete_table(cur, 'tmp_places')
 
-        delete_table(cur, BUFFER_TABLE)
+        #delete_table(cur, BUFFER_TABLE)
         
         # Checkout number of places
         rv = cur.execute(SQL("Select Count(*) FROM places")).fetchone()[0]
