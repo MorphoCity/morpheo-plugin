@@ -10,7 +10,146 @@ from .sql    import connect_database, SQL, execute_sql, attr_table
 from .layers import import_shapefile, export_shapefile, import_table
 from .ways   import read_ways_graph
 
-def structural_diff( path1, path2, output, buffersize ):
+
+def compute_accessibility_delta(conn, path1, path2):
+    """ Compute accessibility delta
+
+        :param conn: connection to database
+        :param path1: path of the first location for way line graph
+        :param path2: path of the second location for way line graph
+    """
+    G1 = read_ways_graph(path1)
+    G2 = read_ways_graph(path2)
+
+    path_length = nx.single_source_shortest_path_length
+
+    cur = conn.cursor()
+
+    added_edges   = cur.execute(SQL("SELECT WAY,LENGTH FROM added"  )).fetchall()
+    removed_edges = cur.execute(SQL("SELECT WAY,LENGTH FROM removed")).fetchall()
+
+    def contrib(cur, wref, g, data):
+        """ Compute the contribution of the
+            accessibility relativ to wref from the set of edges
+            in table
+        """
+        sp = path_length(g,wref)
+        return sum(sp[r[0]]*r[1] for r in data)
+
+    edges    = cur.execute(SQL("SELECT EDGE2,WAY1,WAY2,DIFF FROM paired")).fetchall()
+    progress = Progress(len(edges))
+
+    def compute(edge, w1, w2, diff):
+        # Compute contribution from from removed/added edges
+        total_removed = contrib(cur,w1, G1, removed_edges)
+        total_added   = contrib(cur,w2, G2, added_edges)
+        delta = diff + total_removed - total_added
+        progress()
+        return edge, total_removed, total_added, delta
+
+    logging.info("Structural Diff: comuputing accessibility delta")
+    results = [compute(*r) for r in edges]
+
+    # Update edge table
+    logging.info("Structural Diff: updating edges table")
+    with attr_table(cur, "edgge_attr") as attrs:
+        attrs.update('paired_edges', 'EDGE2', 'REMOVED', [(r[0],r[1]) for r in results])
+        attrs.update('paired_edges', 'EDGE2', 'ADDED'  , [(r[0],r[2]) for r in results])
+        attrs.update('paired_edges', 'EDGE2', 'DELTA'  , [(r[0],r[3]) for r in results])
+
+    cur.close()
+    
+
+def split_edges( conn, edges, places ):
+    """ Split edges with places 
+    """
+    cur = conn.cursor()
+   
+    logging.info("Structural Diff: splitting {} geometries with {}".format(edges,places))
+    cur.execute(SQL("DELETE from edges_temp"))
+    cur.execute(SQL("""
+        INSERT INTO edges_temp(ACCES, WAY, EDGE, GEOMETRY)
+            SELECT e.ACCES, e.WAY, e.OGC_FID, ST_Multi(ST_Difference(e.GEOMETRY, ST_Union(p.GEOMETRY)))
+            FROM {edges} as e, {places} as p
+            WHERE ST_Intersects(e.GEOMETRY, p.GEOMETRY)
+            AND e.ROWID IN (
+                SELECT ROWID FROM Spatialindex
+                WHERE f_table_name='{edges}' AND search_frame=p.GEOMETRY)
+            GROUP BY e.OGC_FID
+        """, edges=edges, places=places))
+
+    # Insert remaining edges
+    cur.execute(SQL("""
+        INSERT INTO edges_temp(ACCES, WAY, EDGE, GEOMETRY)
+            SELECT e.ACCES, e.WAY, e.OGC_FID, ST_Multi(e.GEOMETRY)
+            FROM {edges} AS e
+            WHERE e.OGC_FID NOT IN (SELECT EDGE from edges_temp)
+        """, edges=edges))
+
+    [n] = cur.execute(SQL("SELECT count(*) from edges_temp")).fetchone()
+    logging.info("Structural Diff: splitted %d geometries" % n) 
+
+    # Clean up original edge table
+    cur.execute(SQL("DELETE FROM {edges}",edges=edges))
+
+    logging.info("Structural Diff: inserting splitted geometries into {}".format(edges))
+    # Split/insert each lines
+    cur.execute(SQL("""
+        INSERT INTO {edges}(ACCES,WAY,LENGTH,GEOMETRY)
+        SELECT t.ACCES, t.WAY, ST_Length(t.GEOM), t.GEOM 
+        FROM ( SELECT ACCES , WAY, ST_GeometryN(e.GEOMETRY,VALUE) AS GEOM
+               FROM edges_temp AS e, counter 
+               WHERE counter.VALUE <= ST_NumGeometries(e.GEOMETRY)) AS t
+     """,edges=edges))
+
+    [n] = cur.execute(SQL("SELECT count(*) FROM {edges}", edges=edges)).fetchone()
+    logging.info("Structural Diff: total %d geometries in %s" % (n,edges)) 
+
+    cur.close()
+
+
+def create_counter(conn):
+    """ Create a table holding integer list
+    """
+    cur = conn.cursor()
+    cur.execute(SQL("CREATE TABLE counter(VALUE integer)"))
+    cur.executemany(SQL("INSERT INTO counter(VALUE) SELECT ?"),[(c,) for c in range(1,1001)] )
+    cur.close()
+
+def create_temp_table(conn):
+    """ Create temporary table
+    """
+    cur = conn.cursor()
+    cur.execute(SQL("""
+        CREATE TABLE edges_temp (
+        OGC_FID integer PRIMARY KEY,
+        WAY     integer,
+        ACCES   real,
+        LENGTH  real,
+        EDGE    integer)
+    """))
+    cur.execute(SQL("""
+        SELECT AddGeometryColumn(
+            'edges_temp',
+            'GEOMETRY',
+            (
+                SELECT CAST(srid AS integer)
+                FROM geometry_columns
+                WHERE f_table_name='edges1'
+            ),
+            'MULTILINESTRING',
+            (
+                SELECT coord_dimension
+                FROM geometry_columns
+                WHERE f_table_name='edges1'
+            )
+        )"""))
+    cur.execute(SQL("SELECT CreateSpatialIndex('edges_temp', 'GEOMETRY')"))
+    cur.close()
+
+
+
+def structural_diff(path1, path2, output, buffersize):
     """ Compute structural diff between two files
 
         :param path1: path of the first location for edges shapefile and way line graph
@@ -27,60 +166,29 @@ def structural_diff( path1, path2, output, buffersize ):
         logging.info("Removing existing  database %s" % dbname)
         os.remove(dbname)
 
-    def import_data(path, table, create=False):
+    def import_data(path, sfx):
          basename = os.path.basename(path)
          logging.info("Structural diff: importing place_edges from %s" % path)
-         import_table( dbname, table, path+'.sqlite', 'place_edges', forceSinglePartGeometryType=True)
-         logging.info("Structural diff: importing way line graph")
-         return read_ways_graph(path)
+         import_table( dbname, 'edges' +sfx, path+'.sqlite', 'place_edges', forceSinglePartGeometryType=True)
+         import_table( dbname, 'places'+sfx, path+'.sqlite', 'places'     , forceSinglePartGeometryType=True)
 
-    G1 = import_data(path1, 'edges1')
-    G2 = import_data(path2, 'edges2')
+    import_data(path1, '1')
+    import_data(path2, '2')
     # Connect to the database
     conn = connect_database(dbname)
+
+    # Split edges
+    create_counter(conn)
+    create_temp_table(conn)
+    split_edges(conn, 'edges1', 'places2')
+    split_edges(conn, 'edges2', 'places1')
+
+    conn.commit()
 
     # Compute paired edges
     logging.info("Structural Diff: computing paired edges")
     execute_sql(conn,"structdiff.sql", buffersize=buffersize)
 
-    path_length = nx.single_source_shortest_path_length
-
-    cur = conn.cursor()
-
-    added_edges   = cur.execute(SQL("SELECT WAY,LENGTH FROM added"  )).fetchall()
-    removed_edges = cur.execute(SQL("SELECT WAY,LENGTH FROM removed")).fetchall()
-
-    def contrib(cur, wref, g, data):
-        """ Compute the contribution of the
-            accessibility relativ to wref from the set of edges
-            in table
-        """
-        sp   = path_length(g,wref)
-        return sum(sp[r[0]]*r[1] for r in data)
-
-    edges    = cur.execute(SQL("SELECT EDGE2,WAY1,WAY2,DIFF FROM paired")).fetchall()
-    progress = Progress(len(edges))
-
-    def compute(edge, w1, w2, diff):
-        # Compute contribution from from removed/added edges
-        total_removed = contrib(cur,w1, G1, removed_edges)
-        total_added   = contrib(cur,w2, G2, added_edges)
-        delta = diff + total_removed - total_added
-        progress()
-        return edge, total_removed, total_added, delta
-
-
-    logging.info("Structural Diff: comuputing accessibility delta")
-    results = [compute(*r) for r in edges]
-
-    # Update edge table
-    logging.info("Structural Diff: updating edges table")
-    with attr_table(cur, "edgge_attr") as attrs:
-        attrs.update('paired_edges', 'EDGE2', 'REMOVED', [(r[0],r[1]) for r in results])
-        attrs.update('paired_edges', 'EDGE2', 'ADDED'  , [(r[0],r[2]) for r in results])
-        attrs.update('paired_edges', 'EDGE2', 'DELTA'  , [(r[0],r[3]) for r in results])
-
-    cur.close()
     conn.commit()
 
     # Export files
@@ -89,9 +197,11 @@ def structural_diff( path1, path2, output, buffersize ):
     export_shapefile(dbname, 'removed_edges', output)
     export_shapefile(dbname, 'added_edges', output)
 
+    compute_accessibility_delta(conn, path1, path2)
+
     # Write manifest
     with open(os.path.join(output,'morpheo_%s.manifest' % os.path.basename(output)),'w') as f:
-            f.write("tolerance={}".format(buffersize))
+            f.write("tolerance={}\n".format(buffersize))
             f.write("file1=%s\n" % path1)
             f.write("file2=%s\n" % path2)
 
