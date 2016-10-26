@@ -162,7 +162,8 @@ CREATE TABLE places(
     OGC_FID integer PRIMARY KEY,
     DEGREE  integer DEFAULT 0,
     NB_VTX  integer,
-    END_VTX integer -- REFERENCES vertices(OGC_FID) -- mark place as terminal vertex
+    END_VTX integer, -- REFERENCES vertices(OGC_FID`) -- mark place as terminal vertex,
+    USER_PL integer DEFAULT 0  -- Set to 0 if computed, 1 if imported, 
 );
 
 SELECT AddGeometryColumn(

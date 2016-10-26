@@ -237,10 +237,12 @@ class PlaceBuilder(object):
                         SELECT ST_Multi(GEOMETRY) FROM {input_table}
                 """,input_table=input_places, buffer_table=BUFFER_TABLE))
  
+            # Aggregate input places
             union_buffers()
             self._conn.commit()
             create_indexed_table(cur, 'tmp_places', 'POLYGON', 'places')
             try:
+                # Split input places from previous agregation
                 [rowid] = cur.execute(SQL("SELECT OGC_FID FROM {buffer_table} LIMIT 1",
                                     buffer_table=BUFFER_TABLE)).fetchone()
                 cur.execute(SQL("""
@@ -298,8 +300,8 @@ class PlaceBuilder(object):
                 for place, buffers in to_merge.iteritems():
                     if buffers:
                         bufstr = ','.join(str(b) for b in buffers)
-                        cur.execute(SQL("""INSERT INTO places(GEOMETRY)
-                            SELECT ST_Union(geom) FROM (
+                        cur.execute(SQL("""INSERT INTO places(GEOMETRY,USER_PL)
+                            SELECT ST_Union(geom),1 FROM (
                                 SELECT GEOMETRY AS geom FROM tmp_places WHERE OGC_FID={place}
                                 UNION ALL
                                 SELECT GEOMETRY AS geom FROM places WHERE OGC_FID in ({buffers})
@@ -310,7 +312,7 @@ class PlaceBuilder(object):
                         cur.execute(SQL("DELETE FROM places WHERE OGC_FID in ({buffers})",
                                         buffers=bufstr))
                 # Add remaining places
-                cur.execute("INSERT INTO places(GEOMETRY) SELECT GEOMETRY FROM tmp_places")
+                cur.execute("INSERT INTO places(GEOMETRY,USER_PL) SELECT GEOMETRY,1 FROM tmp_places")
             finally:
                 delete_table(cur, 'tmp_places')
 

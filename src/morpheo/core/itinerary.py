@@ -384,6 +384,7 @@ def _edge_components_path( dbname, path, source, target, edges, conn=None, weigh
             :param dbname: The morpheo database full path
             :param path:   The morpheo data path (graph location directory)
             :param source: The feature id of the starting place
+            :param edges:  list of 3-uplet edges of mesh components  
             :param target: The feature id of the destination place
     """
     from .algorithms import shortest_subgraph_path
