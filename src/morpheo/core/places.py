@@ -316,7 +316,7 @@ class PlaceBuilder(object):
             finally:
                 delete_table(cur, 'tmp_places')
 
-        #delete_table(cur, BUFFER_TABLE)
+        delete_table(cur, BUFFER_TABLE)
         
         # Checkout number of places
         rv = cur.execute(SQL("Select Count(*) FROM places")).fetchone()[0]
