@@ -113,9 +113,6 @@ def shortest_subgraph_path( G, source, target, mesh, weight=None ):
     # Add shortcuts to the graph
     Gs = G.copy()  
 
-    # Remove all nodes in nbunch
-    #Gs.remove_nodes_from(nbunch)
-
     EPSILON_WEIGHT=0.01
 
     # Create shortcuts

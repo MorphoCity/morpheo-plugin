@@ -690,19 +690,6 @@ class MorpheoHorizonAlgorithm(GeoAlgorithm):
         self.addParameter(
             ParameterNumber(self.PERCENTILE, 'Percentile of features', 1, 99, 5))
 
-        self.addParameter(
-            ParameterNumber(self.PLOT_BINS, 'Number of bins in histogram', 2, 99, 20))
-        self.addParameter(
-            ParameterString(self.PLOT_COLOR, 'Histogram color', 'blue'))
-        self.addParameter(
-            ParameterNumber(self.PLOT_WIDTH, 'Width of image histogram', 10, 2000, 400))
-        self.addParameter(
-            ParameterNumber(self.PLOT_HEIGHT, 'Height of image histogram', 10, 2000, 300))
-
-        plot = OutputFile(self.PLOT, 'Path to save image to', ext='png')
-        plot.hidden = True
-        self.addOutput(plot)
-
     def checkBeforeOpeningParametersDialog(self):
         return None
 
@@ -721,13 +708,7 @@ class MorpheoHorizonAlgorithm(GeoAlgorithm):
 
         conn = connect_database(dbpath)
         G    = read_ways_graph(os.path.join(output, dbname))
-        data = hrz.horizon_from_attribute(conn, G, attribute, percentile,
-                                          output=os.path.join(output, dbname, '%s_%s_%s.txt' % (attribute, percentile, dbname)))
 
-        hrz.plot_histogram(data, os.path.join(output, dbname, '%s_%s_%s.png' % (attribute, percentile, dbname)),
-                           bins=self.getParameterValue(self.PLOT_BINS),
-                           color=self.getParameterValue(self.PLOT_COLOR),
-                           size=(self.getParameterValue(self.PLOT_WIDTH), self.getParameterValue(self.PLOT_HEIGHT)))
-
-        self.setOutputValue(self.PLOT, os.path.join(output, dbname, '%s_%s_%s.png' % (attribute, percentile, dbname)))
+        table = 'horizon_%s_%s' % (attribute, percentile)
+        hrz.horizon_from_attribute(conn, G, table, attribute, percentile)
 

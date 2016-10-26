@@ -5,6 +5,7 @@ from __future__ import print_function
 import os
 import sys
 import logging
+import math
 
 from functools import partial
 from math import pi
@@ -290,20 +291,20 @@ def compute_horizon( args ):
     path   = args.path
     dbname = args.dbname or path +'.sqlite'
 
+    table  = args.table  or 'horizon_%s_%s' % (args.attribute, 
+             ('%.2f' %  args.percentile).replace('.','_'))
+
     conn = connect_database(dbname)
 
     check_attribute(conn, args.attribute, ways=True)
 
-    G    = read_ways_graph(path)
-    data = hrz.horizon_from_attribute(conn, G, args.attribute, args.percentile, 
-                                      output=args.output) 
+    G = read_ways_graph(path)
+    hrz.horizon_from_attribute(conn, G, table, args.attribute, args.percentile)
 
-    if args.plot:
-       hrz.plot_histogram(data, args.plot, 
-                bins=args.bins,
-                color=args.color,
-                size=args.size)
+    conn.commit()
 
+    if args.output is not None:
+        export_shapefile(dbname, table, args.output)
 
 
 def main():
@@ -412,7 +413,7 @@ def main():
 
     # Compute paths
     path_cmd = sub.add_parser('path', description="Compute paths")
-    path_cmd.add_argument("path", metavar='PATH', help="Path to morpheo graph data")
+    path_cmd.add_argument("path",     metavar='PATH', help="Path to morpheo graph data")
     path_cmd.add_argument("--dbname", metavar='PATH', help="Database")
     path_cmd.add_argument("--output", metavar='PATH' , default=None, help="Output destination")
     path_cmd.add_argument("-from","--from", metavar='NUMBER' , type=int, dest='source'     , 
@@ -425,7 +426,7 @@ def main():
         'azimuth' ,
         'naive-azimuth',
     ], default='shortest', dest="path_type", help="Type of path (default to shortest)")
-    path_cmd.add_argument("--use-way", action="store_true", default=False, help="Use ways for computing mesh components")
+    path_cmd.add_argument("--use-way",    action="store_true", default=False, help="Use ways for computing mesh components")
     path_cmd.add_argument("--attribute" , metavar='NAME'  , default=None, 
             help="Specify attribute name for mesh structure")
     path_cmd.add_argument("--percentile", metavar='NUMBER', default=5, type=range_type, 
@@ -435,8 +436,8 @@ def main():
 
     # Compute mesh
     mesh_cmd = sub.add_parser('mesh', description="Compute mesh")
-    mesh_cmd.add_argument("dbname", metavar='PATH', help="Database")
-    mesh_cmd.add_argument("--use-way", action="store_true", default=False, help="Use ways for computing mesh components")
+    mesh_cmd.add_argument("dbname",       metavar='PATH', help="Database")
+    mesh_cmd.add_argument("--use-way",    action="store_true", default=False, help="Use ways for computing mesh components")
     mesh_cmd.add_argument("--attribute" , metavar='NAME', required=True  , default=None, 
             help="Specify attribute name for mesh structure")
     mesh_cmd.add_argument("--percentile", metavar='NUMBER', default=5, type=range_type, 
@@ -447,20 +448,17 @@ def main():
 
     # Compute horizon
     hrz_cmd = sub.add_parser('horizon', description="Compute horizon")
-    hrz_cmd.add_argument("path", metavar='PATH', help="Path to morpheo graph data")
-    hrz_cmd.add_argument("--dbname", metavar='PATH', help="Database")
-    hrz_cmd.add_argument("--output", metavar='PATH' , default=None, help="Output destination")
+    hrz_cmd.add_argument("path",         metavar='PATH', help="Path to morpheo graph data")
+    hrz_cmd.add_argument("--dbname",     metavar='PATH' , help="Database")
+    hrz_cmd.add_argument("--table" ,     metavar='NAME' , default=None, help="Result table name")
+    hrz_cmd.add_argument("--output",     metavar='PATH' , default=None, help="Output destination")
     hrz_cmd.add_argument("--attribute" , metavar='NAME'    , required=True, help="Attribute name")
     hrz_cmd.add_argument("--percentile", metavar='PERCENT' , type=range_type, default=5, help="Percentile of features selected")
-    hrz_cmd.add_argument("--plot"      , metavar='PATH'    , default=None, help="Complete path to save image to")
-    hrz_cmd.add_argument("--bins"      , metavar='NUM'     , default=20, type=int, help="Number of bins in histogram")
-    hrz_cmd.add_argument("--color"     , metavar='NAME'    , default='blue',help="Histogram color")
-    hrz_cmd.add_argument("--size"      , metavar='SIZE'    , default='400x300',type=size_type, help="Image size")
     hrz_cmd.set_defaults(func=compute_horizon)
 
     # Compute way simplest path
     path_cmd = sub.add_parser('way_path', description="Compute way simple path")
-    path_cmd.add_argument("path", metavar='PATH', help="Path to morpheo graph data")
+    path_cmd.add_argument("path",     metavar='PATH', help="Path to morpheo graph data")
     path_cmd.add_argument("--dbname", metavar='PATH', help="Database")
     path_cmd.add_argument("--output", metavar='PATH' , default=None, help="Output destination")
     path_cmd.add_argument("-from-","--from", metavar='NUMBER' , type=int, dest='source'     , 

@@ -617,8 +617,8 @@ class MorpheoPlugin:
             self.setError(self.tr('DB Path does not exist!'))
             return
 
-        output    = os.path.dirname(dbpath)
-        dbname    = os.path.basename(dbpath).replace('.sqlite','')
+        output = os.path.dirname(dbpath)
+        dbname = os.path.basename(dbpath).replace('.sqlite','')
 
         conn = connect_database(dbpath)
         G    = read_ways_graph(os.path.join(output, dbname))
@@ -628,11 +628,9 @@ class MorpheoPlugin:
             attribute = self.dlg.cbxHorizonWayAttribute.currentText()
             percentile = self.dlg.spxHorizonPercentile.value()
 
-            data = hrz.horizon_from_attribute(conn, G, attribute, percentile,
-                                              output=os.path.join(output, dbname, '%s_%s_%s.txt' % (attribute, percentile, dbname)))
-            img_path = os.path.join(output, dbname, '%s_%s_%s.png' % (attribute, percentile, dbname))
+            table = 'horizon_%s_%s' % (attribute, percentile)
+            hrz.horizon_from_attribute(conn, G, table, attribute, percentile)
         else:
-
             pt = self.dlg.letHorizonGeoPoint.text()
             if len(pt.split(',')) != 2:
                 self.setError(self.tr('Invalid point!'))
@@ -644,26 +642,17 @@ class MorpheoPlugin:
                 self.setError(self.tr('No ways found!'))
                 return
 
-            self.add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'ways', "horizon_%s_%s" % ('ways',dbname), 'WAY_ID IN ('+','.join(str(i) for i in features)+')')
+            self.add_vector_layer( dbpath, 'ways', "way_selection_%s" % dbname, 
+                    'WAY_ID IN ('+','.join(str(i) for i in features)+')')
 
-            data = hrz.horizon_from_feature_list(G, features,
-                                                 output=os.path.join(output, dbname, '%s_%s_%s_%s.txt' % (pt[0], pt[1], radius, dbname)) )
-            img_path = os.path.join(output, dbname, '%s_%s_%s_%s.png' % (pt[0], pt[1], radius, dbname))
+            table = "horizon_from_selection"
+            hrz.horizon_from_way_list(conn, G, table, features)
 
-        hrz.plot_histogram(data, img_path,
-                           bins=self.dlg.spxHorizonPlotBins.value(),
-                           size=(self.dlg.spxHorizonPlotWidth.value(), self.dlg.spxHorizonPlotHeight.value()))
+        conn.commit()
+        conn.close()
+        self.add_vector_layer( dbpath, table, "%s_%s" % (table,dbname))
 
-        imgDlg = QDialog(self.dlg)
-        imgDlg.setLayout(QVBoxLayout())
-        imgDlg.layout().setContentsMargins(0, 0, 0, 0)
-        imgLabel = QLabel()
-        imgHtml = '<html><head/><body><p><a href="file://{path}" target="_blank"><span style=" text-decoration: underline; color:#0000ff;"/><img src="{path}"/></a></p></body></html>'
-        imgHtml = imgHtml.format(path=img_path)
-        imgLabel.setText(imgHtml)
-        imgLabel.setOpenExternalLinks(True)
-        imgDlg.layout().insertWidget(0, imgLabel)
-        imgDlg.show()
+
 
     def computeStructuralDiff(self):
 

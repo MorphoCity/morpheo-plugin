@@ -18,3 +18,6 @@ class InvalidLayerError(BuilderError):
 class ErrorGraphNotFound(BuilderError):
     pass
 
+class ErrorNoFeatures(MorpheoException):
+    pass
+
