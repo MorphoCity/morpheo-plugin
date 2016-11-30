@@ -809,8 +809,8 @@ class MorpheoPlugin:
                 self.computeStructuralDiff()
         except Exception, e:
             import traceback
-            self.setError(self.tr('Uncaught error, please report it from QGIS logs: %s') % e)
-            lines = [self.tr('Uncaught error while compute operation')]
+            self.setError(u'Uncaught error, please report it from QGIS logs: {}'.format(repr(e)))
+            lines = [self.tr(u'Uncaught error while compute operation')]
             lines.append(traceback.format_exc())
             msg = '\n'.join([m for m in lines])
             QgsMessageLog.logMessage(msg, "Morpheo", QgsMessageLog.CRITICAL)

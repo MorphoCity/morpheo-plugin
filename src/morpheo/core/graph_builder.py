@@ -279,7 +279,7 @@ class SpatialiteBuilder(object):
             os.remove(dbname)
 
         layername = os.path.basename(os.path.splitext(dbname)[0]).lower()
-        import_shapefile( dbname, path, layername)
+        import_shapefile( dbname, path, layername, forceSinglePartGeometryType=True)
         return SpatialiteBuilder(dbname)
 
     @staticmethod
@@ -293,14 +293,15 @@ class SpatialiteBuilder(object):
 
         check_layer(layer, (QGis.WKBLineString25D, QGis.WKBLineString))
 
-        dbname = dbname or 'morpheo_'+layer.name().replace(" ", "_")
-        dbname = dbname + '.sqlite'
+        name   = dbname or 'morpheo_'+layer.name().replace(" ", "_")
+        dbname = name + '.sqlite'
         if os.path.isfile(dbname):
             logging.info("Removing existing database %s" % dbname)
             os.remove(dbname)
 
         # Create database from layer
         logging.info("Creating database '%s' from layer" % dbname)
+        #import_as_layer( dbname, layer, name, forceSinglePartGeometryType=True )
         error = QgsVectorFileWriter.writeAsVectorFormat(layer, dbname, "utf-8", None, "SpatiaLite")
         if error != QgsVectorFileWriter.NoError:
             raise IOError("Failed to create database '{}': error {}".format(dbname, error))

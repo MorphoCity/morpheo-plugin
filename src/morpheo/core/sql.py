@@ -23,6 +23,7 @@ def connect_database( dbname ):
     cur.close()
     return conn
 
+
 def SQL( sql, **kwargs):
     """ Wrap SQL statement 
     """
@@ -30,6 +31,19 @@ def SQL( sql, **kwargs):
     logging.debug(sql)
     return sql
 
+
+def create_database( dbname ):
+    """ Create an empty database
+    """
+    if not os.path.exists(dbname):
+        from pyspatialite import dbapi2 as db
+        conn = db.connect(dbname)
+        cur  = conn.cursor()
+        cur.execute('SELECT initspatialmetadata(1)')
+        cur.close()
+        conn.commit()
+        conn.close()
+ 
 
 def load_sql(name, **kwargs):
     """ Load graph builder sql

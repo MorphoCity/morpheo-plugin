@@ -4,6 +4,8 @@
 import os
 
 from .errors import FileNotFoundError, InvalidLayerError
+from .sql import create_database
+
 
 def open_shapefile( path, name ):
     """ Open a shapefile as a qgis layer
@@ -33,7 +35,7 @@ def check_layer(layer, wkbtypes):
 
 
 
-def import_as_layer( dbname, layer, name ):
+def import_as_layer( dbname, layer, name, forceSinglePartGeometryType=False ):
     """
     """
     if 'OGR2OGR' in os.environ:
@@ -41,22 +43,25 @@ def import_as_layer( dbname, layer, name ):
     else:
         from qgis.core import QgsDataSourceURI, QgsVectorLayer, QgsVectorLayerImport
         if isinstance(layer, QgsVectorLayer):
+            # Create database if it does not exists
+            create_database(dbname)
             # Create Spatialite URI
             uri = QgsDataSourceURI()
             uri.setDatabase(dbname)
             uri.setDataSource('', name, 'GEOMETRY')
             options = {}
             options['overwrite'] = True
+            options['forceSinglePartGeometryType'] = forceSinglePartGeometryType
             error, errMsg = QgsVectorLayerImport.importLayer(layer, uri.uri(False), 'spatialite', layer.crs(), False, False, options)
             if error != QgsVectorLayerImport.NoError:
-                raise IOError("Failed to add layer to database '{}': error {}".format(dbname, errMsg))
+                raise IOError(u"Failed to add layer to database '{}': error {}".format(dbname, errMsg))
         else:
             import_shapefile( dbname, layer, name )
 
 
 def import_table( dstdb, dstname, srcdb, srcname, forceSinglePartGeometryType=False ):
     """ Import a table from another table
-    """
+ """
     if 'OGR2OGR' in os.environ:
         from subprocess import call
 
@@ -70,7 +75,7 @@ def import_table( dstdb, dstname, srcdb, srcname, forceSinglePartGeometryType=Fa
         args.extend([dstdb, srcdb, srcname, '-nln', dstname, '-preserve_fid'])
         rc = call(args)
         if rc != 0:
-            raise IOError("Failed to add layer to database '{}'".format(dstdb))
+            raise IOError(u"Failed to add layer to database '{}'".format(dstdb))
     else:
         # Import with QGIS API
         from qgis.core import QgsDataSourceURI, QgsVectorLayer, QgsVectorLayerImport
@@ -82,15 +87,10 @@ def import_table( dstdb, dstname, srcdb, srcname, forceSinglePartGeometryType=Fa
         uri.setDataSource('', srcname, 'GEOMETRY')
         layer = QgsVectorLayer(uri.uri(), srcname, 'spatialite')
         if not layer.isValid():
-            raise IOError("Layer '{}' is not valid".format(srcname))
+            raise IOError(u"Layer '{}' is not valid".format(srcname))
         from pyspatialite import dbapi2 as db
         # create spatialite database if does not exist
-        if not os.path.exists(dstdb):
-            conn = db.connect(dstdb)
-            cur  = conn.cursor()
-            cur.execute('SELECT initspatialmetadata(1)')
-            cur.close()
-            conn.close()
+        create_database(dstdb)
         # Create Spatialite URI
         uri = QgsDataSourceURI()
         uri.setDatabase(dstdb)
@@ -100,7 +100,7 @@ def import_table( dstdb, dstname, srcdb, srcname, forceSinglePartGeometryType=Fa
         options['forceSinglePartGeometryType'] = forceSinglePartGeometryType
         error, errMsg = QgsVectorLayerImport.importLayer(layer, uri.uri(False), 'spatialite', layer.crs(), False, False, options)
         if error != QgsVectorLayerImport.NoError:
-            raise IOError("Failed to add layer to database '{}': error {}".format(dbname, errMsg))
+            raise IOError(u"Failed to add layer to database '{}': error {}".format(dbname, errMsg))
         # add spatial index
         conn = db.connect(dstdb)
         cur  = conn.cursor()
@@ -125,13 +125,15 @@ def import_shapefile( dbname, path, name, forceSinglePartGeometryType=False ):
         ogr2ogr = os.environ['OGR2OGR']
         args = [ogr2ogr]
         if not os.path.exists(dbname):
-            args.extend(['-f','SQLite','-dsco','SPATIALITE=yes'])
+            args.extend(['-f','SQLite','-dsco', 'SPATIALITE=yes'])
         else:
             args.append('-update')
         args.extend([dbname, path, '-nln', name])
+        if forceSinglePartGeometryType:
+            args.append('-explodecollections')
         rc = call(args)
         if rc != 0:
-            raise IOError("Failed to add layer to database '{}'".format(dbname))
+            raise IOError(u"Failed to add layer to database '{}'".format(dbname))
     else:
         # Import with QGIS API
         from qgis.core import QgsDataSourceURI, QgsVectorLayer, QgsVectorLayerImport
@@ -143,14 +145,7 @@ def import_shapefile( dbname, path, name, forceSinglePartGeometryType=False ):
             raise IOError("Shapefile '{}' is not valid".format(path))
         from pyspatialite import dbapi2 as db
         # create spatialite database if does not exist
-        if not os.path.exists(dbname):
-            conn = db.connect(dbname)
-            cur  = conn.cursor()
-            cur.execute('SELECT initspatialmetadata(1)')
-            cur.close()
-            conn.close()
-            del cur
-            del conn
+        create_database(dbname)
         # Create Spatialite URI
         uri = QgsDataSourceURI()
         uri.setDatabase(dbname)
@@ -160,7 +155,7 @@ def import_shapefile( dbname, path, name, forceSinglePartGeometryType=False ):
         options['forceSinglePartGeometryType'] = forceSinglePartGeometryType
         error, errMsg = QgsVectorLayerImport.importLayer(layer, uri.uri(False), 'spatialite', layer.crs(), False, False, options)
         if error != QgsVectorLayerImport.NoError:
-            raise IOError("Failed to add layer to database '{}': error {}".format(dbname, errMsg))
+            raise IOError(u"Failed to add layer to database '{}': error {}".format(dbname, errMsg))
         # add spatial index
         conn = db.connect(dbname)
         cur  = conn.cursor()
@@ -185,7 +180,7 @@ def export_shapefile( dbname, table, output ):
         rc = call([ogr2ogr,'-f','ESRI Shapefile','-overwrite',output,dbname,table,'-nln',
                     "%s_%s" % (table,os.path.basename(output))])
         if rc != 0:
-            raise IOError("Failed to save '{}:{}' as  '{}'".format(dbname, table, output))
+            raise IOError(u"Failed to save '{}:{}' as  '{}'".format(dbname, table, output))
     else:
         # Export with QGIS API
         from qgis.core import QgsDataSourceURI, QgsVectorLayer, QgsVectorFileWriter
@@ -200,7 +195,7 @@ def export_shapefile( dbname, table, output ):
         # Write Shapefile
         writeError = QgsVectorFileWriter.writeAsVectorFormat(dblayer, shapefile, "UTF8", None, "ESRI Shapefile")
         if writeError != QgsVectorFileWriter.NoError:
-            raise IOError("Failed to save '{}:{}' as  '{}'".format(dbname, table, output))
+            raise IOError(u"Failed to save '{}:{}' as  '{}'".format(dbname, table, output))
 
 
 
