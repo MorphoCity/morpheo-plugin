@@ -455,7 +455,7 @@ class WayBuilder(object):
         cur   = self._conn.cursor()
 
         # Get the length for each ways
-        lengths = cur.execute("SELECT WAY_ID,LENGTH FROM ways").fetchall()
+        lengths = dict(cur.execute("SELECT WAY_ID,LENGTH FROM ways").fetchall())
 
         logging.info("Ways: computing topological radius and accessibility")
 
@@ -464,7 +464,7 @@ class WayBuilder(object):
         def compute( v ):
             sp = path_length(G,v)
             r = sum(sp.values())
-            a = sum(sp[w[0]]*w[1] for w in lengths)
+            a = sum(sp[w]*lengths[w] for w in sp)
             progress()
             return v,r,a
 
