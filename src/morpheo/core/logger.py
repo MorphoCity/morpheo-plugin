@@ -18,7 +18,8 @@ class ConsoleProgressHandler(logging.StreamHandler):
             sys.stdout.flush()
         else:
             if self._in_progress:
-                sys.stdout.write('\n')
+                sys.stdout.write("\r\x1b[K")
+                sys.stdout.flush()
                 self._in_progress = False
             super(ConsoleProgressHandler,self).emit(record)
 
