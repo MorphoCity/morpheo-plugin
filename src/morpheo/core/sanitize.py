@@ -47,12 +47,22 @@ class Sanitizer(object):
                       ", min_edge_length={}, attribute={}").format(snap_distance,
                                                                     min_edge_length,
                                                                     attribute))
-
         cur = self._conn.cursor()
         self.delete_unconnected_features(cur)
         self.snap_geometries(cur, snap_distance)
         self.resolve_intersections(cur, min_edge_length, attribute)
+
+        self.fix_bug21(cur);
+
         self._conn.commit()
+
+    def fix_bug21( self, cur ):
+        # Fix https://projects.3liz.org/clients/morpheo/issues/21
+        cur.execute(SQL("SELECT Count(OGC_FID) from {table} WHERE GEOMETRY IS NULL", table=self.work_table))
+        [bads] = cur.fetchone();
+        if bads > 0:
+            logging.warn("Found Invalid edges (null geometry): discarding...")
+            cur.execute(SQL("DELETE from {table} WHERE GEOMETRY IS NULL", table=self.work_table))
 
     def delete_unconnected_features(self, cur):
         """ Remove unconnected features from input data
@@ -569,5 +579,6 @@ def sanitize( conn, table, snap_distance, min_edge_length, attribute=None ):
     """
     sanitizer = Sanitizer(conn, table)
     sanitizer.sanitize(snap_distance, min_edge_length, attribute=attribute)
+
     return sanitizer.work_table
 
