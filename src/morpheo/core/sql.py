@@ -9,7 +9,12 @@ from contextlib import contextmanager
 from .errors import BuilderError
 from .logger import log_progress
 
+
 class SQLNotFoundError(BuilderError):
+    pass
+
+
+class InvalidDatabaseError(BuilderError):
     pass
 
 
@@ -20,6 +25,14 @@ def connect_database( dbname ):
     conn = db.connect(dbname)
     cur  = conn.cursor()
     cur.execute("PRAGMA temp_store=MEMORY")
+
+    # Check that it is a  spatiallite database 
+    logging.info("Testing spatialite metadata")
+
+    [check_metadata] = cur.execute("select CheckSpatialMetaData()").fetchone()
+    if check_metadata == 0:
+        raise InvalidDatabaseError("%s has no spatial metadata" % dbname );
+
     cur.close()
     return conn
 
