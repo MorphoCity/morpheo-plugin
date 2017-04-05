@@ -18,17 +18,40 @@ class InvalidDatabaseError(BuilderError):
     pass
 
 
+def initialize_spatialite():
+    """ This is a workaround for
+        KyngChaos packaging of spatialite
+
+        Important: this need a patched version 
+        of pysqlite
+    """
+    from pyspatialite import dbapi2 as db
+    if hasattr(db, "initialize_spatialite"):
+        conn = db.connect(":memory:")
+        try:
+            [check_metadata] = conn.execute("select spatialite_version()").fetchone()
+        except db.OperationalError:
+            logging.info("Initialize spatialite")
+            db.initialize_spatialite()
+        finally:
+            conn.close()
+    return db
+
+
 def connect_database( dbname ):
     """ Connect to database 'dbname'
     """
-    from pyspatialite import dbapi2 as db
-    conn = db.connect(dbname)
-    cur  = conn.cursor()
+    db = initialize_spatialite()
+
+    # XXX Workaround for https://github.com/ghaering/pysqlite/issues/109
+    # which hit us here (python 2.7) with pysqlite
+    logging.info("Fixing isolation_level for pysqlite2")
+    conn = db.connect(dbname, isolation_level = None)
+
+    cur = conn.cursor()
     cur.execute("PRAGMA temp_store=MEMORY")
 
-    # Check that it is a  spatiallite database 
     logging.info("Testing spatialite metadata")
-
     [check_metadata] = cur.execute("select CheckSpatialMetaData()").fetchone()
     if check_metadata == 0:
         raise InvalidDatabaseError("%s has no spatial metadata" % dbname );
