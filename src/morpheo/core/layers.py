@@ -4,7 +4,7 @@
 import os
 
 from .errors import FileNotFoundError, InvalidLayerError
-from .sql import create_database
+from .sql import create_database, connect_database
 
 
 def open_shapefile( path, name ):
@@ -31,8 +31,6 @@ def check_layer(layer, wkbtypes):
 
     if layer.crs().geographicFlag():
        raise InvalidLayerError("Invalid CRS (lat/long) for layer")
-
-
 
 
 def import_as_layer( dbname, layer, name, forceSinglePartGeometryType=False ):
@@ -88,7 +86,6 @@ def import_table( dstdb, dstname, srcdb, srcname, forceSinglePartGeometryType=Fa
         layer = QgsVectorLayer(uri.uri(), srcname, 'spatialite')
         if not layer.isValid():
             raise IOError(u"Layer '{}' is not valid".format(srcname))
-        from pyspatialite import dbapi2 as db
         # create spatialite database if does not exist
         create_database(dstdb)
         # Create Spatialite URI
@@ -102,7 +99,7 @@ def import_table( dstdb, dstname, srcdb, srcname, forceSinglePartGeometryType=Fa
         if error != QgsVectorLayerImport.NoError:
             raise IOError(u"Failed to add layer to database '{}': error {}".format(dbname, errMsg))
         # add spatial index
-        conn = db.connect(dstdb)
+        conn = connect_database(dstdb)
         cur  = conn.cursor()
         cur.execute("SELECT CreateSpatialIndex('{table}', 'GEOMETRY')".format(table=dstname))
         cur.close()
@@ -143,7 +140,6 @@ def import_shapefile( dbname, path, name, forceSinglePartGeometryType=False ):
         layer = QgsVectorLayer(path, name, 'ogr')
         if not layer.isValid():
             raise IOError("Shapefile '{}' is not valid".format(path))
-        from pyspatialite import dbapi2 as db
         # create spatialite database if does not exist
         create_database(dbname)
         # Create Spatialite URI
@@ -156,8 +152,8 @@ def import_shapefile( dbname, path, name, forceSinglePartGeometryType=False ):
         error, errMsg = QgsVectorLayerImport.importLayer(layer, uri.uri(False), 'spatialite', layer.crs(), False, False, options)
         if error != QgsVectorLayerImport.NoError:
             raise IOError(u"Failed to add layer to database '{}': error {}".format(dbname, errMsg))
-        # add spatial index
-        conn = db.connect(dbname)
+        # Add spatial index
+        conn = connect_database(dbname)
         cur  = conn.cursor()
         cur.execute("SELECT CreateSpatialIndex('{table}', 'GEOMETRY')".format(table=name))
         cur.close()

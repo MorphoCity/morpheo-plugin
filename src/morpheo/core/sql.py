@@ -45,7 +45,6 @@ def connect_database( dbname ):
 
     # XXX Workaround for https://github.com/ghaering/pysqlite/issues/109
     # which hit us here (python 2.7) with pysqlite
-    logging.info("Fixing isolation_level for pysqlite2")
     conn = db.connect(dbname, isolation_level = None)
 
     cur = conn.cursor()
@@ -72,7 +71,7 @@ def create_database( dbname ):
     """ Create an empty database
     """
     if not os.path.exists(dbname):
-        from pyspatialite import dbapi2 as db
+        db = initialize_spatialite()
         conn = db.connect(dbname)
         cur  = conn.cursor()
         cur.execute('SELECT initspatialmetadata(1)')
