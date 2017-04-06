@@ -91,21 +91,18 @@ def import_table( dstdb, dstname, srcdb, srcname, forceSinglePartGeometryType=Fa
         # Create Spatialite URI
         uri = QgsDataSourceURI()
         uri.setDatabase(dstdb)
-        uri.setDataSource('', dstname, 'GEOMETRY')
+        uri.setDataSource('', dstname, 'GEOMETRY', '', 'OGC_FID')
         options = {}
         options['overwrite'] = True
         options['forceSinglePartGeometryType'] = forceSinglePartGeometryType
         error, errMsg = QgsVectorLayerImport.importLayer(layer, uri.uri(False), 'spatialite', layer.crs(), False, False, options)
         if error != QgsVectorLayerImport.NoError:
-            raise IOError(u"Failed to add layer to database '{}': error {}".format(dbname, errMsg))
+            raise IOError(u"Failed to add layer to database '{}': error {}".format(dstname, errMsg))
         # add spatial index
         conn = connect_database(dstdb)
-        cur  = conn.cursor()
-        cur.execute("SELECT CreateSpatialIndex('{table}', 'GEOMETRY')".format(table=dstname))
-        cur.close()
+        conn.execute("SELECT CreateSpatialIndex('{table}', 'GEOMETRY')".format(table=dstname))
+        conn.commit()
         conn.close()
-
-       
 
 
 def import_shapefile( dbname, path, name, forceSinglePartGeometryType=False ):

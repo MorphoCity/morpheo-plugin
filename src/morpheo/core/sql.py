@@ -73,9 +73,7 @@ def create_database( dbname ):
     if not os.path.exists(dbname):
         db = initialize_spatialite()
         conn = db.connect(dbname)
-        cur  = conn.cursor()
-        cur.execute('SELECT initspatialmetadata(1)')
-        cur.close()
+        conn.execute('SELECT initspatialmetadata(1)')
         conn.commit()
         conn.close()
  

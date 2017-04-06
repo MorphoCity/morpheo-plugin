@@ -664,31 +664,29 @@ class MorpheoPlugin:
             gpickle = os.path.join(path,'way_graph_%s.gpickle' % basename)
             return os.path.isfile(shp) and os.path.isfile(gpickle)
 
-        dbpath1    = self.dlg.letStructuralDiffDBPath1.text()
-        dirname1  = os.path.dirname(dbpath1)
-        dbname1   = os.path.basename(dbpath1).replace('.sqlite','')
+        dbpath1  = self.dlg.letStructuralDiffDBPath1.text()
+        dirname1 = os.path.dirname(dbpath1)
+        dbname1  = os.path.basename(dbpath1).replace('.sqlite','')
         if not check_dbpath(os.path.join(dirname1, dbname1)):
             self.setError(self.tr('Initial Morpheo directory is incomplete'))
             return
 
-        dbpath2    = self.dlg.letStructuralDiffDBPath2.text()
-        dirname2  = os.path.dirname(dbpath2)
-        dbname2   = os.path.basename(dbpath2).replace('.sqlite','')
+        dbpath2  = self.dlg.letStructuralDiffDBPath2.text()
+        dirname2 = os.path.dirname(dbpath2)
+        dbname2  = os.path.basename(dbpath2).replace('.sqlite','')
         if not check_dbpath(os.path.join(dirname2, dbname2)):
             self.setError(self.tr('Final Morpheo directory is incomplete'))
             return
 
-
-        output    = self.dlg.letStructuralDiffDirectoryPath.text() or tempFolder()
-        dbname    = self.dlg.letStructuralDiffDBName.text() or 'morpheo_%s_%s' % (dbname1, dbname2)
+        output = self.dlg.letStructuralDiffDirectoryPath.text() or tempFolder()
+        dbname = self.dlg.letStructuralDiffDBName.text() or 'morpheo_%s_%s' % (dbname1, dbname2)
 
         if not os.path.exists(os.path.join(output, dbname)):
             os.mkdir(os.path.join(output, dbname))
 
-
         structural_diff( os.path.join(dirname1, dbname1), os.path.join(dirname2, dbname2),
                          output=os.path.join(output, dbname),
-                         buffersize=self.dlg.spxStructuralDiffTolerance.value())
+                         buffersize=float(self.dlg.spxStructuralDiffTolerance.value()) )
 
         # Visualize data
         self.add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'paired_edges', "%s_%s" % ('paired_edges',dbname))

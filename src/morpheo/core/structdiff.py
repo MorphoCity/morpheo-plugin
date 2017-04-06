@@ -186,10 +186,25 @@ def structural_diff(path1, path2, output, buffersize):
     conn.commit()
 
     # Compute paired edges
-    logging.info("Structural Diff: computing paired edges")
+    logging.info("Structural Diff: computing paired edges with buffersize = %f" % buffersize)
     execute_sql(conn,"structdiff.sql", buffersize=buffersize)
 
     conn.commit()
+
+    compute_accessibility_delta(conn, path1, path2)
+
+    conn.commit()
+
+    
+    cur = conn.cursor()
+    [paired_count]  = cur.execute(SQL("SELECT COUNT(*) FROM paired_edges")).fetchone()
+    [removed_count] = cur.execute(SQL("SELECT COUNT(*) FROM removed_edges")).fetchone()
+    [added_count]   = cur.execute(SQL("SELECT COUNT(*) FROM added_edges")).fetchone()
+    cur.close()
+
+    conn.close()
+
+    logging.info("Structural Diff: paired edges: %d, removed_edges: %d, added_edges: %d" % (paired_count, removed_count, added_count))
 
     # Export files
     logging.info("Diff: exporting files")
@@ -197,7 +212,6 @@ def structural_diff(path1, path2, output, buffersize):
     export_shapefile(dbname, 'removed_edges', output)
     export_shapefile(dbname, 'added_edges', output)
 
-    compute_accessibility_delta(conn, path1, path2)
 
     # Write manifest
     with open(os.path.join(output,'morpheo_%s.manifest' % os.path.basename(output)),'w') as f:
