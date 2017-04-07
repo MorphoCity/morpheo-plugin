@@ -186,7 +186,7 @@ def structural_diff(path1, path2, output, buffersize):
     [srid1] = conn.execute("SELECT CAST(srid AS integer) FROM geometry_columns WHERE f_table_name='edges1'").fetchone()
     [srid2] = conn.execute("SELECT CAST(srid AS integer) FROM geometry_columns WHERE f_table_name='edges2'").fetchone()
     if srid1 != srid2:
-        logging.error("Table must have the same SRID ! Found %s and %s, please check that input have the same spatial référence")
+        logging.error("Tables must have the same SRID ! Please check that input have the same spatial reference")
         raise MorpheoException("Table must have the same SRID")
 
     accessibility_delta = True
