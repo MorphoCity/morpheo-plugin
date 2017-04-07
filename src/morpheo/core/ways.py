@@ -504,15 +504,10 @@ class WayBuilder(object):
             nx.write_gpickle(self._line_graph, _ways_graph_path(output))
         else:
             logging.warn("Ways: no graph to save")
-   
+
     def export(self, dbname, output, export_graph=False):
        """ Export way files
        """
-       # Delete previous way graph
-       graph_path = _ways_graph_path(output)
-       if os.path.exists(graph_path):
-               os.remove(graph_path)
-
        logging.info("Ways: Saving ways to %s" % output)
        export_shapefile(dbname, 'ways'       , output)
        export_shapefile(dbname, 'place_edges', output)
