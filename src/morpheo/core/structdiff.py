@@ -6,8 +6,8 @@ import logging
 import networkx as nx
 
 from .logger import Progress
-from .sql    import connect_database, SQL, execute_sql, attr_table
-from .layers import import_shapefile, export_shapefile, import_table
+from .sql    import create_database, connect_database, SQL, execute_sql, attr_table
+from .layers import import_shapefile, export_shapefile
 from .ways   import read_ways_graph
 
 
@@ -52,7 +52,7 @@ def compute_accessibility_delta(conn, path1, path2):
 
     # Update edge table
     logging.info("Structural Diff: updating edges table")
-    with attr_table(cur, "edgge_attr") as attrs:
+    with attr_table(cur, "edge_attr") as attrs:
         attrs.update('paired_edges', 'EDGE2', 'REMOVED', [(r[0],r[1]) for r in results])
         attrs.update('paired_edges', 'EDGE2', 'ADDED'  , [(r[0],r[2]) for r in results])
         attrs.update('paired_edges', 'EDGE2', 'DELTA'  , [(r[0],r[3]) for r in results])
@@ -166,17 +166,20 @@ def structural_diff(path1, path2, output, buffersize):
         logging.info("Removing existing  database %s" % dbname)
         os.remove(dbname)
 
-    def import_data(path, sfx):
-         basename = os.path.basename(path)
-         logging.info("Structural diff: importing place_edges from %s" % path)
-         import_table( dbname, 'edges' +sfx, path+'.sqlite', 'place_edges', forceSinglePartGeometryType=True)
-         import_table( dbname, 'places'+sfx, path+'.sqlite', 'places'     , forceSinglePartGeometryType=True)
+    create_database( dbname )
 
-    import_data(path1, '1')
-    import_data(path2, '2')
-    # Connect to the database
+    def import_data(conn, path, sfx):
+         basename = os.path.basename(path)
+         logging.info("Structural diff: importing edge data from %s" % path)
+
+         execute_sql(conn,"import_edges.sql", sfx=sfx, srcdb=path+'.sqlite')
+    
+
     conn = connect_database(dbname)
 
+    import_data(conn, path1, '1')
+    import_data(conn, path2, '2')
+    # Connect to the database
     # Split edges
     create_counter(conn)
     create_temp_table(conn)
@@ -188,13 +191,10 @@ def structural_diff(path1, path2, output, buffersize):
     # Compute paired edges
     logging.info("Structural Diff: computing paired edges with buffersize = %f" % buffersize)
     execute_sql(conn,"structdiff.sql", buffersize=buffersize)
-
     conn.commit()
 
     compute_accessibility_delta(conn, path1, path2)
-
     conn.commit()
-
     
     cur = conn.cursor()
     [paired_count]  = cur.execute(SQL("SELECT COUNT(*) FROM paired_edges")).fetchone()

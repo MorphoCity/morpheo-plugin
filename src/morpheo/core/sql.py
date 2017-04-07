@@ -71,6 +71,7 @@ def create_database( dbname ):
     """ Create an empty database
     """
     if not os.path.exists(dbname):
+        logging.info("Creating database %s" % dbname)
         db = initialize_spatialite()
         conn = db.connect(dbname)
         conn.execute('SELECT initspatialmetadata(1)')

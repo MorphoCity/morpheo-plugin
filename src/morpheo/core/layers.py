@@ -2,6 +2,7 @@
 """ Utilities to manage shapefile layers
 """
 import os
+import logging
 
 from .errors import FileNotFoundError, InvalidLayerError
 from .sql import create_database, connect_database
@@ -55,54 +56,6 @@ def import_as_layer( dbname, layer, name, forceSinglePartGeometryType=False ):
                 raise IOError(u"Failed to add layer to database '{}': error {}".format(dbname, errMsg))
         else:
             import_shapefile( dbname, layer, name )
-
-
-def import_table( dstdb, dstname, srcdb, srcname, forceSinglePartGeometryType=False ):
-    """ Import a table from another table
- """
-    if 'OGR2OGR' in os.environ:
-        from subprocess import call
-
-        # Append layer to  database
-        ogr2ogr = os.environ['OGR2OGR']
-        args = [ogr2ogr]
-        if not os.path.exists(dstdb):
-            args.extend(['-f','SQLite','-dsco','SPATIALITE=yes'])
-        else:
-            args.append('-update')
-        args.extend([dstdb, srcdb, srcname, '-nln', dstname, '-preserve_fid'])
-        rc = call(args)
-        if rc != 0:
-            raise IOError(u"Failed to add layer to database '{}'".format(dstdb))
-    else:
-        # Import with QGIS API
-        from qgis.core import QgsDataSourceURI, QgsVectorLayer, QgsVectorLayerImport
-        # Create table QgsVectorLayer
-        if not os.path.exists(srcdb):
-            raise IOError("Database not found '{}'".format(srcdb))
-        uri = QgsDataSourceURI()
-        uri.setDatabase(srcdb)
-        uri.setDataSource('', srcname, 'GEOMETRY')
-        layer = QgsVectorLayer(uri.uri(), srcname, 'spatialite')
-        if not layer.isValid():
-            raise IOError(u"Layer '{}' is not valid".format(srcname))
-        # create spatialite database if does not exist
-        create_database(dstdb)
-        # Create Spatialite URI
-        uri = QgsDataSourceURI()
-        uri.setDatabase(dstdb)
-        uri.setDataSource('', dstname, 'GEOMETRY', '', 'OGC_FID')
-        options = {}
-        options['overwrite'] = True
-        options['forceSinglePartGeometryType'] = forceSinglePartGeometryType
-        error, errMsg = QgsVectorLayerImport.importLayer(layer, uri.uri(False), 'spatialite', layer.crs(), False, False, options)
-        if error != QgsVectorLayerImport.NoError:
-            raise IOError(u"Failed to add layer to database '{}': error {}".format(dstname, errMsg))
-        # add spatial index
-        conn = connect_database(dstdb)
-        conn.execute("SELECT CreateSpatialIndex('{table}', 'GEOMETRY')".format(table=dstname))
-        conn.commit()
-        conn.close()
 
 
 def import_shapefile( dbname, path, name, forceSinglePartGeometryType=False ):
