@@ -48,7 +48,7 @@ def compute_accessibility_delta(conn, path1, path2):
         progress()
         return edge, total_removed, total_added, delta
 
-    logging.info("Structural Diff: comuputing accessibility delta")
+    logging.info("Structural Diff: computing accessibility delta")
     results = [compute(*r) for r in edges]
 
     # Update edge table
@@ -227,15 +227,16 @@ def structural_diff(path1, path2, output, buffersize):
 
     # Export files
     logging.info("Diff: exporting files")
-    export_shapefile(dbname, 'paired_edges', output)
+    export_shapefile(dbname, 'paired_edges' , output)
     export_shapefile(dbname, 'removed_edges', output)
-    export_shapefile(dbname, 'added_edges', output)
-
+    export_shapefile(dbname, 'added_edges'  , output)
 
     # Write manifest
-    with open(os.path.join(output,'morpheo_%s.manifest' % os.path.basename(output)),'w') as f:
-            f.write("tolerance={}\n".format(buffersize))
-            f.write("file1=%s\n" % path1)
-            f.write("file2=%s\n" % path2)
-
+    try:
+        with open(os.path.join(output, 'morpheo_%s.manifest' % os.path.basename(output)),'w') as f:
+                f.write("tolerance={}\n".format(buffersize))
+                f.write("file1=%s\n" % path1.encode('utf-8'))
+                f.write("file2=%s\n" % path2.encode('utf-8'))
+    except UnicodeEncodeError:
+        logging.warn("Failed to save manifest because of unicode error")
 
