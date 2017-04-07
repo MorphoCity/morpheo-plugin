@@ -31,6 +31,8 @@ from functools import partial
 from math import pi
 from datetime import datetime
 
+import logging
+
 class MorpheoPlugin:
     """QGIS Plugin Implementation."""
 
@@ -479,7 +481,6 @@ class MorpheoPlugin:
         output    = os.path.dirname(dbpath)
         dbname    = os.path.basename(dbpath).replace('.sqlite','')
 
-
         builder = Builder.from_database( os.path.join(output, dbname) )
         if self.dlg.cbxWayAttributesComputeOn.currentText() == self.tr('Edges'):
             builder.compute_edge_attributes( os.path.join(output, dbname),
@@ -661,8 +662,15 @@ class MorpheoPlugin:
         def check_dbpath(path):
             basename = os.path.basename(path)
             shp = os.path.join(path,'place_edges_%s.shp' % basename)
+            if not os.path.isfile(shp):
+                loggin.error("Missing %s" % shp)
+                return False
             gpickle = os.path.join(path,'way_graph_%s.gpickle' % basename)
-            return os.path.isfile(shp) and os.path.isfile(gpickle)
+            if not os.path.isfile(gpickle):
+                logging.error("Missing %s" % gpickle)
+                return False
+
+            return True
 
         dbpath1  = self.dlg.letStructuralDiffDBPath1.text()
         dirname1 = os.path.dirname(dbpath1)
