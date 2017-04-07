@@ -74,26 +74,32 @@ def log_error(error):
     ProcessingLog.addToLog(ProcessingLog.LOG_ERROR, error)
 
 def add_vector_layer(dbname, table_name, layer_name, clause=''):
-        # Build URI
-        uri = QgsDataSourceURI()
-        uri.setDatabase(dbname)
-        uri.setDataSource('', table_name, 'GEOMETRY', clause)
-        # Find already loaded layer
-        layersByName = QgsMapLayerRegistry.instance().mapLayersByName(layer_name)
-        if layersByName:
-            vlayer = layersByName[0]
-            XMLDocument = QDomDocument("style")
-            XMLMapLayers = XMLDocument.createElement("maplayers")
-            XMLMapLayer = XMLDocument.createElement("maplayer")
-            vlayer.writeLayerXML(XMLMapLayer,XMLDocument)
-            XMLMapLayer.firstChildElement("datasource").firstChild().setNodeValue(uri.uri())
-            XMLMapLayers.appendChild(XMLMapLayer)
-            XMLDocument.appendChild(XMLMapLayers)
-            vlayer.readLayerXML(XMLMapLayer)
-            vlayer.reload()
-        else:
-            vlayer = QgsVectorLayer(uri.uri(), layer_name, 'spatialite')
-            QgsMapLayerRegistry.instance().addMapLayer(vlayer)
+    # Build URI
+    uri = QgsDataSourceURI()
+    uri.setDatabase(dbname)
+    uri.setDataSource('', table_name, 'GEOMETRY', clause, '')
+    # Find already loaded layer
+    layersByName = QgsMapLayerRegistry.instance().mapLayersByName(layer_name)
+    if layersByName:
+        vlayer = layersByName[0]
+        XMLDocument = QDomDocument("style")
+        XMLMapLayers = XMLDocument.createElement("maplayers")
+        XMLMapLayer = XMLDocument.createElement("maplayer")
+        vlayer.writeLayerXML(XMLMapLayer,XMLDocument)
+        XMLMapLayer.firstChildElement("datasource").firstChild().setNodeValue(uri.uri())
+        XMLMapLayers.appendChild(XMLMapLayer)
+        XMLDocument.appendChild(XMLMapLayers)
+        vlayer.readLayerXML(XMLMapLayer)
+        vlayer.reload()
+    else:
+        vlayer = QgsVectorLayer(uri.uri(), layer_name, 'spatialite')
+        QgsMapLayerRegistry.instance().addMapLayer(vlayer)
+
+
+def remove_vector_layer( layer_name ):
+    layers= QgsMapLayerRegistry.instance().mapLayersByName(layer_name)
+    if layers:
+        QgsMapLayerRegistry.instance().removeMapLayer( layers[0].id() )
 
 
 class MorpheoBuildAlgorithm(GeoAlgorithm):

@@ -7,7 +7,7 @@ from qgis.gui import QgsMessageBar, QgsMapToolEmitPoint
 
 from MorpheoDialog import MorpheoDialog
 from MorpheoAlgorithmProvider import MorpheoAlgorithmProvider
-from MorpheoAlgorithm import add_vector_layer
+from MorpheoAlgorithm import add_vector_layer, remove_vector_layer
 from processing.core.Processing import Processing
 from processing.core.parameters import ParameterTableField
 from processing.tools.system import tempFolder
@@ -681,17 +681,23 @@ class MorpheoPlugin:
         output = self.dlg.letStructuralDiffDirectoryPath.text() or tempFolder()
         dbname = self.dlg.letStructuralDiffDBName.text() or 'morpheo_%s_%s' % (dbname1, dbname2)
 
-        if not os.path.exists(os.path.join(output, dbname)):
-            os.mkdir(os.path.join(output, dbname))
+        dboutput = os.path.join(output, dbname)
+
+        if not os.path.exists(dboutput):
+            os.mkdir(dboutput)
+
+        # Remove already computed layers
+        remove_vector_layer( "%s_%s" % ('paired_edges' ,dbname))
+        remove_vector_layer( "%s_%s" % ('removed_edges',dbname))
+        remove_vector_layer( "%s_%s" % ('added_edges'  ,dbname))
 
         structural_diff( os.path.join(dirname1, dbname1), os.path.join(dirname2, dbname2),
-                         output=os.path.join(output, dbname),
-                         buffersize=float(self.dlg.spxStructuralDiffTolerance.value()) )
+                         output=dboutput, buffersize=float(self.dlg.spxStructuralDiffTolerance.value()) )
 
         # Visualize data
-        self.add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'paired_edges', "%s_%s" % ('paired_edges',dbname))
-        self.add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'removed_edges', "%s_%s" % ('removed_edges',dbname))
-        self.add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'added_edges', "%s_%s" % ('added_edges',dbname))
+        self.add_vector_layer( dboutput+'.sqlite', 'paired_edges' , "%s_%s" % ('paired_edges' ,dbname))
+        self.add_vector_layer( dboutput+'.sqlite', 'removed_edges', "%s_%s" % ('removed_edges',dbname))
+        self.add_vector_layer( dboutput+'.sqlite', 'added_edges'  , "%s_%s" % ('added_edges'  ,dbname))
 
         self.setText(self.tr('Compute structural differences'), withMessageBar=True)
 
