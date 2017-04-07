@@ -73,7 +73,7 @@ def split_edges( conn, edges, places ):
             FROM (SELECT e.ACCES AS acces,  e.WAY AS way, e.OGC_FID AS fid, 
                    ST_Multi(ST_Difference(e.GEOMETRY, ST_Union(p.GEOMETRY))) AS geom
             FROM {edges} as e, {places} as p
-            WHERE ST_Intersects(e.GEOMETRY, p.GEOMETRY) AND NOT ST_Within(e.GEOMETRY, p.GEOMETRY)
+            WHERE ST_Intersects(e.GEOMETRY, p.GEOMETRY)
             AND e.ROWID IN (
                 SELECT ROWID FROM Spatialindex
                 WHERE f_table_name='{edges}' AND search_frame=p.GEOMETRY)
