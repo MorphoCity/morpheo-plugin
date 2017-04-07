@@ -28,8 +28,8 @@ INSERT INTO paired(EDGE1,EDGE2,WAY1,WAY2,DIFF)
 
 -- Ensure uniqueness of paired edges
 
-CREATE UNIQUE INDEX paired_edge1_idx ON paired(EDGE1);
-CREATE UNIQUE INDEX paired_edge2_idx ON paired(EDGE2);
+CREATE INDEX paired_edge1_idx ON paired(EDGE1);
+CREATE INDEX paired_edge2_idx ON paired(EDGE2);
 
 
 -- Compute suppressed edges from edges1

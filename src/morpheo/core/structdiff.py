@@ -9,6 +9,7 @@ from .logger import Progress
 from .sql    import create_database, connect_database, SQL, execute_sql, attr_table
 from .layers import import_shapefile, export_shapefile
 from .ways   import read_ways_graph
+from .errors import MorpheoException
 
 
 def compute_accessibility_delta(conn, path1, path2):
@@ -68,14 +69,16 @@ def split_edges( conn, edges, places ):
     logging.info("Structural Diff: splitting {} geometries with {}".format(edges,places))
     cur.execute(SQL("DELETE from edges_temp"))
     cur.execute(SQL("""
-        INSERT INTO edges_temp(ACCES, WAY, EDGE, GEOMETRY)
-            SELECT e.ACCES, e.WAY, e.OGC_FID, ST_Multi(ST_Difference(e.GEOMETRY, ST_Union(p.GEOMETRY)))
+        INSERT INTO edges_temp(ACCES, WAY, EDGE, GEOMETRY) SELECT t.acces, t.way, t.fid, t.geom
+            FROM (SELECT e.ACCES AS acces,  e.WAY AS way, e.OGC_FID AS fid, 
+                   ST_Multi(ST_Difference(e.GEOMETRY, ST_Union(p.GEOMETRY))) AS geom
             FROM {edges} as e, {places} as p
-            WHERE ST_Intersects(e.GEOMETRY, p.GEOMETRY)
+            WHERE ST_Intersects(e.GEOMETRY, p.GEOMETRY) AND NOT ST_Within(e.GEOMETRY, p.GEOMETRY)
             AND e.ROWID IN (
                 SELECT ROWID FROM Spatialindex
                 WHERE f_table_name='{edges}' AND search_frame=p.GEOMETRY)
-            GROUP BY e.OGC_FID
+            GROUP BY e.OGC_FID) AS t
+            WHERE t.geom IS NOT NULL
         """, edges=edges, places=places))
 
     # Insert remaining edges
@@ -174,12 +177,27 @@ def structural_diff(path1, path2, output, buffersize):
 
          execute_sql(conn,"import_edges.sql", sfx=sfx, srcdb=path+'.sqlite')
     
-
     conn = connect_database(dbname)
 
     import_data(conn, path1, '1')
     import_data(conn, path2, '2')
-    # Connect to the database
+
+    # Check that the srid of the two table are the same:
+    [srid1] = conn.execute("SELECT CAST(srid AS integer) FROM geometry_columns WHERE f_table_name='edges1'").fetchone()
+    [srid2] = conn.execute("SELECT CAST(srid AS integer) FROM geometry_columns WHERE f_table_name='edges2'").fetchone()
+    if srid1 != srid2:
+        logging.error("Table must have the same SRID ! Found %s and %s, please check that input have the same spatial référence")
+        raise MorpheoException("Table must have the same SRID")
+
+    accessibility_delta = True
+
+    # Check that the accessibility is computed:
+    for tab in ('edges1', 'edges2'):
+        [bads] = conn.execute("SELECT Count(1) FROM %s WHERE ACCES IS NULL" % tab).fetchone()
+        if bads > 0:
+            logging.warn("Structural diff: Accessibility is not computed for %s delta will not be computed" % tab)
+            accessibility_delta = False
+
     # Split edges
     create_counter(conn)
     create_temp_table(conn)
@@ -193,8 +211,9 @@ def structural_diff(path1, path2, output, buffersize):
     execute_sql(conn,"structdiff.sql", buffersize=buffersize)
     conn.commit()
 
-    compute_accessibility_delta(conn, path1, path2)
-    conn.commit()
+    if accessibility_delta:
+        compute_accessibility_delta(conn, path1, path2)
+        conn.commit()
     
     cur = conn.cursor()
     [paired_count]  = cur.execute(SQL("SELECT COUNT(*) FROM paired_edges")).fetchone()
