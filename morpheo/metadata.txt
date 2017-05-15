@@ -12,6 +12,6 @@ icon=morpheo.png
 experimental=True
 deprecated=False
 about=Graph construction and analysis from linestrings, analyze toplogical properties of street layout
-tags=morpheo, morphocity
+tags=urban, vector, line, way, street, graph, topology, centrality, betweenness, network 
 changelog=
 
