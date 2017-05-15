@@ -1,0 +1,17 @@
+[general]
+name=morpheo
+qgisMinimumVersion=2.14
+description=graph construction and analysis from linestrings
+version=0.6.1
+author=3Liz
+email=infos@3liz.com
+homepage=https://github.com/MorphoCity/morpheo-plugin
+repository=https://github.com/MorphoCity/morpheo-plugin
+tracker=https://github.com/MorphoCity/morpheo-plugin/issues
+icon=morpheo.png
+experimental=True
+deprecated=False
+about=
+category=
+changelog=
+tags=

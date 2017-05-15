@@ -2,7 +2,7 @@ from setuptools import setup, find_packages, Extension
 from imp import load_source
 import os
 
-VER = load_source("version", 'src/morpheo/version.py')
+VER = load_source("version", 'morpheo/version.py')
 
 version_tag = "{}".format(VER.__version__)
 
@@ -20,13 +20,12 @@ setup(
     version=version_tag,
     author='3Liz',
     author_email='infos@3liz.org',
-    maintainer='Daved Marteau',
+    maintainer='David Marteau',
     maintainer_email='david.marteau@3liz.org',
     description=VER.__description__,
     url='',
-    packages=find_packages('src'),
-    package_dir={'': 'src'},
-    package_data={'morpheo.core.builders':['*.sql'], },
+    packages=find_packages(),
+    package_data={'morpheo.core':['*.sql'], },
     entry_points={
         'console_scripts': ['morpheo = morpheo.cli:main']
     },

@@ -208,6 +208,7 @@ class Sanitizer(object):
         splits = []
         for [rowid, line_id] in res:
             # Get all points on line
+            # Get position of crossing points along the line 
             cur.execute(SQL("""
                 SELECT Line_Locate_Point(o.GEOMETRY, v.GEOMETRY) AS LOCATION, v.OGC_FID
                 FROM {input_table} AS o, crossing_points AS v
@@ -241,7 +242,7 @@ class Sanitizer(object):
             FROM {input_table} AS o
             WHERE o.OGC_FID = ?""",input_table=self._table), splits)
 
-        # remove duplicated lines
+        # Remove duplicated lines
         cur.execute(SQL("""SELECT l1.OGC_FID, l2.OGC_FID
             FROM split_lines AS l1, split_lines AS l2
             WHERE Equals(l1.GEOMETRY, l2.GEOMETRY)
@@ -304,13 +305,6 @@ class Sanitizer(object):
                 WHERE split_lines.END_VTX = crossing_points.OGC_FID 
                 AND split_lines.START_VTX = crossing_points.OGC_FID
             )"""))
-
-    def _collect_lines(self, cur):
-        """ join lines that are simply touching 
-        """
-        logging.info("Sanitizer: Resolving intersections: merge lines")
-
-       
 
 
     def _4_merge_lines(self, cur):
@@ -476,7 +470,7 @@ class Sanitizer(object):
 
             TODO: Elaborate logic
         """
-        logging.info("Sanitizer: Resolving intersections: remove unconnect elements")
+        logging.info("Sanitizer: Resolving intersections: remove unconnected elements")
 
         cur.execute(SQL("ALTER TABLE split_lines ADD COLUMN COMPONENT integer"))
         component = 0
