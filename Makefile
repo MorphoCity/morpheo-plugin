@@ -3,6 +3,8 @@
 BUILDDIR=${shell pwd}/build
 DIST=${BUILDDIR}/dist
 
+PLUGINNAME=morpheo
+
 all: dist
 
 dist: dirs 
@@ -17,4 +19,7 @@ test:
 
 dirs:
 	mkdir -p ${DIST}
+
+plugin:
+	 git archive --prefix=$(PLUGINNAME)/ -o $(PLUGINNAME).zip $(shell python setup.py --version) $(PLUGINNAME)
 
