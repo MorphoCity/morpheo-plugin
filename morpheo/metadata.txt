@@ -2,7 +2,7 @@
 name=morpheo
 qgisMinimumVersion=2.14
 description=Graph construction and analysis from linestrings
-version=0.6.1
+version=0.7.0
 author=3Liz
 email=
 homepage=https://github.com/MorphoCity/morpheo-plugin
