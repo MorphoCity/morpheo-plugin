@@ -348,6 +348,7 @@ class Sanitizer(object):
                 SELECT LineMerge(Collect(l.GEOMETRY)) AS geom
                 FROM split_lines AS l
                 WHERE l.OGC_FID IN ("""+','.join([str(i) for i in m])+")"))
+
             # If the line segment form a ring, there is no guaranty that
             # the merge endpoint is actually the one belonging to the graph
             # so we have to deal with that case
@@ -367,7 +368,7 @@ class Sanitizer(object):
                 alpha = cur.fetchone()
                 if not alpha: # no point found, the loop is unconnected, remove it
                     cur.execute(SQL("DELETE FROM split_lines WHERE OGC_FID = "+str(lid)))
-                elif alpha[0] > 0 and alpha[0] < 1:
+                elif 0 < alpha[0] < 0.999999:
                     # get the tow segments and invert their order
                     cur.execute(SQL("""
                         SELECT AsText(Line_Substring(GEOMETRY, 0,"""+str(alpha[0])+""")), 
