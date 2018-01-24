@@ -16,12 +16,12 @@ import os
 
 from imp import load_source
 
-VER = load_source("version","../src/morpheo/version.py")
+VER = load_source("version","../morpheo/version.py")
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
-sys.path.insert(0, os.path.abspath('../src/morpheo/'))
+sys.path.insert(0, os.path.abspath('../morpheo/'))
 
 # -- General configuration -----------------------------------------------------
 
@@ -45,9 +45,9 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'Morphe plugin'
-copyright = u'2016, 3Liz'
-author = u'3Liz'
+project = u'Morpheo plugin'
+copyright = u'2016, Morphocity'
+author = u'Claire LAGESSE, 3Liz'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the

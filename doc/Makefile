@@ -15,7 +15,7 @@ html:
 	sphinx-build -b html .  ${BUILDDOC}/html
 
 apidoc:
-	sphinx-apidoc  -o . ../src/morpheo/core
+	sphinx-apidoc  -o . ../morpheo/core
 
 # Build pdf doc
 # You need to have a latex distribution installed.
