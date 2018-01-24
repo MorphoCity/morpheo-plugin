@@ -36,29 +36,6 @@ def setup_qgis_pythonpath():
         sys.path.append(qgis_pythonpath)
 
 
-def init_qgis_application():
-
-    qgis_home = os.environ.get('QGIS_HOME',{
-            'darwin':'/Applications/QGIS.app/Contents/MacOS',
-            'linux' :'/usr/',
-        }.get(platform))
-
-    logging.info("QGIS_PYTHONPATH set to '%s'" % qgis_pythonpath)
-    logging.info("QGIS_HOME set to '%s'" % qgis_home)
-
-    global qgis_app
-    from qgis.core import QgsApplication, QgsMessageLog, QgsProviderRegistry
-    qgis_app = QgsApplication([], False )
-    QgsApplication.setPrefixPath(qgis_home, True)
-    QgsApplication.initQgis()
-
-    # Add a hook to qgis  message log 
-    def writelogmessage(message, tag, level):
-        logging.info('Qgis: {}({}): {}'.format( tag, level, message ))
-
-    QgsMessageLog.instance().messageReceived.connect( writelogmessage )
-
-
 def check_requirements( stand_alone = True ):
     """ Check that everything is ok to run morpheo
     """

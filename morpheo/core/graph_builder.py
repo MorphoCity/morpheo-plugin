@@ -8,7 +8,7 @@ import logging
 from .logger import log_progress
 from .errors import BuilderError, FileNotFoundError, DatabaseNotFound
 from .sql import SQL, execute_sql, delete_table, connect_database, set_srid
-from .layers import check_layer, open_shapefile, import_as_layer, import_shapefile, export_shapefile
+from .layers import check_layer, import_as_layer, import_shapefile, export_shapefile
 from .sanitize import sanitize
 
 

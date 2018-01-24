@@ -8,22 +8,6 @@ from .errors import FileNotFoundError, InvalidLayerError
 from .sql import create_database, connect_database
 
 
-def open_shapefile( path, name ):
-    """ Open a shapefile as a qgis layer
-    """
-    from qgis.core import QgsVectorLayer
-
-    path = os.path.abspath(path)
-    if not os.path.exists(path):
-        raise FileNotFoundError("Shapefile not found: %s" % path)
-
-    layer = QgsVectorLayer(path, name, 'ogr' )
-    if not layer.isValid():
-        raise InvalidLayerError("Failed to load layer %s" % path)
-
-    return layer
-
-
 def check_layer(layer, wkbtypes):
     """ Check layer validity
     """
