@@ -103,7 +103,6 @@ class Sanitizer(object):
         """ Resolve intersections
 
         """
-        logging.info("Sanitizer: Resolving intersections")
         self._1_find_overlapping_lines(cur)
         self._2_find_crossing_points(cur)
         self._3_cut_lines_at_nodes(cur)
@@ -132,6 +131,25 @@ class Sanitizer(object):
                 IN ('LINESTRING', 'MULTILINESTRING', 'LINESTRING Z', 'MULTILINESTRING Z')
             """,input_table=self._table))
 
+        cur.execute(SQL("SELECT COUNT(1) FROM overlaping_lines WHERE NumGeometries(GEOMETRY)>1"))
+        [count] = cur.fetchone()
+        if count > 0:
+            # Explode all geometries in overlaping_lines
+            logging.info("Sanitizer: Resolving intersections: Splitting collections to single parts")
+            cur.execute(SQL("SELECT OGC_FID FROM overlaping_lines WHERE NumGeometries(GEOMETRY)>1"))
+            res = cur.fetchall()
+            for [fid] in res:
+                [num] = cur.execute(SQL("""SELECT NumGeometries(GEOMETRY) 
+                    FROM overlaping_lines WHERE OGC_FID=%s""" % fid)).fetchone()
+                for index in range(1,num+1):
+                    cur.execute(SQL("""INSERT INTO overlaping_lines(GEOMETRY) 
+                        SELECT CastToMulti(ST_GeometryN(GEOMETRY, {index})) 
+                        FROM overlaping_lines WHERE OGC_FID={fid}
+                    """, fid=fid, index=index))
+            # Delete compounds geometries
+            cur.execute(SQL("DELETE FROM overlaping_lines WHERE NumGeometries(GEOMETRY)>1"))
+
+
     def _2_find_crossing_points(self, cur):
         """ Find crossing points between geometries
 
@@ -149,6 +167,7 @@ class Sanitizer(object):
         self._create_indexed_table(cur, 'crossings', 'MULTIPOINT')
 
         # Adding crossings, skipping bridge
+        logging.info("Sanitizer: Resolving intersections: adding crossing points")
         cur.execute(SQL("""INSERT INTO crossings(GEOMETRY)
             SELECT CastToMulti(Intersection(w1.GEOMETRY, w2.GEOMETRY))
             FROM {input_table} AS w1, {input_table} AS w2
@@ -163,7 +182,14 @@ class Sanitizer(object):
                    -0.5*(Z(StartPoint(w1.GEOMETRY))+Z(EndPoint(w1.GEOMETRY)))) < 3""" if dim == 'XYZ' else ""),
            input_table=self._table))
 
+        # Sanity check
+        cur.execute(SQL("SELECT COUNT(1) FROM overlaping_lines WHERE NumGeometries(GEOMETRY)>1"))
+        [bug] = cur.fetchone()
+        if bug:
+            raise BuilderError("Graph build error: Invalid multi-collection in 'overlaping_lines'")
+
         # Add overlapping lines end point and lines end points
+        logging.info("Sanitizer: Resolving intersections: add (overlapping) lines end points")
         cur.execute(SQL("""INSERT INTO crossings(GEOMETRY)
             SELECT DISTINCT CastToMulti(EndPoint(GEOMETRY)) FROM overlaping_lines
             UNION
@@ -324,10 +350,15 @@ class Sanitizer(object):
             part = create_partition(max_lines+1) 
             cur.execute(SQL("SELECT OGC_FID FROM crossing_points WHERE DEGREE = 2"))
             for [pid] in cur.fetchall():
-                [[l1],[l2]] = cur.execute(SQL("""
+                touching_lines = cur.execute(SQL("""
                     SELECT OGC_FID FROM split_lines 
                     WHERE {pid} IN (END_VTX, START_VTX)""",pid=pid)).fetchall()
-                resolve(part,l1,l2)
+                try:
+                    [[l1],[l2]] = touching_lines
+                    resolve(part,l1,l2)
+                except Exception as e:
+                    logging.error("%s: crossing point: %s, split_lines: %s", e, pid, touching_lines)
+                    raise
 
             update(part)
 
