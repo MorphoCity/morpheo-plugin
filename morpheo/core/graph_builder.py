@@ -304,7 +304,7 @@ class SpatialiteBuilder(object):
         #import_as_layer( dbname, layer, name, forceSinglePartGeometryType=True )
         error = QgsVectorFileWriter.writeAsVectorFormat(layer, dbname, "utf-8", None, "SpatiaLite")
         if error != QgsVectorFileWriter.NoError:
-            raise IOError("Failed to create database '{}': error {}".format(dbname, error))
+            raise IOError(u"Failed to create database '{}': error {}".format(dbname, error))
 
         return SpatialiteBuilder(dbname)
 
