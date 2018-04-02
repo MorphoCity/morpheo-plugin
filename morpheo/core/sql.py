@@ -25,29 +25,31 @@ def initialize_spatialite():
         Important: this need a patched version 
         of pysqlite
     """
-    from pyspatialite import dbapi2 as db
-    if hasattr(db, "initialize_spatialite"):
-        conn = db.connect(":memory:")
-        try:
-            [check_metadata] = conn.execute("select spatialite_version()").fetchone()
-        except db.OperationalError:
-            logging.info("Initialize spatialite")
-            db.initialize_spatialite()
-        finally:
-            conn.close()
+    import sqlite3 as db
+
+    with db.connect(":memory:") as conn:
+        conn.enable_load_extension(True)
+        conn.load_extension("mod_spatialite")    
+        conn.close()
     return db
 
 
 def connect_database( dbname ):
     """ Connect to database 'dbname'
     """
-    db = initialize_spatialite()
+    import sqlite3 as db
 
     # XXX Workaround for https://github.com/ghaering/pysqlite/issues/109
     # which hit us here (python 2.7) with pysqlite
     conn = db.connect(dbname, isolation_level = None)
 
+    mod_spatialite_path = os.environ.get("MOD_SPATIALITE","mod_spatialite.so")
+
+    conn.enable_load_extension(True)
+    conn.load_extension(mod_spatialite_path)
+
     cur = conn.cursor()
+    cur.execute('SELECT InitSpatialMetaData(1)')
     cur.execute("PRAGMA temp_store=MEMORY")
 
     logging.info("Testing spatialite metadata")

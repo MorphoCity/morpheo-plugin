@@ -15,26 +15,6 @@ from core.layers import export_shapefile
 
 Builder = SpatialiteBuilder
 
-qgis_app = None
-
-
-def setup_qgis_pythonpath():
-    """ Setup qgis
-
-        This function is only used when morpheo is
-        used as standalone command
-    """
-    # Get the qgis python path
-
-    platform = os.uname()[0].lower()
-    qgis_pythonpath = os.environ.get('QGIS_PYTHONPATH',{
-          'darwin':'/Applications/QGIS.app/Contents/Resources/python',
-          'linux' :'/usr/lib/python2.7/dist-packages/qgis',
-        }.get(platform))
-
-    if qgis_pythonpath is not None:
-        sys.path.append(qgis_pythonpath)
-
 
 def check_requirements( stand_alone = True ):
     """ Check that everything is ok to run morpheo
@@ -308,7 +288,7 @@ def main():
         except:
             raise argparse.ArgumentTypeError("size must be '{integer width}x{integer height}'")
 
-    version = "{} {}".format("Morpheo graph builder", Builder.version)
+    version = "{} {}".format("Morpheo graph builder (NO_QGIS Branch)", Builder.version)
     parser = argparse.ArgumentParser(description=version)
     parser.add_argument("--logging"  , choices=('debug','info','warning','error'), default='info', help="set log level")
 
@@ -451,7 +431,6 @@ def main():
     args = parser.parse_args()
     
     setup_log_handler(args.logging, formatstr='%(asctime)s\t%(levelname)s\t%(message)s')
-    setup_qgis_pythonpath()
  
     check_requirements(stand_alone=True)
 
