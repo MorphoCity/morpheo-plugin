@@ -3,6 +3,7 @@
 import os
 import string
 import logging
+import traceback
 
 from contextlib import contextmanager
 
@@ -18,20 +19,38 @@ class InvalidDatabaseError(BuilderError):
     pass
 
 
-def initialize_spatialite():
-    """ This is a workaround for
-        KyngChaos packaging of spatialite
+def spatialite_connect(*args, **kwargs):
+    """ Returns a dbapi2.Connection to a SpatiaLite db
 
-        Important: this need a patched version 
-        of pysqlite
+        Borrowed from qgis3 qgis.utils
     """
-    import sqlite3 as db
-
-    with db.connect(":memory:") as conn:
-        conn.enable_load_extension(True)
-        conn.load_extension("mod_spatialite")    
-        conn.close()
-    return db
+    import sqlite3
+    con = sqlite3.dbapi2.connect(*args, **kwargs)
+    con.enable_load_extension(True)
+    cur = con.cursor()
+    libs = [
+        # SpatiaLite >= 4.2 and Sqlite >= 3.7.17, should work on all platforms
+        ("mod_spatialite", "sqlite3_modspatialite_init"),
+        # SpatiaLite >= 4.2 and Sqlite < 3.7.17 (Travis)
+        ("mod_spatialite.so", "sqlite3_modspatialite_init"),
+        # SpatiaLite < 4.2 (linux)
+        ("libspatialite.so", "sqlite3_extension_init")
+    ]
+    found = False
+    for lib, entry_point in libs:
+        try:
+            cur.execute("select load_extension('{}', '{}')".format(lib, entry_point))
+            logging.info("Successfully loaded spatialite module '%s'", lib)
+        except sqlite3.OperationalError:
+            continue
+        else:
+            found = True
+            break
+    if not found:
+        raise RuntimeError("Cannot find any suitable spatialite module")
+    cur.close()
+    con.enable_load_extension(False)
+    return con
 
 
 def connect_database( dbname ):
@@ -40,8 +59,8 @@ def connect_database( dbname ):
     import sqlite3 as db
 
     # XXX Workaround for https://github.com/ghaering/pysqlite/issues/109
-    # which hit us here (python 2.7) with pysqlite
-    conn = db.connect(dbname, isolation_level = None)
+    # which hit us here with pysqlite
+    conn = spatialite_connect(dbname, isolation_level = None)
 
     mod_spatialite_path = os.environ.get("MOD_SPATIALITE","mod_spatialite.so")
 
@@ -49,7 +68,6 @@ def connect_database( dbname ):
     conn.load_extension(mod_spatialite_path)
 
     cur = conn.cursor()
-    cur.execute('SELECT InitSpatialMetaData(1)')
     cur.execute("PRAGMA temp_store=MEMORY")
 
     logging.info("Testing spatialite metadata")
@@ -74,9 +92,7 @@ def create_database( dbname ):
     """
     if not os.path.exists(dbname):
         logging.info("Creating database %s" % dbname)
-        db = initialize_spatialite()
-        conn = db.connect(dbname)
-        conn.execute('SELECT initspatialmetadata(1)')
+        conn = connect_database(dbname)
         conn.commit()
         conn.close()
  
