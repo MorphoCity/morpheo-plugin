@@ -9,9 +9,9 @@ version_tag = "{}".format(VER.__version__)
 
 def get_requirements(filename):
     '''Parse requirement file and transform it to setuptools requirements'''
-    from pip.req import parse_requirements
     if os.path.exists(filename):
-        return list(str(ir.req) for ir in parse_requirements(filename, session=False))
+        with open(filename) as fp:
+            return list(filter(None, (r.strip('\n ').partition('#')[0] for r in fp.readlines())))
     else:
         return []
 
