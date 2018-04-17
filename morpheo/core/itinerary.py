@@ -97,7 +97,7 @@ def _store_path(cur, dbname, edges, path_type, output, manifest):
         export_shapefile(dbname, table, output)
         # Write manifest
         with open(os.path.join(output,'itinerary_%s_%s.manifest' % (path_type,basename)),'w') as f:
-            for k,v in manifest.iteritems():
+            for k,v in manifest.items():
                 f.write("{}={}\n".format(k,v))
 
 

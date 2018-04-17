@@ -188,7 +188,7 @@ def compute_global_attributes(conn, path, betweenness=False, closeness=False, st
     with attr_table(cur, "global_attributes") as attrs:
 
         def items( results ): 
-            return [(G[u][v][z]['fid'],value) for (u,v,z),value in results.iteritems()]
+            return [(G[u][v][z]['fid'],value) for (u,v,z),value in results.items()]
 
         if betweenness:
             attrs.update('place_edges', 'OGC_FID', 'BETWEE', items(compute_betweenness(LG)))

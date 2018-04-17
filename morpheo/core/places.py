@@ -297,7 +297,7 @@ class PlaceBuilder(object):
                         to_merge[place].append(buf)
 
                 # Merge buffers into places
-                for place, buffers in to_merge.iteritems():
+                for place, buffers in to_merge.items():
                     if buffers:
                         bufstr = ','.join(str(b) for b in buffers)
                         cur.execute(SQL("""INSERT INTO places(GEOMETRY,USER_PL)

@@ -94,8 +94,8 @@ def create_matrix( elems, fun, nullvalue=9999999.0):
     """
     n = len(elems)
     values = np.full((n,n),nullvalue)
-    for i in xrange(n-1):
-        for j in xrange(i+1,n):
+    for i in range(n-1):
+        for j in range(i+1,n):
            value = fun( elems[i], elems[j] )
            values[i,j] = value
     return Matrix(elems, values, nullvalue)

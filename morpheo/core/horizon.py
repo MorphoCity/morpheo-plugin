@@ -70,7 +70,7 @@ def horizon_from_way_list( conn, G, table, ways):
     cur.executemany(SQL("""
         INSERT INTO {table}(OGC_FID,WAY_ID,HORIZON,GEOMETRY)
         SELECT OGC_FID,WAY_ID,?,GEOMETRY FROM ways WHERE WAY_ID=?
-    """,table=table), [(v,w) for w,v in data.iteritems()])
+    """,table=table), [(v,w) for w,v in data.items()])
     
          
 def horizon_from_attribute( conn, G, table,  attribute, percentile):

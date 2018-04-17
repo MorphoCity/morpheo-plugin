@@ -34,7 +34,7 @@ class SpatialiteBuilder(object):
     @property
     def way_builder(self):
         if self._way_builder is None:
-            from ways import WayBuilder
+            from .ways import WayBuilder
             self._way_builder = WayBuilder(self._conn)
         return self._way_builder
 
@@ -113,13 +113,13 @@ class SpatialiteBuilder(object):
         """ Write  manifest as key=value file 
         """
         with open(os.path.join(output, "%s_%s.manifest" % (self._basename,suffix)),'w') as f:
-            for k,v in kwargs.iteritems():
+            for k,v in kwargs.items():
                 f.write("{}={}\n".format(k,v))
 
     def build_edges_graph(self, output):
         """ Build and export edge graph
         """
-        from places import build_edges_graph
+        from .places import build_edges_graph
         build_edges_graph(self._conn, output)
 
     def build_ways_graph(self, output):
@@ -142,7 +142,7 @@ class SpatialiteBuilder(object):
             :param places: path of an external shapefile containing places definitions
             :param output: path of a shapefile to write computed places to.
         """
-        from places import PlaceBuilder
+        from .places import PlaceBuilder
         input_places_table = None
         if places is not None:
             input_places_table = 'input_places'

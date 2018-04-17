@@ -57,9 +57,9 @@ def create_ways_graph(conn):
         n = len(ways)
         progress(n)
         if n==1: continue
-        for i in xrange(n-1):
+        for i in range(n-1):
             w1 = ways[i][1]
-            for j in xrange(i+1,n):
+            for j in range(i+1,n):
                 w2 = ways[j][1]
                 g.add_edge(w1,w2,place=p)
 

@@ -9,9 +9,9 @@ import math
 
 from functools import partial
 from math import pi
-from core.errors import BuilderError
-from core.graph_builder import SpatialiteBuilder
-from core.layers import export_shapefile
+from .core.errors import BuilderError
+from .core.graph_builder import SpatialiteBuilder
+from .core.layers import export_shapefile
 
 Builder = SpatialiteBuilder
 
@@ -37,7 +37,7 @@ def check_requirements( stand_alone = True ):
 
 
 def check_attribute(conn, attr, ways):
-    from core.edge_properties import computed_properties
+    from .core.edge_properties import computed_properties
     if attr not in computed_properties(conn,ways=ways):
         logging.error("Attribute %s is not computed or does not exists" % attr)
         sys.exit(1)
@@ -137,7 +137,7 @@ def build_ways_graph( args ):
 def compute_structural_diff( args ):
     """ Compute structural diff
     """
-    from core.structdiff import structural_diff
+    from .core.structdiff import structural_diff
 
     output = args.output or "morpheo-diff-{}-{}".format(
                 os.path.basename(args.initial),
@@ -151,8 +151,8 @@ def compute_structural_diff( args ):
 def compute_path( args ):
     """ Compute shortest paths
     """
-    import core.itinerary as iti
-    from core.sql  import connect_database
+    from .core import itinerary as iti
+    from .core.sql  import connect_database
 
     path   = args.path           # input path
     output = args.output or path # output path
@@ -194,8 +194,8 @@ def compute_way_path( args ):
     """ Compute way simplest path
     """
     import core.itinerary as iti
-    from core.sql  import connect_database
-    from core.ways import read_ways_graph
+    from .core.sql  import connect_database
+    from .core.ways import read_ways_graph
 
     path   = args.path           # input path
     output = args.output or path # output path
@@ -217,9 +217,8 @@ def compute_way_path( args ):
 def compute_mesh( args ):
     """ Compute mesh
     """
-
-    import core.mesh as mesh
-    from core.sql  import connect_database
+    from .core import mesh
+    from .core.sql  import connect_database
 
     dbname = args.dbname+'.sqlite'
     conn = connect_database(dbname)
@@ -240,10 +239,9 @@ def compute_mesh( args ):
 def compute_horizon( args ):
     """ Compute horizon
     """
-
-    import core.horizon as hrz
-    from core.ways import read_ways_graph
-    from core.sql  import connect_database
+    from .core import horizon as hrz
+    from .core.ways import read_ways_graph
+    from .core.sql  import connect_database
     
     path   = args.path
     dbname = args.dbname or path +'.sqlite'
@@ -269,7 +267,7 @@ def main():
     """
     import argparse
     from time import time
-    from core.logger import setup_log_handler
+    from .core.logger import setup_log_handler
 
     def range_type(strval, min=0, max=100):
         try:
