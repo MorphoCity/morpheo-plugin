@@ -516,7 +516,7 @@ def way_simplest_path(conn, G, dbname, path, sources, targets, start_place, end_
 
         :return the list of edge feature id that represent the shortest path
     """
-    from itertools import izip, chain
+    from itertools import chain
 
     logging.debug("Way path sources: {}, destinations={}".format(sources,targets))
 
@@ -544,14 +544,14 @@ def way_simplest_path(conn, G, dbname, path, sources, targets, start_place, end_
     # each way
 
     edges = []
-    for (w1,p1),(w2,p2) in izip(places[:-1],places[1:]):
+    for (w1,p1),(w2,p2) in zip(places[:-1],places[1:]):
         rows = cur.execute(SQL("SELECT START_PL,END_PL,OGC_FID FROM place_edges WHERE WAY={way}",
                     way=w2)).fetchall()
         # Create the subgraph
         g = nx.Graph()
         g.add_weighted_edges_from(rows,weight='fid')
         p = nx.shortest_path(g,p1,p2)
-        edges.extend( g[u][v]['fid'] for u,v in izip(p[:-1],p[1:]) )
+        edges.extend( g[u][v]['fid'] for u,v in zip(p[:-1],p[1:]) )
 
     path_type = 'way_simplest'
 

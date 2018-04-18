@@ -6,7 +6,6 @@ from __future__ import print_function
 
 import random
 import networkx as nx
-from itertools import izip
 from networkx.algorithms.centrality.betweenness import (_single_source_shortest_path_basic,
                                                         _single_source_dijkstra_path_basic,
                                                         _rescale)
@@ -134,7 +133,7 @@ def shortest_subgraph_path( G, source, target, mesh, weight=None ):
 
     # Resolve shortcuts
     path = [source]
-    for u,v in izip(p[:-1],p[1:]):
+    for u,v in zip(p[:-1],p[1:]):
        # Test if edge is a shortcut
        if Gs.is_multigraph():
             index = Gs[u][v][0].get('index')
