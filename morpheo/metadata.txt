@@ -1,8 +1,8 @@
 [general]
 name=morpheo
-qgisMinimumVersion=2.14
+qgisMinimumVersion=3.0
 description=Graph construction and analysis from linestrings
-version=0.8.2
+version=0.9.0
 author=Claire LAGESSE, 3Liz
 email=claire.lagesse@univ-fcomte.fr
 homepage=https://github.com/MorphoCity/morpheo-plugin

@@ -6,12 +6,14 @@ import os
 import sys
 import logging
 import math
+import networkx
 
 from functools import partial
 from math import pi
 from .core.errors import BuilderError
 from .core.graph_builder import SpatialiteBuilder
 from .core.layers import export_shapefile
+from .version import __version__
 
 Builder = SpatialiteBuilder
 
@@ -286,7 +288,9 @@ def main():
         except:
             raise argparse.ArgumentTypeError("size must be '{integer width}x{integer height}'")
 
-    version = "{} {}".format("Morpheo graph builder (NO_QGIS Branch)", Builder.version)
+    version = "Morpheo graph builder {} ({}) ({})".format(__version__,
+                    "Python {0.major}.{0.minor}.{0.micro}".format(sys.version_info),
+                    "Networkx {}".format(networkx.__version__))
     parser = argparse.ArgumentParser(description=version)
     parser.add_argument("--logging"  , choices=('debug','info','warning','error'), default='info', help="set log level")
 
@@ -434,6 +438,7 @@ def main():
 
     start = time()
     try:
+        print(version)
         args.func(args)
     except Exception as e:
         logging.critical("{}".format(e))
