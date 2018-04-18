@@ -12,6 +12,7 @@ REVERSE = 'reverse'
 
 __all__ = ['edge_dfs']
 
+
 def helper_funcs(G, orientation):
     """
     These are various G-specific functions that help us implement the algorithm
@@ -24,18 +25,18 @@ def helper_funcs(G, orientation):
     if ignore_orientation:
         # When we ignore the orientation, we still need to know how the edge
         # was traversed, so we add an object representing the direction.
-        def out_edges(u, **kwds):
-            for edge in G.out_edges(u, **kwds):
+        def out_edges(u_for_edges, **kwds):
+            for edge in G.out_edges(u_for_edges, **kwds):
                 yield edge + (FORWARD,)
-            for edge in G.in_edges(u, **kwds):
+            for edge in G.in_edges(u_for_edges, **kwds):
                 yield edge + (REVERSE,)
     elif reverse_orientation:
-        def out_edges(u, **kwds):
-            for edge in G.in_edges(u, **kwds):
+        def out_edges(u_for_edges, **kwds):
+            for edge in G.in_edges(u_for_edges, **kwds):
                 yield edge + (REVERSE,)
     else:
         # If "yield from" were an option, we could pass kwds automatically.
-        out_edges = G.edges_iter
+        out_edges = G.edges
 
     # If every edge had a unique key, then it would be easier to track which
     # edges had been visited. Since that is not available, we will form a
@@ -73,9 +74,10 @@ def helper_funcs(G, orientation):
 
     return out_edges, key, traversed_tailhead
 
+
 def edge_dfs(G, source=None, orientation='original'):
     """
-    A directed, depth-first traversal of edges in ``G``, beginning at ``source``.
+    A directed, depth-first traversal of edges in `G`, beginning at `source`.
 
     Parameters
     ----------
@@ -83,7 +85,7 @@ def edge_dfs(G, source=None, orientation='original'):
         A directed/undirected graph/multigraph.
 
     source : node, list of nodes
-        The node from which the traversal begins. If ``None``, then a source
+        The node from which the traversal begins. If None, then a source
         is chosen arbitrarily and repeatedly until all edges from each node in
         the graph are searched.
 
@@ -100,13 +102,13 @@ def edge_dfs(G, source=None, orientation='original'):
     ------
     edge : directed edge
         A directed edge indicating the path taken by the depth-first traversal.
-        For graphs, ``edge`` is of the form ``(u, v)`` where ``u`` and ``v``
+        For graphs, `edge` is of the form `(u, v)` where `u` and `v`
         are the tail and head of the edge as determined by the traversal. For
-        multigraphs, ``edge`` is of the form ``(u, v, key)``, where `key` is
-        the key of the edge. When the graph is directed, then ``u`` and ``v``
+        multigraphs, `edge` is of the form `(u, v, key)`, where `key` is
+        the key of the edge. When the graph is directed, then `u` and `v`
         are always in the order of the actual directed edge. If orientation is
-        'reverse' or 'ignore', then ``edge`` takes the form
-        ``(u, v, key, direction)`` where direction is a string, 'forward' or
+        'reverse' or 'ignore', then `edge` takes the form
+        `(u, v, key, direction)` where direction is a string, 'forward' or
         'reverse', that indicates if the edge was traversed in the forward
         (tail to head) or reverse (head to tail) direction, respectively.
 
@@ -167,7 +169,7 @@ def edge_dfs(G, source=None, orientation='original'):
         while stack:
             current_node = stack[-1]
             if current_node not in visited_nodes:
-                edges[current_node] = out_edges(current_node, **kwds)
+                edges[current_node] = iter(out_edges(current_node, **kwds))
                 visited_nodes.add(current_node)
 
             try:
@@ -182,4 +184,3 @@ def edge_dfs(G, source=None, orientation='original'):
                     # Mark the traversed "to" node as to-be-explored.
                     stack.append(tailhead(edge)[1])
                     yield edge
-

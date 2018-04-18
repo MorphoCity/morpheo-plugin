@@ -94,9 +94,11 @@ def network_simplex(G, demand='demand', capacity='capacity', weight='weight'):
 
     Notes
     -----
-    This algorithm is not guaranteed to work if edge weights
+    This algorithm is not guaranteed to work if edge weights or demands
     are floating point numbers (overflows and roundoff errors can
-    cause problems).
+    cause problems). As a workaround you can use integer numbers by
+    multiplying the relevant edge attributes by a convenient
+    constant factor (eg 100).
 
     See also
     --------
@@ -190,7 +192,7 @@ def network_simplex(G, demand='demand', capacity='capacity', weight='weight'):
 
     N = list(G)                                # nodes
     I = {u: i for i, u in enumerate(N)}        # node indices
-    D = [G.node[u].get(demand, 0) for u in N]  # node demands
+    D = [G.nodes[u].get(demand, 0) for u in N]  # node demands
 
     inf = float('inf')
     for p, b in zip(N, D):
@@ -207,9 +209,9 @@ def network_simplex(G, demand='demand', capacity='capacity', weight='weight'):
     C = []  # edge weights
 
     if not multigraph:
-        edges = G.edges_iter(data=True)
+        edges = G.edges(data=True)
     else:
-        edges = G.edges_iter(data=True, keys=True)
+        edges = G.edges(data=True, keys=True)
     edges = (e for e in edges
              if e[0] != e[1] and e[-1].get(capacity, inf) != 0)
     for i, e in enumerate(edges):
@@ -225,9 +227,9 @@ def network_simplex(G, demand='demand', capacity='capacity', weight='weight'):
         if abs(c) == inf:
             raise nx.NetworkXError('edge %r has infinite weight' % (e,))
     if not multigraph:
-        edges = G.selfloop_edges(data=True)
+        edges = nx.selfloop_edges(G, data=True)
     else:
-        edges = G.selfloop_edges(data=True, keys=True)
+        edges = nx.selfloop_edges(G, data=True, keys=True)
     for e in edges:
         if abs(e[-1].get(weight, 0)) == inf:
             raise nx.NetworkXError('edge %r has infinite weight' % (e[:-1],))
@@ -242,16 +244,16 @@ def network_simplex(G, demand='demand', capacity='capacity', weight='weight'):
         if u < 0:
             raise nx.NetworkXUnfeasible('edge %r has negative capacity' % (e,))
     if not multigraph:
-        edges = G.selfloop_edges(data=True)
+        edges = nx.selfloop_edges(G, data=True)
     else:
-        edges = G.selfloop_edges(data=True, keys=True)
+        edges = nx.selfloop_edges(G, data=True, keys=True)
     for e in edges:
         if e[-1].get(capacity, inf) < 0:
             raise nx.NetworkXUnfeasible(
                 'edge %r has negative capacity' % (e[:-1],))
 
     ###########################################################################
-    # Initialization 
+    # Initialization
     ###########################################################################
 
     # Add a dummy node -1 and connect all existing nodes to it with infinite-
@@ -282,7 +284,7 @@ def network_simplex(G, demand='demand', capacity='capacity', weight='weight'):
     parent = list(chain(repeat(-1, n), [None]))  # parent nodes
     edge = list(range(e, e + n))                 # edges to parents
     size = list(chain(repeat(1, n), [n + 1]))    # subtree sizes
-    next = list(chain(range(1, n), [-1, 0]))     # next nodes in depth-first thread 
+    next = list(chain(range(1, n), [-1, 0]))     # next nodes in depth-first thread
     prev = list(range(-1, n))                    # previous nodes in depth-first thread
     last = list(chain(range(n), [n - 1]))        # last descendants in depth-first thread
 
@@ -309,7 +311,7 @@ def network_simplex(G, demand='demand', capacity='capacity', weight='weight'):
         B = int(ceil(sqrt(e)))  # pivot block size
         M = (e + B - 1) // B    # number of blocks needed to cover all edges
         m = 0                   # number of consecutive blocks without eligible
-                                # entering edges
+        # entering edges
         f = 0                   # first edge in block
         while m < M:
             # Determine the next block of edges.
@@ -389,7 +391,6 @@ def network_simplex(G, demand='demand', capacity='capacity', weight='weight'):
         Wn += WnR
         We += WeR
         return Wn, We
-
 
     def residual_capacity(i, p):
         """Return the residual capacity of an edge i in the direction away
@@ -545,7 +546,7 @@ def network_simplex(G, demand='demand', capacity='capacity', weight='weight'):
 
     if (any(x[i] * 2 >= faux_inf for i in range(e)) or
         any(e[-1].get(capacity, inf) == inf and e[-1].get(weight, 0) < 0
-            for e in G.selfloop_edges(data=True))):
+            for e in nx.selfloop_edges(G, data=True))):
         raise nx.NetworkXUnbounded(
             'negative cycle with infinite capacity found')
 
@@ -575,11 +576,11 @@ def network_simplex(G, demand='demand', capacity='capacity', weight='weight'):
     if not multigraph:
         for e in zip(S, T, x):
             add_entry(e)
-        edges = G.edges_iter(data=True)
+        edges = G.edges(data=True)
     else:
         for e in zip(S, T, K, x):
             add_entry(e)
-        edges = G.edges_iter(data=True, keys=True)
+        edges = G.edges(data=True, keys=True)
     for e in edges:
         if e[0] != e[1]:
             if e[-1].get(capacity, inf) == 0:

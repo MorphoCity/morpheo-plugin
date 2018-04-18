@@ -11,6 +11,7 @@ __all__ = ['average_clustering']
 __author__ = """\n""".join(['Fred Morstatter <fred.morstatter@asu.edu>',
                             'Jordi Torrents <jtorrents@milnou.net>'])
 
+
 @not_implemented_for('directed')
 def average_clustering(G, trials=1000):
     r"""Estimates the average clustering coefficient of G.
@@ -49,7 +50,7 @@ def average_clustering(G, trials=1000):
     """
     n = len(G)
     triangles = 0
-    nodes = G.nodes()
+    nodes = list(G)
     for i in [int(random.random() * n) for i in range(trials)]:
         nbrs = list(G[nodes[i]])
         if len(nbrs) < 2:
