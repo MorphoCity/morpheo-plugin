@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 """
 ***************************************************************************
     MorpheoAlgorithm.py
@@ -17,9 +15,9 @@
 ***************************************************************************
 """
 
-__author__ = 'René-Luc DHONT'
+__author__ = 'René-Luc DHONT/David Marteau'
 __date__ = 'August 2016'
-__copyright__ = '(C) 2016, 3Liz'
+__copyright__ = '(C) 2016-2018, 3Liz'
 
 # This will get replaced with a git SHA1 when you do a git archive
 
@@ -28,30 +26,42 @@ __revision__ = '$Format:%H$'
 import os
 import time
 import sys
+import logging
 
-from qgis.core import *
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
-from PyQt4.QtXml import QDomDocument
+from .logger import init_log_custom_hooks
 
-from processing.core.GeoAlgorithm import GeoAlgorithm
-from processing.core.GeoAlgorithmExecutionException import \
-        GeoAlgorithmExecutionException
-from processing.core.ProcessingLog import ProcessingLog
-from processing.core.parameters import \
-        ParameterString, \
-        ParameterVector, \
-        ParameterNumber, \
-        ParameterBoolean, \
-        ParameterSelection, \
-        ParameterTableField, \
-        ParameterFile
-from processing.core.outputs import OutputString, OutputFile
-from processing.core.ProcessingConfig import ProcessingConfig
-from processing.tools import dataobjects
-from processing.tools.system import tempFolder
+from qgis.core import (QgsProcessing,
+                       QgsProperty,
+                       QgsProcessingContext,
+                       QgsProcessingParameterDefinition,
+                       QgsProcessingOutputLayerDefinition,
+                       QgsProcessingParameterNumber,
+                       QgsProcessingParameterFile,
+                       QgsProcessingParameterBoolean,
+                       QgsProcessingParameterString,
+                       QgsProcessingParameterVectorLayer,
+                       QgsProcessingParameterRasterLayer,
+                       QgsProcessingParameterVectorDestination,
+                       QgsProcessingParameterRasterDestination,
+                       QgsProcessingParameterFeatureSink,
+                       QgsProcessingParameterField,
+                       QgsProcessingOutputVectorLayer,
+                       QgsProcessingOutputFolder,
+                       QgsProcessingOutputNumber,
+                       QgsProcessingOutputString,
+                       QgsProcessingAlgorithm,
+                       QgsRasterFileWriter,
+                       QgsRasterProjector,
+                       QgsRasterPipe,
+                       QgsVectorLayer,
+                       QgsVectorDataProvider,
+                       QgsDataSourceUri,
+                       QgsProcessingException)
+
+from qgis.PyQt.QtGui import QIcon
 
 from math import pi
+
 from ..core.errors import BuilderError
 from ..core.graph_builder import SpatialiteBuilder
 from ..core.structdiff import structural_diff
@@ -61,54 +71,114 @@ from ..core.sql  import connect_database
 from ..core.layers  import export_shapefile
 from ..core import mesh
 
+
 Builder = SpatialiteBuilder
 
 
-def log_info(info):
-    print "info: ", info
-    ProcessingLog.addToLog(ProcessingLog.LOG_INFO, info)
+
+def as_layer(db, table, sql='', keyColumn=''):
+    """ Create a layer from sqlite table
+    """
+    uri = QgsDataSourceUri()
+    uri.setDatabase(db)
+    uri.setDataSource('', table, 'GEOMETRY', aSql=sql, aKeyColumn=keyColumn)
+    return QgsVectorLayer(uri.uri(), table, 'spatialite')
 
 
-def log_error(error):
-    print "error: ", error
-    ProcessingLog.addToLog(ProcessingLog.LOG_ERROR, error)
 
-def add_vector_layer(dbname, table_name, layer_name, clause=''):
-    # Build URI
-    uri = QgsDataSourceURI()
-    uri.setDatabase(dbname)
-    uri.setDataSource('', table_name, 'GEOMETRY', clause, '')
-    # Find already loaded layer
-    layersByName = QgsMapLayerRegistry.instance().mapLayersByName(layer_name)
-    if layersByName:
-        vlayer = layersByName[0]
-        XMLDocument = QDomDocument("style")
-        XMLMapLayers = XMLDocument.createElement("maplayers")
-        XMLMapLayer = XMLDocument.createElement("maplayer")
-        vlayer.writeLayerXML(XMLMapLayer,XMLDocument)
-        XMLMapLayer.firstChildElement("datasource").firstChild().setNodeValue(uri.uri())
-        XMLMapLayers.appendChild(XMLMapLayer)
-        XMLDocument.appendChild(XMLMapLayers)
-        vlayer.readLayerXML(XMLMapLayer)
-        vlayer.reload()
-    else:
-        vlayer = QgsVectorLayer(uri.uri(), layer_name, 'spatialite')
-        QgsMapLayerRegistry.instance().addMapLayer(vlayer)
+class QgsProcessingParameterMorpheoDestination(QgsProcessingParameterVectorDestination):
+    def defaultFileExtension(self):
+        return ""
 
 
-def remove_vector_layer( layer_name ):
-    layers= QgsMapLayerRegistry.instance().mapLayersByName(layer_name)
-    if layers:
-        QgsMapLayerRegistry.instance().removeMapLayer( layers[0].id() )
+class MorpheoAlgorithm(QgsProcessingAlgorithm):
+   
+    def __init__(self):
+            super().__init__()
+
+    def createInstance(self, config={}):
+        """ Virtual override
+
+            see https://qgis.org/api/classQgsProcessingAlgorithm.html
+        """
+        return self.__class__()
+
+    def helpUrl(self):
+        return "https://github.com/MorphoCity/morpheo-plugin"
+
+    def group(self):
+        return 'Morpheo Graph Analysis'
+
+    def groupId(self):
+        return 'morpheographanalysis'
+
+    def icon(self):
+        return QIcon(':/plugins/Morpheo/morpheo.png')
+
+    def asDestinationLayer(self, params, outputName, layer, context ):
+        """ Add layer to load in the final project
+        """
+        # Add layer store
+        definition = self.parameterDefinition(outputName)
+        context.temporaryLayerStore().addMapLayer( layer )
+        # Get the destination project
+        p = params[outputName]
+        if isinstance(p, QgsProcessingOutputLayerDefinition) and p.destinationProject:
+            destName = p.destinationName
+            if not destName:
+                val = p.sink
+                if isinstance(val, QgsProperty):
+                    destName, _  = val.valueAsString( context.expressionContext(), definition.defaultValue())
+                    destName = str(destName).rstrip('.')
+                else:
+                    destName = str(val) or definition.defaultValue()
+            layer.setName(destName)
+            if p.destinationProject:
+                context.addLayerToLoadOnCompletion( layer.id(), 
+                    QgsProcessingContext.LayerDetails( destName, p.destinationProject, outputName ))
+
+        return layer.id()
+
+    def processAlgorithm(self, parameters, context, feedback):
+        self.setLogHandler(feedback)
+        try:
+            return self.processAlg(parameters, context, feedback)
+        finally:
+            self.cleanLogHandler()
+
+    def setLogHandler(self, feedback):
+
+        def on_info(msg):
+            feedback.pushInfo(msg)
+
+        def on_warn(msg):
+            feedback.pushInfo(msg)
+
+        def on_error(msg):
+            feedback.reportError(msg)
+
+        def on_critical(msg):
+            feedback.reportError(msg, fatalError=True)
+
+        def on_progress(value, msg):
+            feedback.setProgressText(msg)
+            feedback.setProgress(value)
+
+        init_log_custom_hooks(on_info=on_info,
+                              on_warn=on_warn,
+                              on_error=on_error,
+                              on_critical=on_critical,
+                              on_progress=on_progress)
+
+    def cleanLogHandler(self):
+        init_log_custom_hooks()
 
 
-class MorpheoBuildAlgorithm(GeoAlgorithm):
+class MorpheoBuildAlgorithm(MorpheoAlgorithm):
 
     INPUT_LAYER = 'INPUT_LAYER'
     DIRECTORY = 'DIRECTORY'
     DBNAME = 'DBNAME'
-
-    COMPUTE = 'COMPUTE'
 
     # Options controlling graph
     SNAP_DISTANCE = 'SNAP_DISTANCE'
@@ -132,120 +202,153 @@ class MorpheoBuildAlgorithm(GeoAlgorithm):
     # Ouput
     OUTPUT_DBPATH = 'OUTPUT_DBPATH'
 
-    def __init__(self):
-        GeoAlgorithm.__init__(self)
-        print "loading morpheo build algo at ", time.strftime("%H:%M:%S")
+    OUTPUT_PLACES = 'OUTPUT_PLACES'
+    OUTPUT_PLACE_EDGES = 'OUTPUT_PLACE_EDGES'
+    OUTPUT_WAYS = 'OUTPUT_WAYS'
 
-    def getIcon(self):
-        return QIcon(os.path.join(os.path.dirname(__file__),'..','morpheo.png'))
+    def name(self):
+        return "ways"
 
-    def helpFile(self):
-        return None
+    def displayName(self):
+        return "Compute Ways"
 
-    def commandLineName(self):
-        return 'morpheo:build'
+    def initAlgorithm( self, config=None ):
+        """ Virtual override
 
-    def defineCharacteristics(self):
-        self.name = 'Build all : graph, places and ways'
-        self.group = 'Build'
+           see https://qgis.org/api/classQgsProcessingAlgorithm.html
+        """
+        # Inputs
+        self.addParameter(QgsProcessingParameterVectorLayer(self.INPUT_LAYER, 'Input layer',
+                          [QgsProcessing.TypeVectorLine]))
 
-        self.addParameter(ParameterVector(self.INPUT_LAYER, 'Input layer',
-                          [ParameterVector.VECTOR_TYPE_LINE]))
+        self.addParameter(QgsProcessingParameterFile(self.DIRECTORY, 'Output directory to store database and data', 
+            behavior=QgsProcessingParameterFile.Folder))
 
-        self.addParameter(ParameterFile(self.DIRECTORY, 'Output directory to store database and data',
-                          isFolder=True))
-
-        self.addParameter(ParameterString(self.DBNAME, 'Database and data directory name',
-                          optional=True))
+        self.addParameter(QgsProcessingParameterString(self.DBNAME, 'Database name', optional=True))
 
         # Options controlling graph
-        self.addParameter(
-            ParameterNumber(self.SNAP_DISTANCE, 'Snap distance (no cleanup if zero)', 0., 99., 0.2))
-        self.addParameter(
-            ParameterNumber(self.MIN_EDGE_LENGTH, 'Min edge length', 0., 99., 4.))
+        self.addParameter(QgsProcessingParameterNumber(self.SNAP_DISTANCE, 'Snap distance in meters (no cleanup if zero)', 
+            type=QgsProcessingParameterNumber.Double, 
+            minValue= 0., 
+            defaultValue=.2))
+
+        self.addParameter(QgsProcessingParameterNumber(self.MIN_EDGE_LENGTH, 'Min edge length (meters)', 
+            type=QgsProcessingParameterNumber.Double,
+            minValue=0., 
+            defaultValue=4.))
 
         # Options controlling places
-        self.addParameter(
-            ParameterNumber(self.BUFFER, 'Place Buffer size', 0., 99.99, 4.))
-        self.addParameter(ParameterVector(self.INPUT_PLACES, 'Default input polygons for places',
-                          [ParameterVector.VECTOR_TYPE_POLYGON], optional=True))
+        self.addParameter(QgsProcessingParameterNumber(self.BUFFER, 'Place Buffer size (meters)', 
+            type=QgsProcessingParameterNumber.Double,
+            minValue=0., 
+            defaultValue=4.))
+
+        self.addParameter(QgsProcessingParameterVectorLayer(self.INPUT_PLACES, 'Default input polygons for places',
+                          [QgsProcessing.TypeVectorPolygon], 
+                          optional=True))
 
         # Options controlling ways
-        self.addParameter(ParameterTableField(self.WAY_ATTRIBUTE,
-            'Attribute for building street ways', self.INPUT_LAYER, ParameterTableField.DATA_TYPE_STRING, True))
-        self.addParameter(
-            ParameterNumber(self.THRESHOLD, 'Threshold angle (in degree)', 0., 180.0, 60.))
-        self.addParameter(ParameterBoolean(self.RTOPO, 'Compute topological radius', False))
-        self.addParameter(ParameterBoolean(self.ATTRIBUTES, 'Compute attributes', False))
-        self.addParameter(ParameterBoolean(self.ORTHOGONALITY, 'Compute orthogonality (require attributes)', False))
-        self.addParameter(ParameterBoolean(self.BETWEENNESS, 'Compute betweenness centrality (require attributes)', False))
-        self.addParameter(ParameterBoolean(self.CLOSENESS, 'Compute closeness centrality (require attributes)', False))
-        self.addParameter(ParameterBoolean(self.STRESS, 'Compute stress centrality (require attributes)', False))
-        self.addParameter(
-            ParameterNumber(self.CLASSES, 'Number of classes', 2, 99, 10))
+        self.addParameter(QgsProcessingParameterField(self.WAY_ATTRIBUTE,
+            'Attribute for building street ways', 
+            parentLayerParameterName=self.INPUT_LAYER, 
+            type=QgsProcessingParameterField.String, 
+            optional=True))
 
-        outputDBPath = OutputString(self.OUTPUT_DBPATH, 'Database path')
-        outputDBPath.hidden = True
+        self.addParameter(QgsProcessingParameterNumber(self.THRESHOLD, 'Threshold angle (in degree)', 
+            minValue=0., 
+            maxValue=180.0, 
+            defaultValue=60.0))
+
+        self.addParameter(QgsProcessingParameterBoolean(self.RTOPO, 'Compute topological radius', False, optional=True))
+        self.addParameter(QgsProcessingParameterBoolean(self.ATTRIBUTES, 'Compute attributes', False, optional=True))
+        self.addParameter(QgsProcessingParameterBoolean(self.ORTHOGONALITY, 'Compute orthogonality (require attributes)', False, optional=True))
+        self.addParameter(QgsProcessingParameterBoolean(self.BETWEENNESS, 'Compute betweenness centrality (require attributes)', False, optional=True))
+        self.addParameter(QgsProcessingParameterBoolean(self.CLOSENESS, 'Compute closeness centrality (require attributes)', False, optional=True))
+        self.addParameter(QgsProcessingParameterBoolean(self.STRESS, 'Compute stress centrality (require attributes)', False, optional=True))
+
+        self.addParameter(QgsProcessingParameterNumber( self.CLASSES, 'Number of classes', 
+                minValue=2, 
+                maxValue=99, 
+                defaultValue=10,
+                optional=True))
+
+        # Outputs
+        outputDBPath = QgsProcessingOutputString(self.OUTPUT_DBPATH, 'Database path')
         self.addOutput(outputDBPath)
 
-    def checkBeforeOpeningParametersDialog(self):
-        return None
+        self.addParameter( QgsProcessingParameterMorpheoDestination( self.OUTPUT_PLACES, "Places", 
+            type=QgsProcessing.TypeVectorPolygon ))
+        self.addParameter( QgsProcessingParameterMorpheoDestination( self.OUTPUT_PLACE_EDGES, "Edges with Places removed",
+            type=QgsProcessing.TypeVectorLine ))
+        self.addParameter( QgsProcessingParameterMorpheoDestination( self.OUTPUT_WAYS, "Ways",
+            type=QgsProcessing.TypeVectorLine ))
 
-    def processAlgorithm(self, progress):
+
+    def processAlg(self, parameters, context, feedback):
         """ Build all : graph, places and ways
         """
-        layer = dataobjects.getObjectFromUri(self.getParameterValue(self.INPUT_LAYER))
+        params = parameters
 
-        output    = self.getParameterValue(self.DIRECTORY) or tempFolder()
-        dbname    = self.getParameterValue(self.DBNAME) or 'morpheo_'+layer.name().replace(" ", "_")
+        layer = self.parameterAsVectorLayer(params, self.INPUT_LAYER, context)
 
-        if not os.path.exists(os.path.join(output, dbname)):
-            os.mkdir(os.path.join(output, dbname))
+        output = self.parameterAsFile(params, self.DIRECTORY, context) or tempFolder()
+        dbname = self.parameterAsString(params, self.DBNAME, context) or 'morpheo_'+layer.name().replace(" ", "_")
 
-        builder = Builder.from_layer( layer, os.path.join(output, dbname) )
+        db_output_path = os.path.join(output, dbname)
+
+        if not os.path.exists(db_output_path):
+            os.mkdir(db_output_path)
+
+        builder = Builder.from_layer( layer, db_output_path )
+
+        way_field = self.parameterAsFields(params, self.WAY_ATTRIBUTE, context) or None
+        if way_field:
+            way_field = way_field[0] 
 
         # Compute graph
-        builder.build_graph(self.getParameterValue(self.SNAP_DISTANCE),
-                            self.getParameterValue(self.MIN_EDGE_LENGTH),
-                            self.getParameterValue(self.WAY_ATTRIBUTE),
-                            output=os.path.join(output, dbname))
+        builder.build_graph(self.parameterAsDouble(params, self.SNAP_DISTANCE, context),
+                            self.parameterAsDouble(params, self.MIN_EDGE_LENGTH, context),
+                            way_field,
+                            output=db_output_path)
         # Compute places
-        builder.build_places(buffer_size=self.getParameterValue(self.BUFFER),
-                             places=self.getParameterValue(self.INPUT_PLACES),
-                             output=os.path.join(output, dbname))
+        builder.build_places(buffer_size = self.parameterAsDouble(params, self.BUFFER, context),
+                             places      = self.parameterAsVectorLayer(params, self.INPUT_PLACES, context),
+                             output      = db_output_path)
 
-        # Compute ways
-        kwargs = dict(classes=self.getParameterValue(self.CLASSES), rtopo=self.getParameterValue(self.RTOPO))
-        if self.getParameterValue(self.ATTRIBUTES):
+        # Compute ways attributes
+        kwargs = dict(classes=self.parameterAsInt(params, self.CLASSES, context), 
+                      rtopo=self.parameterAsBool(params, self.RTOPO, context))
+        if self.parameterAsBool(params, self.ATTRIBUTES, context):
             kwargs.update(attributes=True,
-                          orthogonality = self.getParameterValue(self.ORTHOGONALITY),
-                          betweenness   = self.getParameterValue(self.BETWEENNESS),
-                          closeness     = self.getParameterValue(self.CLOSENESS),
-                          stress        = self.getParameterValue(self.STRESS))
+                          orthogonality = self.parameterAsBool(params, self.ORTHOGONALITY, context),
+                          betweenness   = self.parameterAsBool(params, self.BETWEENNESS, context),
+                          closeness     = self.parameterAsBool(params, self.CLOSENESS, context),
+                          stress        = self.parameterAsBool(params, self.STRESS, context))
 
-        if self.getParameterValue(self.WAY_ATTRIBUTE) is not None:
-            builder.build_ways_from_attribute(output=os.path.join(output, dbname), **kwargs)
+        if way_field:
+            feedback.pushInfo("Bulding way from attribute %s" % way_field)
+            builder.build_ways_from_attribute(output=db_output_path, **kwargs)
         else:
-            builder.build_ways(threshold=self.getParameterValue(self.THRESHOLD)/180.0 * pi,
-                           output=os.path.join(output, dbname), **kwargs)
+            threshold = self.parameterAsDouble(params, self.THRESHOLD, context)
+            feedback.pushInfo("Bulding way from geometry - threshold = %s" % threshold)
+            builder.build_ways(threshold=threshold, output=db_output_path, **kwargs)
 
-        # Visualize data
-        add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'places', "%s_%s" % ('places',dbname))
-        add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'place_edges', "%s_%s" % ('place_edges',dbname))
-        add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'ways', "%s_%s" % ('ways',dbname))
+        # Return our layers
+        db = db_output_path+'.sqlite'
+        output_places      = self.asDestinationLayer( params, self.OUTPUT_PLACES, as_layer(db, 'places'), context)
+        output_place_edges = self.asDestinationLayer( params, self.OUTPUT_PLACE_EDGES, as_layer(db, 'place_edges'), context)
+        output_ways        = self.asDestinationLayer( params, self.OUTPUT_WAYS, as_layer(db, 'ways'), context)
 
-        self.setOutputValue(self.OUTPUT_DBPATH, os.path.join(output, dbname)+'.sqlite')
-
-    def write_output_table(self, output_param, table, cursor):
-        cursor.execute("pragma table_info("+table+")")
-        fields = [name for [cid,name,typ,notnull,dflt_value,pk] in cursor.fetchall()
-                if name != 'GEOMETRY']
-        table_writer = self.getOutputFromName(output_param).getTableWriter(fields)
-        cursor.execute("SELECT "+','.join(fields)+" FROM "+table)
-        table_writer.addRecords(cursor.fetchall())
+        return {
+            self.OUTPUT_DBPATH: db,
+            self.OUTPUT_PLACES: output_places,
+            self.OUTPUT_PLACE_EDGES: output_place_edges,
+            self.OUTPUT_WAYS: output_ways
+        }
 
 
-class MorpheoWayAttributesAlgorithm(GeoAlgorithm):
+
+class MorpheoWayAttributesAlgorithm((MorpheoAlgorithm)):
 
     DBPATH = 'DBPATH'
 
@@ -259,72 +362,80 @@ class MorpheoWayAttributesAlgorithm(GeoAlgorithm):
 
     # Ouput
     OUTPUT_DBPATH = 'OUTPUT_DBPATH'
+    OUTPUT_PLACES = 'OUTPUT_PLACES'
+    OUTPUT_PLACE_EDGES = 'OUTPUT_PLACE_EDGES'
+    OUTPUT_WAYS = 'OUTPUT_WAYS'
+ 
+    def name(self):
+        return "way_attributes"
 
-    def __init__(self):
-        GeoAlgorithm.__init__(self)
-        print "loading morpheo way_attributes algo at ", time.strftime("%H:%M:%S")
+    def displayName(self):
+        return "Compute Way attributes"
 
-    def getIcon(self):
-        return QIcon(os.path.join(os.path.dirname(__file__),'..','morpheo.png'))
+    def initAlgorithm(self, config=None):
 
-    def helpFile(self):
-        return None
+        self.addParameter(QgsProcessingParameterFile(self.DBPATH, 'Morpheo database', 
+                        extension='sqlite'))
 
-    def commandLineName(self):
-        return 'morpheo:way_attributes'
+        self.addParameter(QgsProcessingParameterBoolean(self.RTOPO, 'Compute topological radius', False))
+        self.addParameter(QgsProcessingParameterBoolean(self.ORTHOGONALITY, 'Compute orthogonality (require attributes)', False))
+        self.addParameter(QgsProcessingParameterBoolean(self.BETWEENNESS, 'Compute betweenness centrality (require attributes)', False))
+        self.addParameter(QgsProcessingParameterBoolean(self.CLOSENESS, 'Compute closeness centrality (require attributes)', False))
+        self.addParameter(QgsProcessingParameterBoolean(self.STRESS, 'Compute stress centrality (require attributes)', False))
 
-    def defineCharacteristics(self):
-        self.name = 'Compute attributes on ways'
-        self.group = 'Compute'
+        self.addParameter(QgsProcessingParameterNumber(self.CLASSES, 'Number of classes', 
+                minValue=2, 
+                maxValue=99, 
+                defaultValue=10))
 
-        self.addParameter(ParameterFile(self.DBPATH, 'Morpheo database path',
-                          isFolder=False, optional=False, ext='sqlite'))
-
-        # Options controlling ways
-        self.addParameter(ParameterBoolean(self.RTOPO, 'Compute topological radius', False))
-        self.addParameter(ParameterBoolean(self.ORTHOGONALITY, 'Compute orthogonality', False))
-        self.addParameter(ParameterBoolean(self.BETWEENNESS, 'Compute betweenness centrality', False))
-        self.addParameter(ParameterBoolean(self.CLOSENESS, 'Compute closeness centrality', False))
-        self.addParameter(ParameterBoolean(self.STRESS, 'Compute stress centrality', False))
-        self.addParameter(
-            ParameterNumber(self.CLASSES, 'Number of classes', 2, 99, 10))
-
-        outputDBPath = OutputString(self.OUTPUT_DBPATH, 'Database path')
-        outputDBPath.hidden = True
+        # Outputs
+        outputDBPath = QgsProcessingOutputString(self.OUTPUT_DBPATH, 'Database path')
         self.addOutput(outputDBPath)
 
-    def checkBeforeOpeningParametersDialog(self):
-        return None
+        self.addParameter( QgsProcessingParameterMorpheoDestination( self.OUTPUT_PLACES, "Places", 
+            type=QgsProcessing.TypeVectorPolygon ))
+        self.addParameter( QgsProcessingParameterMorpheoDestination( self.OUTPUT_PLACE_EDGES, "Edges with Places removed",
+            type=QgsProcessing.TypeVectorLine ))
+        self.addParameter( QgsProcessingParameterMorpheoDestination( self.OUTPUT_WAYS, "Ways",
+            type=QgsProcessing.TypeVectorLine ))
 
-    def processAlgorithm(self, progress):
+
+    def processAlg(self, parameters, context, feedback):
         """ Compute way attributes
         """
-        dbpath    = self.getParameterValue(self.DBPATH)
-        if not os.path.isfile( dbpath ):
-            log_error('Morpheo database path not found')
+        params = parameters
 
-        output    = os.path.dirname(dbpath)
-        dbname    = os.path.basename(dbpath).replace('.sqlite','')
+        dbpath = self.parameterAsFile(params, self.DBPATH, context)
+        if not os.path.isfile(dbpath):
+            raise QgsProcessingException("Database %s not found" % dbpath)
+ 
+        db_output_path = dbpath.replace('.sqlite','')
 
-        builder = Builder.from_database( os.path.join(output, dbname) )
+        builder = Builder.from_database( db_output_path )
         builder.compute_way_attributes(
-                orthogonality = self.getParameterValue(self.ORTHOGONALITY),
-                betweenness   = self.getParameterValue(self.BETWEENNESS),
-                closeness     = self.getParameterValue(self.CLOSENESS),
-                stress        = self.getParameterValue(self.STRESS),
-                rtopo         = self.getParameterValue(self.RTOPO),
-                classes       = self.getParameterValue(self.CLASSES),
-                output        = os.path.join(output, dbname))
+                orthogonality = self.parameterAsBool(params, self.ORTHOGONALITY, context),
+                betweenness   = self.parameterAsBool(params, self.BETWEENNESS, context),
+                closeness     = self.parameterAsBool(params, self.CLOSENESS, context),
+                stress        = self.parameterAsBool(params, self.STRESS, context),
+                rtopo         = self.parameterAsBool(params, self.RTOPO, context),
+                classes       = self.parameterAsBool(params, self.CLASSES, context),
+                output        = db_output_path)
 
-        # Visualize data
-        add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'places', "%s_%s" % ('places',dbname))
-        add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'place_edges', "%s_%s" % ('place_edges',dbname))
-        add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'ways', "%s_%s" % ('ways',dbname))
+        # Return our layers
+        db = db_output_path+'.sqlite'
+        output_places      = self.asDestinationLayer( params, self.OUTPUT_PLACES, as_layer(db, 'places'), context)
+        output_place_edges = self.asDestinationLayer( params, self.OUTPUT_PLACE_EDGES, as_layer(db, 'place_edges'), context)
+        output_ways        = self.asDestinationLayer( params, self.OUTPUT_WAYS, as_layer(db, 'ways'), context)
 
-        self.setOutputValue(self.OUTPUT_DBPATH, os.path.join(output, dbname)+'.sqlite')
+        return {
+            self.OUTPUT_DBPATH: db,
+            self.OUTPUT_PLACES: output_places,
+            self.OUTPUT_PLACE_EDGES: output_place_edges,
+            self.OUTPUT_WAYS: output_ways
+        }
 
 
-class MorpheoEdgeAttributesAlgorithm(GeoAlgorithm):
+class MorpheoEdgeAttributesAlgorithm((MorpheoAlgorithm)):
 
     DBPATH = 'DBPATH'
 
@@ -337,168 +448,160 @@ class MorpheoEdgeAttributesAlgorithm(GeoAlgorithm):
 
     # Ouput
     OUTPUT_DBPATH = 'OUTPUT_DBPATH'
+    OUTPUT_PLACE_EDGES = 'OUTPUT_PLACE_EDGES'
 
-    def __init__(self):
-        GeoAlgorithm.__init__(self)
-        print "loading morpheo way_attributes algo at ", time.strftime("%H:%M:%S")
+    def name(self):
+        return "edge_attributes"
 
-    def getIcon(self):
-        return QIcon(os.path.join(os.path.dirname(__file__),'..','morpheo.png'))
+    def displayName(self):
+        return "Compute Way attributes"
 
-    def helpFile(self):
-        return None
+    def initAlgorithm(self, config=None):
 
-    def commandLineName(self):
-        return 'morpheo:edge_attributes'
+        self.addParameter(QgsProcessingParameterFile(self.DBPATH, 'Morpheo database', 
+                        extension='sqlite'))
 
-    def defineCharacteristics(self):
-        self.name = 'Compute attributes on edges'
-        self.group = 'Compute'
+        self.addParameter(QgsProcessingParameterBoolean(self.ORTHOGONALITY, 'Compute orthogonality (require attributes)', False))
+        self.addParameter(QgsProcessingParameterBoolean(self.BETWEENNESS, 'Compute betweenness centrality (require attributes)', False))
+        self.addParameter(QgsProcessingParameterBoolean(self.CLOSENESS, 'Compute closeness centrality (require attributes)', False))
+        self.addParameter(QgsProcessingParameterBoolean(self.STRESS, 'Compute stress centrality (require attributes)', False))
 
-        self.addParameter(ParameterFile(self.DBPATH, 'Morpheo database path',
-                          isFolder=False, optional=False, ext='sqlite'))
+        self.addParameter(QgsProcessingParameterNumber(self.CLASSES, 'Number of classes', 
+                minValue=2, 
+                maxValue=99, 
+                defaultValue=10))
 
-        # Options controlling ways
-        self.addParameter(ParameterBoolean(self.ORTHOGONALITY, 'Compute orthogonality', False))
-        self.addParameter(ParameterBoolean(self.BETWEENNESS, 'Compute betweenness centrality', False))
-        self.addParameter(ParameterBoolean(self.CLOSENESS, 'Compute closeness centrality', False))
-        self.addParameter(ParameterBoolean(self.STRESS, 'Compute stress centrality', False))
-        self.addParameter(
-            ParameterNumber(self.CLASSES, 'Number of classes', 2, 99, 10))
-
-        outputDBPath = OutputString(self.OUTPUT_DBPATH, 'Database path')
-        outputDBPath.hidden = True
+        # Outputs
+        outputDBPath = QgsProcessingOutputString(self.OUTPUT_DBPATH, 'Database path')
         self.addOutput(outputDBPath)
 
-    def checkBeforeOpeningParametersDialog(self):
-        return None
+        self.addParameter( QgsProcessingParameterMorpheoDestination( self.OUTPUT_PLACE_EDGES, "Edges with Places removed",
+            type=QgsProcessing.TypeVectorLine ))
 
-    def processAlgorithm(self, progress):
+
+    def processAlg(self, parameters, context, feedback):
         """ Compute way attributes
         """
-        dbpath    = self.getParameterValue(self.DBPATH)
-        if not os.path.isfile( dbpath ):
-            log_error('Morpheo database path not found')
+        params = parameters
 
-        output    = os.path.dirname(dbpath)
-        dbname    = os.path.basename(dbpath).replace('.sqlite','')
+        dbpath = self.parameterAsFile(params, self.DBPATH, context)
+        if not os.path.isfile(dbpath):
+            raise QgsProcessingException("Database %s not found" % dbpath)
+ 
+        output = os.path.dirname(dbpath)
+        dbname = os.path.basename(dbpath).replace('.sqlite','')
 
-        builder = Builder.from_database( os.path.join(output, dbname) )
-        builder.compute_edge_attributes( os.path.join(output, dbname),
-                orthogonality = self.getParameterValue(self.ORTHOGONALITY),
-                betweenness   = self.getParameterValue(self.BETWEENNESS),
-                closeness     = self.getParameterValue(self.CLOSENESS),
-                stress        = self.getParameterValue(self.STRESS),
-                classes       = self.getParameterValue(self.CLASSES),
-                output        = os.path.join(output, dbname))
+        db_output_path = os.path.join(output, dbname)
 
-        # Visualize data
-        add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'place_edges', "%s_%s" % ('place_edges',dbname))
+        builder = Builder.from_database( db_output_path )
+        builder.compute_way_attributes(  db_output_path,
+                orthogonality = self.parameterAsBool(params, self.ORTHOGONALITY),
+                betweenness   = self.parameterAsBool(params, self.BETWEENNESS),
+                closeness     = self.parameterAsBool(params, self.CLOSENESS),
+                stress        = self.parameterAsBool(params, self.STRESS),
+                classes       = self.parameterAsBool(params, self.CLASSES),
+                output        = db_output_path)
 
-        self.setOutputValue(self.OUTPUT_DBPATH, os.path.join(output, dbname)+'.sqlite')
+        # Return our layers
+        db = db_output_path+'.sqlite'
+        output_place_edges = self.asDestinationLayer( params, self.OUTPUT_PLACE_EDGES, as_layer(db, 'place_edges'), context)
 
-
-class MorpheoEdgesGraphAlgorithm(GeoAlgorithm):
-
-    DBPATH = 'DBPATH'
-
-    # Ouput
-    OUTPUT_DBPATH = 'OUTPUT_DBPATH'
-
-    def __init__(self):
-        GeoAlgorithm.__init__(self)
-        print "loading morpheo edges_graph algo at ", time.strftime("%H:%M:%S")
-
-    def getIcon(self):
-        return QIcon(os.path.join(os.path.dirname(__file__),'..','morpheo.png'))
-
-    def helpFile(self):
-        return None
-
-    def commandLineName(self):
-        return 'morpheo:edges_graph'
-
-    def defineCharacteristics(self):
-        self.name = 'Build edges graph'
-        self.group = 'Build'
-
-        self.addParameter(ParameterFile(self.DBPATH, 'Morpheo database path',
-                          isFolder=False, optional=False, ext='sqlite'))
-
-        outputDBPath = OutputString(self.OUTPUT_DBPATH, 'Database path')
-        outputDBPath.hidden = True
-        self.addOutput(outputDBPath)
-
-    def checkBeforeOpeningParametersDialog(self):
-        return None
-
-    def processAlgorithm(self, progress):
-        """ Build edges graph
-        """
-        dbpath    = self.getParameterValue(self.DBPATH)
-        if not os.path.isfile( dbpath ):
-            log_error('Morpheo database path not found')
-
-        output    = os.path.dirname(dbpath)
-        dbname    = os.path.basename(dbpath).replace('.sqlite','')
-
-        builder = Builder.from_database( os.path.join(output, dbname) )
-        builder.build_edges_graph(os.path.join(output, dbname))
-
-        self.setOutputValue(self.OUTPUT_DBPATH, os.path.join(output, dbname)+'.sqlite')
+        return {
+            self.OUTPUT_DBPATH: db,
+            self.OUTPUT_PLACE_EDGES: output_place_edges,
+        }
 
 
-class MorpheoWaysGraphAlgorithm(GeoAlgorithm):
+class MorpheoEdgesGraphAlgorithm((MorpheoAlgorithm)):
 
     DBPATH = 'DBPATH'
 
     # Ouput
     OUTPUT_DBPATH = 'OUTPUT_DBPATH'
 
-    def __init__(self):
-        GeoAlgorithm.__init__(self)
-        print "loading morpheo ways_graph algo at ", time.strftime("%H:%M:%S")
+    def name(self):
+        return "edges_graph"
 
-    def getIcon(self):
-        return QIcon(os.path.join(os.path.dirname(__file__),'..','morpheo.png'))
+    def displayName(self):
+        return "Compute Edge graph"
 
-    def helpFile(self):
-        return None
+    def initAlgorithm(self, config=None):
 
-    def commandLineName(self):
-        return 'morpheo:ways_graph'
+        self.addParameter(QgsProcessingParameterFile(self.DBPATH, 'Morpheo database', 
+                        extension='sqlite'))
 
-    def defineCharacteristics(self):
-        self.name = 'Build ways graph'
-        self.group = 'Build'
-
-        self.addParameter(ParameterFile(self.DBPATH, 'Morpheo database path',
-                          isFolder=False, optional=False, ext='sqlite'))
-
-        outputDBPath = OutputString(self.OUTPUT_DBPATH, 'Database path')
-        outputDBPath.hidden = True
+        # Outputs
+        outputDBPath = QgsProcessingOutputString(self.OUTPUT_DBPATH, 'Database path')
         self.addOutput(outputDBPath)
 
-    def checkBeforeOpeningParametersDialog(self):
-        return None
 
-    def processAlgorithm(self, progress):
+    def processAlg(self, parameters, context, feedback):
         """ Build edges graph
         """
-        dbpath    = self.getParameterValue(self.DBPATH)
-        if not os.path.isfile( dbpath ):
-            log_error('Morpheo database path not found')
+        params = parameters
 
-        output    = os.path.dirname(dbpath)
-        dbname    = os.path.basename(dbpath).replace('.sqlite','')
+        dbpath = self.parameterAsFile(params, self.DBPATH, context)
+        if not os.path.isfile(dbpath):
+            raise QgsProcessingException("Database %s not found" % dbpath)
+ 
+        output  = os.path.dirname(dbpath)
+        dbname  = os.path.basename(dbpath).replace('.sqlite','')
 
-        builder = Builder.from_database( os.path.join(output, dbname) )
-        builder.build_ways_graph(os.path.join(output, dbname))
+        db_output_path = os.path.join(output, dbname)
 
-        self.setOutputValue(self.OUTPUT_DBPATH, os.path.join(output, dbname)+'.sqlite')
+        builder = Builder.from_database( db_output_path )
+        builder.build_edges_graph(db_output_path)
+
+        return {
+            self.OUTPUT_DBPATH: dbpath,
+        }
 
 
-class MorpheoStructuralDiffAlgorithm(GeoAlgorithm):
+class MorpheoWaysGraphAlgorithm((MorpheoAlgorithm)):
+
+    DBPATH = 'DBPATH'
+
+    # Ouput
+    OUTPUT_DBPATH = 'OUTPUT_DBPATH'
+
+    def name(self):
+        return "ways_graph"
+
+    def displayName(self):
+        return "Compute Edge graph"
+
+    def initAlgorithm(self, config=None):
+
+        self.addParameter(QgsProcessingParameterFile(self.DBPATH, 'Morpheo database', 
+                        extension='sqlite'))
+
+        # Outputs
+        outputDBPath = QgsProcessingOutputString(self.OUTPUT_DBPATH, 'Database path')
+        self.addOutput(outputDBPath)
+
+    def processAlg(self, progress):
+        """ Build edges graph
+        """
+        params = parameters
+
+        dbpath = self.parameterAsFile(params, self.DBPATH, context)
+        if not os.path.isfile(dbpath):
+            raise QgsProcessingException("Database %s not found" % dbpath)
+ 
+        output  = os.path.dirname(dbpath)
+        dbname  = os.path.basename(dbpath).replace('.sqlite','')
+
+        db_output_path = os.path.join(output, dbname)
+
+        builder = Builder.from_database( db_output_path )
+        builder.build_ways_graph(db_output_path)
+
+        return {
+            self.OUTPUT_DBPATH: dbpath,
+        }
+
+
+class MorpheoStructuralDiffAlgorithm((MorpheoAlgorithm)):
 
     DBPATH1 = 'DBPATH1'
     DBPATH2 = 'DBPATH2'
@@ -511,48 +614,46 @@ class MorpheoStructuralDiffAlgorithm(GeoAlgorithm):
     # Ouput
     OUTPUT_DBPATH = 'OUTPUT_DBPATH'
 
-    def __init__(self):
-        GeoAlgorithm.__init__(self)
-        print "loading morpheo structural_diff algo at ", time.strftime("%H:%M:%S")
+    OUTPUT_PAIRED_EDGES = 'OUTPUT_PAIRED_EDGES'
 
-    def getIcon(self):
-        return QIcon(os.path.join(os.path.dirname(__file__),'..','morpheo.png'))
+    def name(self):
+        return "structural_diff"
 
-    def helpFile(self):
-        return None
+    def displayName(self):
+        return "Compute Structural Diff"
 
-    def commandLineName(self):
-        return 'morpheo:structural_diff'
+    def initAlgorithm(self, config = None):
 
-    def defineCharacteristics(self):
-        self.name = 'Compute structural difference'
-        self.group = 'Compute'
+        self.addParameter(QgsProcessingParameterFile(self.DBPATH1, 'Initial Morpheo database', 
+                          extension='sqlite'))
 
-        self.addParameter(ParameterFile(self.DBPATH1, 'Initial Morpheo directory',
-                          isFolder=False, optional=False, ext='sqlite'))
+        self.addParameter(QgsProcessingParameterFile(self.DBPATH2, 'Final Morpheo database', 
+                          extension='sqlite'))
 
-        self.addParameter(ParameterFile(self.DBPATH2, 'Final Morpheo directory',
-                          isFolder=False, optional=False, ext='sqlite'))
+        self.addParameter(QgsProcessingParameterFile(self.DIRECTORY, 'Output directory to store database and data', 
+            behavior=QgsProcessingParameterFile.Folder))
 
-        self.addParameter(ParameterFile(self.DIRECTORY, 'Output directory to store database and data',
-                          isFolder=True))
-
-        self.addParameter(ParameterString(self.DBNAME, 'Database and data directory name',
+        self.addParameter(QgsProcessingParameterString(self.DBNAME, 'Database and data directory name',
                           optional=True))
 
-        self.addParameter(
-            ParameterNumber(self.TOLERANCE, 'Tolerance value', 0., 99.99, 1.))
+        self.addParameter(QgsProcessingParameterNumber(self.TOLERANCE, 'Tolerance value in meters',
+            type=QgsProcessingParameterNumber.Double,
+            minValue=0., 
+            maxValue=99.99, 
+            defaultValue=1.))
 
-        outputDBPath = OutputString(self.OUTPUT_DBPATH, 'Structural difference database path')
-        outputDBPath.hidden = True
+        # Outputs
+        outputDBPath = QgsProcessingOutputString(self.OUTPUT_DBPATH, 'Structural difference database path')
         self.addOutput(outputDBPath)
 
-    def checkBeforeOpeningParametersDialog(self):
-        return None
+        self.addParameter( QgsProcessingParameterMorpheoDestination( self.OUTPUT_PAIRED_EDGES, "Paired Edges",
+            type=QgsProcessing.TypeVectorLine ))
 
-    def processAlgorithm(self, progress):
+
+    def processAlg(self, parameters, context, feedback):
         """ Compute structural difference
         """
+        params = parameters
 
         def check_dbpath(path):
             basename = os.path.basename(path)
@@ -560,32 +661,36 @@ class MorpheoStructuralDiffAlgorithm(GeoAlgorithm):
             gpickle = os.path.join(path,'way_graph_%s.gpickle' % basename)
             return os.path.isfile(shp) and os.path.isfile(gpickle)
 
-        dbpath1   = self.getParameterValue(self.DBPATH1)
-        dirname1  = os.path.dirname(dbpath1)
-        dbname1   = os.path.basename(dbpath1).replace('.sqlite','')
-        if not check_dbpath(os.path.join(dirname1, dbname1)):
-            log_error('Initial Morpheo directory is incomplete')
+        database1 = self.parameterAsFile(params, self.DBPATH1, context)
+        dbpath1   = database1.replace('.sqlite','')
+        if not check_dbpath(dbpath1):
+            raise QgsProcessingException('Initial Morpheo directory is incomplete')
 
-        dbpath2    = self.getParameterValue(self.DBPATH2)
-        dirname2  = os.path.dirname(dbpath2)
-        dbname2   = os.path.basename(dbpath2).replace('.sqlite','')
-        if not check_dbpath(os.path.join(dirname2, dbname2)):
-            log_error('Final Morpheo directory is incomplete')
+        database2  = self.parameterAsFile(params, self.DBPATH2, context)
+        dbpath2    = database2.replace('.sqlite','')
+        if not check_dbpath(dbpath2):
+            raise QgsProcessingException('Final Morpheo directory is incomplete')
 
-        output    = self.getParameterValue(self.DIRECTORY) or tempFolder()
-        dbname    = self.getParameterValue(self.DBNAME) or 'morpheo_%s_%s' % (dbname1, dbname2)
+        output = self.parameterAsFile(params, self.DIRECTORY, context) or tempFolder()
+        dbname = self.parameterAsString(params, self.DBNAME, context) or 'morpheo_%s_%s' % (dbname1, dbname2)
 
-        structural_diff( os.path.join(dirname1, dbname1), os.path.join(dirname2, dbname2),
-                         output=os.path.join(output, dbname),
+        db_output_path = os.path.join(output, dbname)
+
+        structural_diff( dbpath1, dbpath2, output=db_output_path,
                          buffersize=self.getParameterValue(self.TOLERANCE))
 
-        # Visualize data
-        add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'paired_edges', "%s_%s" % ('paired_edges',dbname))
+        # Return our layers
+        db = db_output_path+'.sqlite'
+        output_paired_edges = self.asDestinationLayer( params, self.OUTPUT_PAIRED_EDGES, as_layer(db, 'paired_edges'), context)
 
-        self.setOutputValue(self.OUTPUT_DBPATH, os.path.join(output, dbname)+'.sqlite')
+        return {
+            self.OUTPUT_DBPATH: db,
+            self.OUTPUT_PAIRED_EDGES: output_paired_edges,
+        }
 
 
-class MorpheoMeshAlgorithm(GeoAlgorithm):
+
+class MorpheoMeshAlgorithm((MorpheoAlgorithm)):
 
     DBPATH = 'DBPATH'
     WAY_LAYER = 'WAY_LAYER'
@@ -593,128 +698,136 @@ class MorpheoMeshAlgorithm(GeoAlgorithm):
     PERCENTILE = 'PERCENTILE'
     USE_WAY = 'USE_WAY'
 
-    def __init__(self):
-        GeoAlgorithm.__init__(self)
-        print "loading morpheo mesh algo at ", time.strftime("%H:%M:%S")
+    OUTPUT_MESH = 'OUTPUT_MESH'
 
-    def getIcon(self):
-        return QIcon(os.path.join(os.path.dirname(__file__),'..','morpheo.png'))
+    def name(self):
+        return "mesh"
 
-    def helpFile(self):
-        return None
+    def displayName(self):
+        return "Compute Mesh"
 
-    def commandLineName(self):
-        return 'morpheo:mesh'
+    def initAlgorithm(self, config = None):
 
-    def defineCharacteristics(self):
-        self.name = 'Compute mesh'
-        self.group = 'Compute'
+        self.addParameter(QgsProcessingParameterFile(self.DBPATH, 'Morpheo database', 
+                        extension='sqlite'))
 
-        self.addParameter(ParameterFile(self.DBPATH, 'Morpheo database path',
-                          isFolder=False, optional=False, ext='sqlite'))
+        self.addParameter(QgsProcessingParameterVectorLayer(self.WAY_LAYER, 'Ways layer',
+                          [QgsProcessing.TypeVectorLine]))
 
-        self.addParameter(ParameterVector(self.WAY_LAYER, 'Ways layer',
-                          [ParameterVector.VECTOR_TYPE_LINE]))
+        # Options controlling ways
+        self.addParameter(QgsProcessingParameterField(self.WAY_ATTRIBUTE,
+            'Attribute for mesh structure', 
+            parentLayerParameterName=self.WAY_LAYER, 
+            type=QgsProcessingParameterField.String))
 
-        self.addParameter(ParameterTableField(self.WAY_ATTRIBUTE,
-            'Attribute for mesh structure', self.WAY_LAYER, ParameterTableField.DATA_TYPE_NUMBER, True))
+        self.addParameter(QgsProcessingParameterNumber(self.PERCENTILE, 'The percentile for computing the mesh structure', 
+            minValue=1., 
+            maxValue=99, 
+            defaultValue=5))
 
-        self.addParameter(
-            ParameterNumber(self.PERCENTILE, 'The percentile for computing the mesh structure', 1, 99, 5))
+        self.addParameter(QgsProcessingParameterBoolean(self.USE_WAY, 'Use ways for computing mesh components', False))
 
-        self.addParameter(ParameterBoolean(self.USE_WAY, 'Use ways for computing mesh components', False))
+        self.addParameter( QgsProcessingParameterMorpheoDestination( self.OUTPUT_MESH, "Mesh output",
+            type=QgsProcessing.TypeVectorLine ))
 
-    def checkBeforeOpeningParametersDialog(self):
-        return None
 
-    def processAlgorithm(self, progress):
+    def processAlg(self, parameters, context, feedback):
         """ Compute mesh
         """
-        dbpath    = self.getParameterValue(self.DBPATH)
-        if not os.path.isfile( dbpath ):
-            log_error('Morpheo database path not found')
+        params = parameters
 
-        output    = os.path.dirname(dbpath)
-        dbname    = os.path.basename(dbpath).replace('.sqlite','')
+        dbpath = self.parameterAsFile(params, self.DBPATH, context)
+        if not os.path.isfile(dbpath):
+            raise QgsProcessingException("Database %s not found" % dbpath)
+ 
+        db_output_path = dbpath.replace('.sqlite','')
 
-        attribute = self.getParameterValue(self.WAY_ATTRIBUTE)
-        percentile = self.getParameterValue(self.PERCENTILE)
+        attribute = self.parameterAsFields(params, self.WAY_ATTRIBUTE, context) or None
+        if attribute:
+            attribute = attribute[0] 
 
-        use_way = self.getParameterValue(self.USE_WAY)
+        percentile = self.parameterAsDouble(params, self.PERCENTILE, context)
+
+        use_way = self.parameterAsBool(params, self.USE_WAY, context)
         table = use_way and 'ways' or 'edges'
 
         conn = connect_database(dbpath)
         name = 'mesh_%s_%s_%s' % (table, attribute, percentile)
         ids = mesh.features_from_attribute(conn.cursor(), table, attribute, percentile)
 
-        # Visualize data
-        add_vector_layer( os.path.join(output, dbname)+'.sqlite', table, "%s_%s" % (name,dbname), 'OGC_FID IN ('+','.join(str(i) for i in ids)+')')
+        # Create the destination layer
+        dest_layer = as_layer(dbpath, table, sql='OGC_FID IN ('+','.join(str(i) for i in ids)+')', keyColumn='OGC_FID')
+
+        output_mesh = self.asDestinationLayer( params, self.OUTPUT_MESH, dest_layer, context)
+
+        return {
+            self.OUTPUT_MESH: output_mesh     
+        }
 
 
-class MorpheoHorizonAlgorithm(GeoAlgorithm):
+class MorpheoHorizonAlgorithm((MorpheoAlgorithm)):
 
     DBPATH = 'DBPATH'
     WAY_LAYER = 'WAY_LAYER'
     WAY_ATTRIBUTE = 'WAY_ATTRIBUTE'
     PERCENTILE = 'PERCENTILE'
 
-    #output param
-    PLOT_BINS = 'PLOT_BINS'
-    PLOT_COLOR = 'PLOT_COLOR'
-    PLOT_WIDTH = 'PLOT_WIDTH'
-    PLOT_HEIGHT = 'PLOT_HEIGHT'
+    OUTPUT_HORIZON = 'OUTPUT_HORIZON'
 
-    #output
-    PLOT = 'PLOT'
+    def name(self):
+        return "mesh"
 
-    def __init__(self):
-        GeoAlgorithm.__init__(self)
-        print "loading morpheo horizon algo at ", time.strftime("%H:%M:%S")
+    def displayName(self):
+        return "Compute Horizon"
 
-    def getIcon(self):
-        return QIcon(os.path.join(os.path.dirname(__file__),'..','morpheo.png'))
+    def initAlgorithm(self, config = None):
 
-    def helpFile(self):
-        return None
+        self.addParameter(QgsProcessingParameterFile(self.DBPATH, 'Morpheo database', 
+                        extension='sqlite'))
 
-    def commandLineName(self):
-        return 'morpheo:horizon'
+        self.addParameter(QgsProcessingParameterVectorLayer(self.WAY_LAYER, 'Ways layer',
+                          [QgsProcessing.TypeVectorLine]))
 
-    def defineCharacteristics(self):
-        self.name = 'Compute horizon'
-        self.group = 'Compute'
+        # Options controlling ways
+        self.addParameter(QgsProcessingParameterField(self.WAY_ATTRIBUTE,
+            'Attribute for building Horizon', 
+            parentLayerParameterName=self.WAY_LAYER, 
+            type=QgsProcessingParameterField.String))
 
-        self.addParameter(ParameterFile(self.DBPATH, 'Morpheo database path',
-                          isFolder=False, optional=False, ext='sqlite'))
+        self.addParameter(QgsProcessingParameterNumber(self.PERCENTILE, 'Percentile of features', 
+            minValue=1,
+            maxValue=99, 
+            defaultValue=5))
 
-        self.addParameter(ParameterVector(self.WAY_LAYER, 'Ways layer',
-                          [ParameterVector.VECTOR_TYPE_LINE]))
+        self.addParameter( QgsProcessingParameterMorpheoDestination( self.OUTPUT_HORIZON, "Horizon output",
+            type=QgsProcessing.TypeVectorLine ))
 
-        self.addParameter(ParameterTableField(self.WAY_ATTRIBUTE,
-            'Attribute for building horizon', self.WAY_LAYER, ParameterTableField.DATA_TYPE_NUMBER, True))
 
-        self.addParameter(
-            ParameterNumber(self.PERCENTILE, 'Percentile of features', 1, 99, 5))
-
-    def checkBeforeOpeningParametersDialog(self):
-        return None
-
-    def processAlgorithm(self, progress):
+    def processAlg(self, progress):
         """ Compute horizon
         """
         dbpath    = self.getParameterValue(self.DBPATH)
         if not os.path.isfile( dbpath ):
-            log_error('Morpheo database path not found')
+            raise QgsProcessingException("Database %s not found" % dbpath)
 
-        output    = os.path.dirname(dbpath)
-        dbname    = os.path.basename(dbpath).replace('.sqlite','')
+        db_output_path = dbpath.replace('.sqlite', '')
 
-        attribute = self.getParameterValue(self.WAY_ATTRIBUTE)
-        percentile = self.getParameterValue(self.PERCENTILE)
+        attribute = self.parameterAsFields(params, self.WAY_ATTRIBUTE, context) or None
+        if attribute:
+            attribute = attribute[0] 
+
+        percentile = self.parameterAsDouble(params, self.PERCENTILE, context)
 
         conn = connect_database(dbpath)
         G    = read_ways_graph(os.path.join(output, dbname))
 
         table = 'horizon_%s_%s' % (attribute, percentile)
         hrz.horizon_from_attribute(conn, G, table, attribute, percentile)
+
+        output_horizon = self.asDestinationLayer( params, self.OUTPUT_HORIZON, as_layer(dbpath, table), context)
+
+        return {
+            self.OUTPUT_HORIZON: output_horizon    
+        }
+
 

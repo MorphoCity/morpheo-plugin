@@ -2,9 +2,9 @@
 
 import os
 
-from PyQt4 import QtGui, uic
-from PyQt4.QtGui import QSizePolicy, QMessageBox
-from PyQt4.QtCore import Qt, QSettings, QByteArray, pyqtSignal
+from qgis.PyQt import uic
+from qgis.PyQt.QtWidgets import QSizePolicy, QMessageBox, QDialog
+from qgis.PyQt.QtCore import Qt, QSettings, QByteArray, pyqtSignal
 
 from qgis.utils import iface
 from qgis.gui import QgsMessageBar
@@ -13,7 +13,7 @@ FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'ui', 'morpheo_dialog.ui'))
 
 
-class MorpheoDialog(QtGui.QDialog, FORM_CLASS):
+class MorpheoDialog(QDialog, FORM_CLASS):
 
     closed = pyqtSignal()
 

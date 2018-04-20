@@ -1,37 +1,54 @@
-# -*- coding: utf-8 -*-
 
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
-from qgis.core import *
+from qgis.PyQt.QtCore import (QCoreApplication, QSettings, Qt, QByteArray, QVariant)
+from qgis.PyQt.QtWidgets import (QAction, QDialogButtonBox, QFileDialog)
+from qgis.PyQt.QtGui import (QIcon,)
+from qgis.core import (
+            Qgis,
+            QgsWkbTypes,
+            QgsMapLayer,
+            QgsApplication,
+            QgsProject,
+            QgsProcessing,
+            QgsProcessingContext,
+            QgsProcessingFeedback,
+            QgsProcessingParameterField,)
+
 from qgis.gui import QgsMessageBar, QgsMapToolEmitPoint
 
-from MorpheoDialog import MorpheoDialog
-from MorpheoAlgorithmProvider import MorpheoAlgorithmProvider
-from MorpheoAlgorithm import add_vector_layer, remove_vector_layer
-from processing.core.Processing import Processing
-from processing.core.parameters import ParameterTableField
-from processing.tools.system import tempFolder
+from .MorpheoDialog import MorpheoDialog
+from .MorpheoAlgorithmProvider import MorpheoAlgorithmProvider
 
-from ..core.errors import BuilderError
-from ..core.graph_builder import SpatialiteBuilder
-from ..core.structdiff import structural_diff
-from ..core import horizon as hrz
-from ..core import mesh
-from ..core import itinerary
-from ..core.ways import read_ways_graph
-from ..core.sql  import connect_database
+from processing.tools.general import runAndLoadResults
+
 from ..core.edge_properties import computed_properties
-from logger import init_log_custom_hooks
-
-Builder = SpatialiteBuilder
+from ..core.sql import connect_database
 
 import os.path
-import locale, time
 from functools import partial
 from math import pi
 from datetime import datetime
 
 import logging
+
+
+class ProcessingFeedBack(QgsProcessingFeedback):
+
+    def __init__(self, iface ):
+        super().__init__()
+        self._iface = iface
+        self.progressChanged.connect(self._iface.setPercentage)
+
+    def pushInfo(self, msg):
+        self._iface.setText(msg)
+
+    def reportError(self, msg, fatalError=False):
+        self._iface.setError(msg)
+
+    def setProgressText(self,text):
+        self._iface.dlg.lblProgress.setText(text)
+
+
+
 
 class MorpheoPlugin:
     """QGIS Plugin Implementation."""
@@ -75,7 +92,7 @@ class MorpheoPlugin:
         self.toolbar = self.iface.addToolBar(u'Morpheo')
         self.toolbar.setObjectName(u'Morpheo')
 
-    # noinspection PyMethodMayBeStatic
+
     def tr(self, message):
         """Get the translation for a string using Qt translation API.
 
@@ -87,7 +104,6 @@ class MorpheoPlugin:
         :returns: Translated version of message.
         :rtype: QString
         """
-        # noinspection PyTypeChecker,PyArgumentList,PyCallByClass
         return QCoreApplication.translate('morpheo', message)
 
 
@@ -193,7 +209,7 @@ class MorpheoPlugin:
         self.connectFileSelectionPanel(self.dlg.letStructuralDiffDirectoryPath, self.dlg.pbnStructuralDiffDirectoryPath, True)
 
         # Initialize attribute list
-        self.connectComboboxLayerAttribute(self.dlg.cbxWaysBuilderWayAttribute, self.dlg.cbxWaysBuilderInputLayer, ParameterTableField.DATA_TYPE_STRING)
+        self.connectComboboxLayerAttribute(self.dlg.cbxWaysBuilderWayAttribute, self.dlg.cbxWaysBuilderInputLayer)
         # connect layer name
         self.dlg.cbxWaysBuilderInputLayer.currentIndexChanged.connect(self.cbxWaysBuilderInputLayerCurrentIndexChanged)
 
@@ -235,14 +251,14 @@ class MorpheoPlugin:
         self.dlg.buttonBox.accepted.connect(self.accept)
         self.dlg.closed.connect(self.close)
 
-        # add to processing
+        # Add to processing
         self.morpheoAlgoProvider = MorpheoAlgorithmProvider()
-        Processing.addProvider(self.morpheoAlgoProvider, True)
+        QgsApplication.processingRegistry().addProvider(self.morpheoAlgoProvider)
 
     def cbxWaysBuilderInputLayerCurrentIndexChanged(self, idx):
         layerIdx = self.dlg.cbxWaysBuilderInputLayer.currentIndex()
         layerId = self.dlg.cbxWaysBuilderInputLayer.itemData( layerIdx )
-        layer = QgsMapLayerRegistry.instance().mapLayer(layerId)
+        layer = QgsProject.instance().mapLayer(layerId)
         if layer:
             self.dlg.letWaysBuilderDBName.setText('morpheo_'+layer.name().replace(" ", "_"))
         else:
@@ -299,7 +315,7 @@ class MorpheoPlugin:
                 filenames = QFileDialog.getOpenFileNames(self.dlg,
                                                          self.tr('Select file'), path, '*.' + ext)
                 if filenames:
-                    leText.setText(u';'.join(filenames))
+                    leText.setText(';'.join(filenames))
                     self.settings.setValue('/Morpheo/LastInputPath',
                                       os.path.dirname(filenames[0]))
 
@@ -344,47 +360,34 @@ class MorpheoPlugin:
 
         def updateAttributeCombobox(txt):
             """update"""
+            pass
             attributeCbx.clear()
             dbpath = dbpathLet.text()
-            try:
-                conn = connect_database(dbpath)
-                use_way = True
-                if waysCbx:
-                    use_way = waysCbx.currentText() == self.tr('Ways')
-                for fieldName in computed_properties(conn, use_way):
-                    attributeCbx.addItem(fieldName)
-            except Exception, e:
-                pass
-
+            conn = connect_database(dbpath)
+            use_way = True
+            if waysCbx:
+                use_way = waysCbx.currentText() == self.tr('Ways')
+            for fieldName in computed_properties(conn, use_way):
+                attributeCbx.addItem(fieldName)
+            
         dbpathLet.textChanged.connect(updateAttributeCombobox)
         if waysCbx:
             waysCbx.currentIndexChanged.connect(updateAttributeCombobox)
 
-
-    def getFields(self, layer, datatype):
-        fieldTypes = []
-        if not layer or not layer.isValid():
-            return set()
-        if datatype == ParameterTableField.DATA_TYPE_STRING:
-            fieldTypes = [QVariant.String]
-        elif datatype == ParameterTableField.DATA_TYPE_NUMBER:
-            fieldTypes = [QVariant.Int, QVariant.Double, QVariant.LongLong,
-                          QVariant.UInt, QVariant.ULongLong]
-
-        fieldNames = set()
-        for field in layer.pendingFields():
-            if not fieldTypes or field.type() in fieldTypes:
-                fieldNames.add(unicode(field.name()))
-        return sorted(list(fieldNames), cmp=locale.strcoll)
-
-    def connectComboboxLayerAttribute(self, attributeCbx, layerCbx, datatype):
+    def connectComboboxLayerAttribute(self, attributeCbx, layerCbx):
 
         def updateAttributeCombobox(idx):
             """update"""
             attributeCbx.clear()
             layerId = layerCbx.itemData( idx )
-            for fieldName in self.getFields(QgsMapLayerRegistry.instance().mapLayer(layerId), datatype):
-                attributeCbx.addItem(fieldName)
+            if layerId:
+                layer = QgsProject.instance().mapLayer(layerId)
+                if not layer or not layer.isValid():
+                    self.setWarning("Cannot get fields: Invalid layer %s" % layerId)
+                    return
+                fields = sorted(field.name() for field in layer.fields() if field.type()==QVariant.String)
+                for fieldName in fields:
+                    attributeCbx.addItem(fieldName)
 
         layerCbx.currentIndexChanged.connect(updateAttributeCombobox)
 
@@ -407,10 +410,10 @@ class MorpheoPlugin:
         layers = QgsProject.instance().layerTreeRoot().findLayers()
         layers = [lay.layer() for lay in layers if lay.layer().type() == QgsMapLayer.VectorLayer]
         for l in layers:
-            if l.geometryType() == QGis.Line:
+            if l.geometryType() == QgsWkbTypes.LineGeometry:
                 self.dlg.cbxWaysBuilderInputLayer.addItem(l.name(), l.id())
                 #self.dlg.cbxHorizonWayLayer.addItem(l.name(), l.id())
-            elif l.geometryType() == QGis.Polygon:
+            elif l.geometryType() == QgsWkbTypes.PolygonGeometry:
                 self.dlg.cbxWaysBuilderPlacesLayer.addItem(l.name(), l.id())
 
 
@@ -419,53 +422,46 @@ class MorpheoPlugin:
         self.setText(self.tr('Compute ways builder'))
         layerIdx = self.dlg.cbxWaysBuilderInputLayer.currentIndex()
         layerId = self.dlg.cbxWaysBuilderInputLayer.itemData( layerIdx )
-        layer = QgsMapLayerRegistry.instance().mapLayer(layerId)
+        layer = QgsProject.instance().mapLayer(layerId)
         if not layer:
             self.setError(self.tr('No available layer!'))
             return
 
-        output    = self.dlg.letWaysBuilderDirectoryPath.text() or tempFolder()
-        dbname    = self.dlg.letWaysBuilderDBName.text() or 'morpheo_'+layer.name().replace(" ", "_")
+        output = self.dlg.letWaysBuilderDirectoryPath.text() or tempFolder()
+        dbname = self.dlg.letWaysBuilderDBName.text() or 'morpheo_'+layer.name().replace(" ", "_")
 
-        if not os.path.exists(output):
-            self.setError(self.tr('Output dir does not exist!'))
-            return
+        parameters = {
+            'INPUT_LAYER'    : layer,
+            'DIRECTORY'      : output,
+            'DBNAME'         : dbname,
+            'SNAP_DISTANCE'  : self.dlg.spxWaysBuilderSnapDist.value(),
+            'MIN_EDGE_LENGTH': self.dlg.spxWaysBuilderMinEdgeLength.value(),
+            'THRESHOLD'      : self.dlg.spxWaysBuilderThreshold.value()/180.0 * pi
+        }
 
-        if not os.path.exists(os.path.join(output, dbname)):
-            os.mkdir(os.path.join(output, dbname))
-
-        builder = Builder.from_layer( layer, os.path.join(output, dbname) )
-
-        # Compute graph
-        builder.build_graph(self.dlg.spxWaysBuilderSnapDist.value(),
-                            self.dlg.spxWaysBuilderMinEdgeLength.value(),
-                            self.dlg.grpWaysBuilderStreetName.isChecked() and self.dlg.cbxWaysBuilderWayAttribute.currentText() or '',
-                            output=os.path.join(output, dbname))
+        if self.dlg.grpWaysBuilderStreetName.isChecked():
+            parameters['WAY_ATTRIBUTE'] = self.dlg.cbxWaysBuilderWayAttribute.currentText()
 
         # Compute places
         placesIdx = self.dlg.cbxWaysBuilderPlacesLayer.currentIndex()
         placesId = self.dlg.cbxWaysBuilderPlacesLayer.itemData(placesIdx)
         places = None
         if placesId :
-            places = QgsMapLayerRegistry.instance().mapLayer(placesId)
-        builder.build_places(buffer_size=self.dlg.spxWaysBuilderBuffer.value(),
-                             places=places,
-                             output=os.path.join(output, dbname))
+            places = QgsProject.instance().mapLayer(placesId)
 
-        # Compute ways
-        if self.dlg.grpWaysBuilderStreetName.isChecked():
-            builder.build_ways_from_attribute(self.dlg.cbxWaysBuilderWayAttribute.currentText(),
-                                              output=os.path.join(output, dbname))
-        else:
-            builder.build_ways(threshold=self.dlg.spxWaysBuilderThreshold.value()/180.0 * pi,
-                               output=os.path.join(output, dbname))
+        parameters['INPUT_PLACES'] = places
+        parameters['BUFFER']       = self.dlg.spxWaysBuilderBuffer.value()
 
-        self.add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'places', "%s_%s" % ('places',dbname))
-        self.add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'place_edges', "%s_%s" % ('place_edges',dbname))
-        self.add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'ways', "%s_%s" % ('ways',dbname))
+        parameters.update(
+            OUTPUT_PLACES      = "%s_%s" % ('places',dbname),
+            OUTPUT_PLACE_EDGES = "%s_%s" % ('place_edges',dbname),
+            OUTPUT_WAYS        = "%s_%s" % ('ways',dbname)
+        )
+     
+        feedback = ProcessingFeedBack(self)
+        runAndLoadResults('morpheo:ways', parameters, feedback=feedback, context=None)
 
         self.setText(self.tr('Compute ways builder finished'), withMessageBar=True)
-
         self.synchronizeAllDBPathOnChanged(os.path.join(output, dbname)+'.sqlite')
 
 
@@ -711,7 +707,7 @@ class MorpheoPlugin:
 
     def setInfo(self, msg, error=False):
         if error:
-            self.dlg.bar.pushMessage(self.tr("Error"), msg, level=QgsMessageBar.CRITICAL)
+            self.dlg.bar.pushMessage(self.tr("Error"), msg, level=Qgis.Critical)
             self.dlg.txtLog.append('<span style="color:red"><br>%s<br></span>' % msg)
         else:
             self.dlg.txtLog.append(msg)
@@ -739,14 +735,14 @@ class MorpheoPlugin:
         self.dlg.lblProgress.setText(text)
         self.setInfo(text, False)
         if withMessageBar:
-            self.dlg.bar.pushMessage(self.tr("Info"), text, level=QgsMessageBar.INFO)
+            self.dlg.bar.pushMessage(self.tr("Info"), text, level=Qgis.Info)
         QCoreApplication.processEvents()
 
     def setWarning(self, text, withMessageBar=False):
         self.dlg.lblProgress.setText(text)
         self.setWarningInfo(text)
         if withMessageBar:
-            self.dlg.bar.pushMessage(self.tr("Warning"), text, level=QgsMessageBar.WARNING)
+            self.dlg.bar.pushMessage(self.tr("Warning"), text, level=Qgis.Warning)
         QCoreApplication.processEvents()
 
     def setError(self, text):
@@ -759,41 +755,13 @@ class MorpheoPlugin:
         self.iface.actionDraw().trigger()
         self.iface.mapCanvas().refresh()
 
-    def init_log_handler(self):
-
-        def on_info(msg):
-            # do something with msg
-            self.setText(msg)
-
-        def on_warn(msg):
-            # do something with msg
-            self.setWarning(msg)
-
-        def on_error(msg):
-            # do something with msg
-            self.setError(msg)
-
-        def on_critical(msg):
-            # do something with msg
-            self.setError(msg)
-
-        def on_progress(value, msg):
-            # de something with value and message
-            self.dlg.lblProgress.setText(msg)
-            self.setPercentage(value)
-
-        init_log_custom_hooks(on_info=on_info,
-                              on_warn=on_warn,
-                              on_error=on_error,
-                              on_critical=on_critical,
-                              on_progress=on_progress)
-
 
     def start(self):
         self.dlg.mAlgosListWidget.setEnabled(False)
         self.dlg.progressBar.setMaximum(0)
         self.dlg.lblProgress.setText(self.tr('Start'))
         self.dlg.txtLog.append('======== %s %s ========' % (self.tr('Start'), datetime.now()))
+
 
     def finish(self):
         self.dlg.progressBar.setValue(0)
@@ -808,31 +776,23 @@ class MorpheoPlugin:
         self.computeRow = self.dlg.mAlgosListWidget.currentRow()
         self.dlg.mAlgosListWidget.setCurrentRow(5)
         self.start()
-        try:
-            if self.computeRow == 0:
-                self.computeWaysBuilder()
-            elif self.computeRow == 1:
-                self.computeWayAttributes()
-            elif self.computeRow == 2:
-                self.computePath()
-            elif self.computeRow == 3:
-                self.computeHorizon()
-            elif self.computeRow == 4:
-                self.computeStructuralDiff()
-        except Exception, e:
-            import traceback
-            self.setError(u'Uncaught error, please report it from QGIS logs: {}'.format(repr(e)))
-            lines = [self.tr(u'Uncaught error while compute operation')]
-            lines.append(traceback.format_exc())
-            msg = '\n'.join([m for m in lines])
-            QgsMessageLog.logMessage(msg, "Morpheo", QgsMessageLog.CRITICAL)
+
+        if self.computeRow == 0:
+            self.computeWaysBuilder()
+        elif self.computeRow == 1:
+            self.computeWayAttributes()
+        elif self.computeRow == 2:
+            self.computePath()
+        elif self.computeRow == 3:
+            self.computeHorizon()
+        elif self.computeRow == 4:
+            self.computeStructuralDiff()
+
         self.finish()
-        pass
 
 
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
-        init_log_custom_hooks()
 
         for action in self.actions:
             self.iface.removePluginMenu(
@@ -842,12 +802,11 @@ class MorpheoPlugin:
         # remove the toolbar
         del self.toolbar
         # remove from processing
-        Processing.removeProvider(self.morpheoAlgoProvider)
+        QgsApplication.processingRegistry().removeProvider(self.morpheoAlgoProvider)
 
     def close(self):
-        QgsMapLayerRegistry.instance().layerWasAdded.disconnect(self.populateLayerComboboxes)
-        QgsMapLayerRegistry.instance().layersWillBeRemoved.disconnect(self.populateLayerComboboxes)
-        init_log_custom_hooks()
+        QgsProject.instance().layerWasAdded.disconnect(self.populateLayerComboboxes)
+        QgsProject.instance().layersWillBeRemoved.disconnect(self.populateLayerComboboxes)
 
     def run(self):
         """Run method that performs all the real work"""
@@ -856,14 +815,13 @@ class MorpheoPlugin:
             self.populateLayerComboboxes()
             # Rename OK button to Run
             self.dlg.buttonBox.button(QDialogButtonBox.Ok).setText(self.tr('Run'))
-            QgsMapLayerRegistry.instance().layerWasAdded.connect(self.populateLayerComboboxes)
-            QgsMapLayerRegistry.instance().layersWillBeRemoved.connect(self.populateLayerComboboxes)
+            QgsProject.instance().layerWasAdded.connect(self.populateLayerComboboxes)
+            QgsProject.instance().layersWillBeRemoved.connect(self.populateLayerComboboxes)
             # set the dialog
             if self.settings.contains('/Morpheo/dialog'):
                 self.dlg.restoreGeometry(self.settings.value("/Morpheo/dialog", QByteArray()))
             # show the dialog
             self.dlg.show()
-            self.init_log_handler()
         else:
             self.dlg.showNormal()
             self.dlg.raise_()

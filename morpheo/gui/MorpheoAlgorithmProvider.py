@@ -19,62 +19,61 @@
 
 __author__ = 'René-Luc DHONT'
 __date__ = 'August 2016'
-__copyright__ = '(C) 2016, 3Liz'
+__copyright__ = '(C) 2016-2018, 3Liz'
 
 # This will get replaced with a git SHA1 when you do a git archive
 
 __revision__ = '$Format:%H$'
 
+import traceback
+import logging
 import os
 import time
-from PyQt4.QtGui import *
-from processing.core.AlgorithmProvider import AlgorithmProvider
-from processing.core.ProcessingConfig import ProcessingConfig, Setting
-from processing.core.ProcessingLog import ProcessingLog
-from MorpheoAlgorithm import \
-        MorpheoBuildAlgorithm, \
-        MorpheoWayAttributesAlgorithm, \
-        MorpheoEdgeAttributesAlgorithm, \
-        MorpheoEdgesGraphAlgorithm, \
-        MorpheoWaysGraphAlgorithm, \
-        MorpheoStructuralDiffAlgorithm, \
-        MorpheoMeshAlgorithm, \
-        MorpheoHorizonAlgorithm
+from qgis.core import QgsProcessingProvider
+from .MorpheoAlgorithm import (MorpheoBuildAlgorithm,
+                               MorpheoWayAttributesAlgorithm,
+                               MorpheoEdgeAttributesAlgorithm,
+                               MorpheoEdgesGraphAlgorithm,
+                               MorpheoWaysGraphAlgorithm,
+                               MorpheoStructuralDiffAlgorithm,
+                               MorpheoMeshAlgorithm,
+                               MorpheoHorizonAlgorithm)
 
-class MorpheoAlgorithmProvider(AlgorithmProvider):
+from qgis.PyQt.QtGui import QIcon
+
+
+class MorpheoAlgorithmProvider(QgsProcessingProvider):
 
     def __init__(self):
-        AlgorithmProvider.__init__(self)
-        self.activate = True
+        super().__init__()
 
-    def getDescription(self):
+    def getAlgs(self):
+        algs = [
+            MorpheoBuildAlgorithm(),
+            MorpheoWayAttributesAlgorithm(),
+            MorpheoEdgeAttributesAlgorithm(),
+            MorpheoEdgesGraphAlgorithm(),
+            MorpheoWaysGraphAlgorithm(),
+            MorpheoStructuralDiffAlgorithm(),
+            MorpheoMeshAlgorithm(),
+            MorpheoHorizonAlgorithm()
+        ]
+        return algs
+
+    def name(self):
         return 'Morpheo (Graph metrics)'
 
-    def getName(self):
+    def longNname(self):
+        return 'Morpheo - Compute Graph metrics from spatial data'
+
+    def id(self):
         return 'morpheo'
 
-    def getIcon(self):
-        return QIcon(os.path.join(os.path.dirname(__file__), '..', 'morpheo.png'))
+    def icon(self):
+        return QIcon(':/plugins/Morpheo/morpheo.png')
 
-    def initializeSettings(self):
-        AlgorithmProvider.initializeSettings(self)
-
-    def unload(self):
-        AlgorithmProvider.unload(self)
-
-    def _loadAlgorithms(self):
-        try:
-            self.algs.append(MorpheoBuildAlgorithm())
-            self.algs.append(MorpheoWayAttributesAlgorithm())
-            self.algs.append(MorpheoEdgeAttributesAlgorithm())
-            self.algs.append(MorpheoEdgesGraphAlgorithm())
-            self.algs.append(MorpheoWaysGraphAlgorithm())
-            self.algs.append(MorpheoStructuralDiffAlgorithm())
-            self.algs.append(MorpheoMeshAlgorithm())
-            self.algs.append(MorpheoHorizonAlgorithm())
-        except Exception, e:
-            print "error: unable to load morpheo algo because ", e
-            ProcessingLog.addToLog(ProcessingLog.LOG_ERROR,
-                'Could not create Morpheo algorithm')
-            raise e
+    def loadAlgorithms(self):
+        self.algs = self.getAlgs()
+        for a in self.algs:
+            self.addAlgorithm(a)
 

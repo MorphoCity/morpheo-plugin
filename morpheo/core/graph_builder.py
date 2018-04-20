@@ -1,4 +1,3 @@
-# -*- encoding=utf-8 -*-
 """ Spatialite graph builder implementation
 """
 
@@ -289,9 +288,9 @@ class SpatialiteBuilder(object):
             :param layer: A QGis layer to build the graph from
             :returns: A builder object
         """
-        from qgis.core import QgsVectorFileWriter, QGis
+        from qgis.core import QgsVectorFileWriter, QgsWkbTypes
 
-        check_layer(layer, (QGis.WKBLineString25D, QGis.WKBLineString))
+        check_layer(layer, (QgsWkbTypes.LineString25D, QgsWkbTypes.LineString))
 
         name   = dbname or 'morpheo_'+layer.name().replace(" ", "_")
         dbname = name + '.sqlite'
@@ -302,9 +301,9 @@ class SpatialiteBuilder(object):
         # Create database from layer
         logging.info("Creating database '%s' from layer" % dbname)
         #import_as_layer( dbname, layer, name, forceSinglePartGeometryType=True )
-        error = QgsVectorFileWriter.writeAsVectorFormat(layer, dbname, "utf-8", None, "SpatiaLite")
+        error, msg = QgsVectorFileWriter.writeAsVectorFormat(layer, dbname, "utf-8", driverName="SpatiaLite")
         if error != QgsVectorFileWriter.NoError:
-            raise IOError(u"Failed to create database '{}': error {}".format(dbname, error))
+            raise IOError("Failed to create database '{}': error {}".format(dbname, msg))
 
         return SpatialiteBuilder(dbname)
 
