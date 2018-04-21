@@ -25,17 +25,27 @@ def spatialite_connect(*args, **kwargs):
         Borrowed from qgis3 qgis.utils
     """
     import sqlite3
+
+    # Check if the path to the mod spatialite library has been set
+    # explicitely
+    library_path = os.environ.get('MOD_SPATIALITE_LIBRARY_PATH','')
+    if library_path:
+        if os.path.isfile(library_path):
+            library_path = os.path.dirname(library_path)
+        library_path = library_path.rstrip(os.path.sep) + os.path.sep
+
     con = sqlite3.dbapi2.connect(*args, **kwargs)
     con.enable_load_extension(True)
     cur = con.cursor()
     libs = [
         # SpatiaLite >= 4.2 and Sqlite >= 3.7.17, should work on all platforms
-        ("mod_spatialite", "sqlite3_modspatialite_init"),
+        (library_path+"mod_spatialite", "sqlite3_modspatialite_init"),
         # SpatiaLite >= 4.2 and Sqlite < 3.7.17 (Travis)
-        ("mod_spatialite.so", "sqlite3_modspatialite_init"),
+        (library_path+"mod_spatialite.so", "sqlite3_modspatialite_init"),
         # SpatiaLite < 4.2 (linux)
-        ("libspatialite.so", "sqlite3_extension_init")
+        (library_path+"libspatialite.so", "sqlite3_extension_init")
     ]
+
     found = False
     for lib, entry_point in libs:
         try:
@@ -62,11 +72,6 @@ def connect_database( dbname ):
     # which hit us here with pysqlite
     conn = spatialite_connect(dbname, isolation_level = None)
 
-    mod_spatialite_path = os.environ.get("MOD_SPATIALITE","mod_spatialite.so")
-
-    conn.enable_load_extension(True)
-    conn.load_extension(mod_spatialite_path)
-
     cur = conn.cursor()
     cur.execute("PRAGMA temp_store=MEMORY")
 
@@ -79,10 +84,10 @@ def connect_database( dbname ):
     return conn
 
 
-def SQL( sql, **kwargs):
+def SQL( sql, *args, **kwargs):
     """ Wrap SQL statement 
     """
-    sql = sql.format(**kwargs)
+    sql = sql.format(*args, **kwargs)
     logging.debug(sql)
     return sql
 

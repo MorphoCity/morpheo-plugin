@@ -162,10 +162,10 @@ class WayBuilder(object):
         num_ways = num_partitions(ways)
 
         logging.info("Ways: computed {} ways (num places={}, num edges={})".format(num_ways,count_places,max_edges))
-       
+      
         cur.execute(SQL("DELETE FROM way_partition"))
-        cur.executemany(SQL("INSERT INTO way_partition(EDGE,WAY,DIST) SELECT ?,?,?"),
-                [(fid,way,distances[fid]) for fid,way in enumerate(ways)])
+        cur.executemany(SQL("INSERT INTO way_partition(EDGE,WAY,DIST) SELECT ?,?,?"), 
+                [(fid,int(way),distances[fid]) for fid,way in enumerate(ways)])
 
         logging.info("Ways: build ways table")
         execute_sql(self._conn, "ways.sql")
@@ -290,10 +290,10 @@ class WayBuilder(object):
         num_ways = num_partitions(ways)
 
         logging.info("Ways: computed {} ways (num places={}, num edges={})".format(num_ways,count_places,max_edges))
-       
+
         cur.execute(SQL("DELETE FROM way_partition"))
-        cur.executemany(SQL("INSERT INTO way_partition(EDGE,WAY,DIST) SELECT ?,?,?"),
-                [(fid,way,distances[fid]) for fid,way in enumerate(ways)])
+        cur.executemany("INSERT INTO way_partition(EDGE,WAY,DIST) VALUES (?,?,?)", 
+                [(fid,int(way),distances[fid]) for fid,way in enumerate(ways)])
 
         logging.info("Ways: build ways table")
         execute_sql(self._conn, "ways.sql")
