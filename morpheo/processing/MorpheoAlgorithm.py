@@ -144,9 +144,11 @@ class MorpheoAlgorithm(QgsProcessingAlgorithm):
                     destName = str(val) or definition.defaultValue()
             layer.setName(destName)
             destinationProject = p.destinationProject
-        else: 
+        elif isinstance(p, QgsProperty):
             destName, _  = p.valueAsString( context.expressionContext(), definition.defaultValue())
-        
+        else:
+            destName = p
+
         self.addLayerToLoad(layer, outputName, destName, context, destinationProject)
         return layer.id(), destinationProject
 
