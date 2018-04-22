@@ -42,20 +42,13 @@ from qgis.core import (QgsProcessing,
                        QgsProcessingParameterVectorLayer,
                        QgsProcessingParameterRasterLayer,
                        QgsProcessingParameterVectorDestination,
-                       QgsProcessingParameterRasterDestination,
-                       QgsProcessingParameterFeatureSink,
-                       QgsProcessingParameterFeatureSource,
                        QgsProcessingParameterField,
                        QgsProcessingOutputVectorLayer,
                        QgsProcessingOutputFolder,
                        QgsProcessingOutputNumber,
                        QgsProcessingOutputString,
                        QgsProcessingAlgorithm,
-                       QgsRasterFileWriter,
-                       QgsRasterProjector,
-                       QgsRasterPipe,
                        QgsVectorLayer,
-                       QgsVectorDataProvider,
                        QgsDataSourceUri,
                        QgsProcessingException)
 
@@ -77,7 +70,6 @@ from ..core import itinerary as iti
 Builder = SpatialiteBuilder
 
 
-
 def as_layer(db, table, sql='', keyColumn=''):
     """ Create a layer from sqlite table
     """
@@ -85,7 +77,6 @@ def as_layer(db, table, sql='', keyColumn=''):
     uri.setDatabase(db)
     uri.setDataSource('', table, 'GEOMETRY', aSql=sql, aKeyColumn=keyColumn)
     return QgsVectorLayer(uri.uri(), table, 'spatialite')
-
 
 
 class QgsProcessingParameterMorpheoDestination(QgsProcessingParameterVectorDestination):
@@ -128,7 +119,7 @@ class MorpheoAlgorithm(QgsProcessingAlgorithm):
     def asDestinationLayer(self, params, outputName, layer, context ):
         """ Add layer to load in the final project
         """
-       # Add layer store
+        # Add layer store
         definition = self.parameterDefinition(outputName)
         destinationProject = None
         # Get the destination project
@@ -151,7 +142,6 @@ class MorpheoAlgorithm(QgsProcessingAlgorithm):
 
         self.addLayerToLoad(layer, outputName, destName, context, destinationProject)
         return layer.id(), destinationProject
-
 
     def processAlgorithm(self, parameters, context, feedback):
         self.setLogHandler(feedback)
@@ -512,9 +502,9 @@ class MorpheoStructuralDiffAlgorithm((MorpheoAlgorithm)):
     TOLERANCE = 'TOLERANCE'
 
     # Ouput
-    OUTPUT_DBPATH = 'OUTPUT_DBPATH'
-
-    OUTPUT_PAIRED_EDGES = 'OUTPUT_PAIRED_EDGES'
+    OUTPUT_PAIRED_EDGES  = 'OUTPUT_PAIRED_EDGES'
+    OUTPUT_ADDED_EDGES   = 'OUTPUT_ADDED_EDGES'
+    OUTPUT_REMOVED_EDGES = 'OUTPUT_REMOVED_EDGES'
 
     def name(self):
         return "structural_diff"
@@ -539,14 +529,13 @@ class MorpheoStructuralDiffAlgorithm((MorpheoAlgorithm)):
         self.addParameter(QgsProcessingParameterNumber(self.TOLERANCE, 'Tolerance value in meters',
             type=QgsProcessingParameterNumber.Double,
             minValue=0., 
-            maxValue=99.99, 
             defaultValue=1.))
 
-        # Outputs
-        outputDBPath = QgsProcessingOutputString(self.OUTPUT_DBPATH, 'Structural difference database path')
-        self.addOutput(outputDBPath)
-
         self.addParameter( QgsProcessingParameterMorpheoDestination( self.OUTPUT_PAIRED_EDGES, "Paired Edges",
+            type=QgsProcessing.TypeVectorLine ))
+        self.addParameter( QgsProcessingParameterMorpheoDestination( self.OUTPUT_ADDED_EDGES, "Added Edges",
+            type=QgsProcessing.TypeVectorLine ))
+        self.addParameter( QgsProcessingParameterMorpheoDestination( self.OUTPUT_REMOVED_EDGES, "Removed Edges",
             type=QgsProcessing.TypeVectorLine ))
 
 
@@ -555,37 +544,37 @@ class MorpheoStructuralDiffAlgorithm((MorpheoAlgorithm)):
         """
         params = parameters
 
-        def check_dbpath(path):
-            basename = os.path.basename(path)
-            shp = os.path.join(path,'place_edges_%s.shp' % basename)
-            gpickle = os.path.join(path,'way_graph_%s.gpickle' % basename)
-            return os.path.isfile(shp) and os.path.isfile(gpickle)
+        def get_dbpath( name ):
+            database = self.parameterAsFile(params, name, context)
+            dbpath  = database.replace('.sqlite','')
+            if not os.path.isfile(dbpath):
+                raise QgsProcessingException("Database %s not found" % dbpath)
+            return dbpath
+           
+        dbpath1 = get_dbpath( self.DBPATH1 )
+        dbpath2 = get_dbpath( self.DBPATH2 )
 
-        database1 = self.parameterAsFile(params, self.DBPATH1, context)
-        dbpath1   = database1.replace('.sqlite','')
-        if not check_dbpath(dbpath1):
-            raise QgsProcessingException('Initial Morpheo directory is incomplete')
+        output = self.parameterAsFile(params  , self.DIRECTORY, context) or tempFolder()
+        dbname = self.parameterAsString(params, self.DBNAME, context) or 'morpheo_diff_{}_{}'.format(
+                                                            os.path.basename(dbpath1),
+                                                            os.path.basename(dbpath2))
 
-        database2  = self.parameterAsFile(params, self.DBPATH2, context)
-        dbpath2    = database2.replace('.sqlite','')
-        if not check_dbpath(dbpath2):
-            raise QgsProcessingException('Final Morpheo directory is incomplete')
+        buffersize = self.parameterAsDouble( params, self.TOLERANCE, context )
 
-        output = self.parameterAsFile(params, self.DIRECTORY, context) or tempFolder()
-        dbname = self.parameterAsString(params, self.DBNAME, context) or 'morpheo_%s_%s' % (dbname1, dbname2)
+        output_path = os.path.join(output, dbname)
 
-        db_output_path = os.path.join(output, dbname)
-
-        structural_diff( dbpath1, dbpath2, output=db_output_path,
-                         buffersize=self.getParameterValue(self.TOLERANCE))
+        structural_diff( dbpath1, dbpath2, output=output_path, buffersize=buffersize)
 
         # Return our layers
-        db = db_output_path+'.sqlite'
-        output_paired_edges,_ = self.asDestinationLayer( params, self.OUTPUT_PAIRED_EDGES, as_layer(db, 'paired_edges'), context)
+        db = output_path+'.sqlite'
+        output_paired ,_ = self.asDestinationLayer( params, self.OUTPUT_PAIRED_EDGES , as_layer(db, 'paired_edges') , context)
+        output_removed,_ = self.asDestinationLayer( params, self.OUTPUT_REMOVED_EDGES, as_layer(db, 'removed_edges'), context)
+        output_added  ,_ = self.asDestinationLayer( params, self.OUTPUT_ADDED_EDGES  , as_layer(db, 'added_edges')  , context)
 
         return {
-            self.OUTPUT_DBPATH: db,
-            self.OUTPUT_PAIRED_EDGES: output_paired_edges,
+            self.OUTPUT_PAIRED_EDGES : output_paired,
+            self.OUTPUT_REMOVED_EDGES: output_removed,
+            self.OUTPUT_ADDED_EDGES  : output_added,
         }
 
 

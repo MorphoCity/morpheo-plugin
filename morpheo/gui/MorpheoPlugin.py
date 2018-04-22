@@ -222,11 +222,6 @@ class MorpheoPlugin:
         # Connect select all attributes
         self.dlg.pbnWayAttributeSelectAll.clicked.connect(self.pbnWayAttributeSelectAllClicked)
 
-        # Connect point selection
-        self.connectPointSelectionPanel(self.dlg.letPathStartPoint, self.dlg.pbnPathStartPoint)
-        self.connectPointSelectionPanel(self.dlg.letPathEndPoint, self.dlg.pbnPathEndPoint)
-        self.connectPointSelectionPanel(self.dlg.letHorizonGeoPoint, self.dlg.pbnHorizonGeoPoint)
-
         # Deactivate path with attribute
         self.dlg.grpPathAttribute.setChecked(False)
         self.updatePathType()
@@ -330,31 +325,6 @@ class MorpheoPlugin:
             self.dlg.letHorizonDBPath.setText(txt)
 
         self.settings.setValue('/Morpheo/LastOutputPath', txt)
-
-    def connectPointSelectionPanel(self, leText, btnSelect):
-
-        dialog = self.dlg
-        canvas = self.iface.mapCanvas()
-        tool = PointMapTool(canvas)
-        prevMapTool = canvas.mapTool()
-
-        def selectOnCanvas():
-            prevMapTool = canvas.mapTool()
-            canvas.setMapTool(tool)
-            dialog.showNormal()
-            dialog.showMinimized()
-
-        def updatePoint(point, button):
-            s = '{},{}'.format(point.x(), point.y())
-
-            leText.setText(s)
-            canvas.setMapTool(prevMapTool)
-            dialog.showNormal()
-            dialog.raise_()
-            dialog.activateWindow()
-
-        btnSelect.clicked.connect(selectOnCanvas)
-        tool.canvasClicked.connect(updatePoint)
 
     def connectDBPathWithAttribute(self, dbpathLet ,attributeCbx, waysCbx=None):
 
