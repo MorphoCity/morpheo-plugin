@@ -1,8 +1,5 @@
-# -*- encoding=utf-8 -*-
 """ Place builder helper
 """
-from __future__ import print_function
-
 import os
 import logging
 
@@ -23,7 +20,7 @@ def compute_way_classes(attr_table, cur, attribute, classes):
     """ Helper for computing classes
     """
     if classes > 0:
-        logging.info("Ways: computing classes for %s" % attribute)
+        logging.info("Ways: computing %d classes for %s" % (classes,attribute))
         rows = list(compute_classes(cur,'ways','WAY_ID', attribute, classes))
         attr_table.update('ways','WAY_ID', attribute+'_CL',rows)
 

@@ -390,7 +390,6 @@ def main():
             help="Specify attribute name for mesh structure")
     path_cmd.add_argument("--percentile", metavar='NUMBER', default=5, type=range_type, 
             help="The percentile for computing the mesh structure")
-    path_cmd.add_argument("--mesh", metavar='NAME', default=None, help="Name of the table to store the mesh geometry")
     path_cmd.set_defaults(func=compute_path)
 
     # Compute mesh

@@ -1,9 +1,5 @@
-# -*- encoding=utf-8 -*-
 """ Graph algorithms
 """
-
-from __future__ import print_function
-
 import random
 import networkx as nx
 from networkx.algorithms.centrality.betweenness import (_single_source_shortest_path_basic,

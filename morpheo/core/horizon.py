@@ -1,12 +1,8 @@
-# -*- encoding=utf=8 -*-
 """ Tools for computing horizon
 
     An horizon is the computation of topolgical distance against
     a number of selected features the  'mesh-structure')
 """ 
-
-from __future__ import print_function
-
 import logging
 
 from .errors import ErrorNoFeatures

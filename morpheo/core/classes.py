@@ -1,7 +1,7 @@
 # -*- encoding=utf-8 -*-
 """ Utilities for computing classes
 """
-from __future__ import print_function
+import logging
 
 from .sql import SQL
 

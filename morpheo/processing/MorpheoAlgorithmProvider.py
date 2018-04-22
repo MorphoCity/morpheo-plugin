@@ -30,11 +30,9 @@ import logging
 import os
 import time
 from qgis.core import QgsProcessingProvider
-from .MorpheoAlgorithm import (MorpheoBuildAlgorithm,
+from .MorpheoAlgorithm import (MorpheoWayAlgorithm,
                                MorpheoWayAttributesAlgorithm,
                                MorpheoEdgeAttributesAlgorithm,
-                               MorpheoEdgesGraphAlgorithm,
-                               MorpheoWaysGraphAlgorithm,
                                MorpheoStructuralDiffAlgorithm,
                                MorpheoMeshAlgorithm,
                                MorpheoHorizonAlgorithm)
@@ -49,11 +47,9 @@ class MorpheoAlgorithmProvider(QgsProcessingProvider):
 
     def getAlgs(self):
         algs = [
-            MorpheoBuildAlgorithm(),
+            MorpheoWayAlgorithm(),
             MorpheoWayAttributesAlgorithm(),
             MorpheoEdgeAttributesAlgorithm(),
-            MorpheoEdgesGraphAlgorithm(),
-            MorpheoWaysGraphAlgorithm(),
             MorpheoStructuralDiffAlgorithm(),
             MorpheoMeshAlgorithm(),
             MorpheoHorizonAlgorithm()

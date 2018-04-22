@@ -101,7 +101,7 @@ def _store_path(cur, dbname, edges, path_type, output, manifest):
                 f.write("{}={}\n".format(k,v))
 
 
-def _edge_shortest_path( dbname, path, source, target, conn=None, weight=None, output=None ):
+def _edge_shortest_path( dbname, path, source, target, conn=None, weight=None, output=None, store_path=True ):
     """ Compute the edge shortest path
     """
     G = load_edge_graph(path)
@@ -117,22 +117,22 @@ def _edge_shortest_path( dbname, path, source, target, conn=None, weight=None, o
     else:
         edges = [G[u][v]['fid'] for u,v in p]
 
-    conn = conn or connect_database(dbname)
+    if store_path:
+        conn = conn or connect_database(dbname)
+        cur = conn.cursor()
+        _store_path(cur, dbname, edges, path_type, output=output, manifest=dict(
+            input=path,
+            source=source,
+            destination=target,
+            type=path_type))
 
-    cur = conn.cursor()
-    _store_path(cur, dbname, edges, path_type, output=output, manifest=dict(
-        input=path,
-        source=source,
-        destination=target,
-        type=path_type))
-
-    cur.close()
-    conn.commit()
-    conn.close()
+        cur.close()
+        conn.commit()
+        conn.close()
     return edges
 
 
-def shortest_path( dbname, path, source, target, output=None, conn=None):
+def shortest_path( dbname, path, source, target, output=None, conn=None, store_path=True):
     """ Compute the edge shortest path in length
 
         :param conn: the connection to the morpheo working database
@@ -144,10 +144,10 @@ def shortest_path( dbname, path, source, target, output=None, conn=None):
         :return the list of edge feature id that represent the shortest path
     """
     return _edge_shortest_path(dbname, path, source, target, output=output,
-            weight='length', conn=conn)
+            weight='length', conn=conn, store_path=store_path)
 
 
-def simplest_path( dbname, path, source, target, output=None, conn=None):
+def simplest_path( dbname, path, source, target, output=None, conn=None, store_path=True):
     """ Compute the unweighted edge shortest path
 
         Note that path is not unique and the function compute only one path
@@ -161,14 +161,14 @@ def simplest_path( dbname, path, source, target, output=None, conn=None):
         :return the list of edge feature id that represent the shortest path
     """
     return _edge_shortest_path(dbname, path, source, target, output=output,
-                               conn=conn)
+                               conn=conn, store_path=store_path)
 
 
 def azimuth( x1, y1, x2, y2 ):
     return atan2( x2-x1, y2-y1)
 
 
-def naive_azimuth_path(dbname, path, source, target, output=None, conn=None):
+def naive_azimuth_path(dbname, path, source, target, output=None, conn=None, store_path=True):
     """ Naive computation of  the azimuthal path
 
         :prama dbname: The path to the molpheo working database
@@ -236,11 +236,12 @@ def naive_azimuth_path(dbname, path, source, target, output=None, conn=None):
     # Get edges in order
     edges = [e[0] for e in sorted(edges.items(),key=lambda x:x[1])]
 
-    _store_path(cur, dbname, edges, 'naive_azimuth', output=output, manifest=dict(
-        input=path,
-        source=source,
-        destination=target,
-        type='naive_azimuth'))
+    if store_path:
+        _store_path(cur, dbname, edges, 'naive_azimuth', output=output, manifest=dict(
+            input=path,
+            source=source,
+            destination=target,
+            type='naive_azimuth'))
 
     cur.close()
     conn.commit()
@@ -249,7 +250,7 @@ def naive_azimuth_path(dbname, path, source, target, output=None, conn=None):
 
 
 
-def azimuth_path(dbname, path, source, target, output=None, conn=None):
+def azimuth_path(dbname, path, source, target, output=None, conn=None, store_path=True):
     """ Compute the azimuthal path
 
         :prama dbname: The path to the molpheo working database
@@ -365,11 +366,12 @@ def azimuth_path(dbname, path, source, target, output=None, conn=None):
     # Get edges in order
     edges = [e[0] for e in sorted(edges.items(),key=lambda x:x[1])]
 
-    _store_path(cur, dbname, edges, 'azimuth', output=output, manifest=dict(
-        input=path,
-        source=source,
-        destination=target,
-        type='azimuth'))
+    if store_path:
+        _store_path(cur, dbname, edges, 'azimuth', output=output, manifest=dict(
+            input=path,
+            source=source,
+            destination=target,
+            type='azimuth'))
 
     cur.close()
     conn.commit()
@@ -378,7 +380,7 @@ def azimuth_path(dbname, path, source, target, output=None, conn=None):
 
 
 
-def _edge_components_path( dbname, path, source, target, edges, conn=None, weight=None, output=None ):
+def _edge_components_path( dbname, path, source, target, edges, conn=None, weight=None, output=None, store_path=True ):
     """ Compute the edge shortest using subgraph components as shortcuts
 
             :param dbname: The morpheo database full path
@@ -407,22 +409,23 @@ def _edge_components_path( dbname, path, source, target, edges, conn=None, weigh
     else:
         edges = [G[u][v]['fid'] for u,v in p]
 
-    conn = conn or connect_database(dbname)
-    cur  = conn.cursor()
+    if store_path:
+        conn = conn or connect_database(dbname)
+        cur  = conn.cursor()
+        _store_path(cur, dbname, edges, path_type, output=output, manifest=dict(
+            input=path,
+            source=source,
+            destination=target,
+            type=path_type))
 
-    _store_path(cur, dbname, edges, path_type, output=output, manifest=dict(
-        input=path,
-        source=source,
-        destination=target,
-        type=path_type))
+        cur.close()
+        conn.commit()
+        conn.close()
 
-    cur.close()
-    conn.commit()
-    conn.close()
     return edges
 
 
-def mesh_simplest_path(dbname, path, source, target, edges, conn=None, output=None ):
+def mesh_simplest_path(dbname, path, source, target, edges, conn=None, output=None, store_path=True ):
     """ Compute the edge simplest path using subgraph components as shortcuts
 
             :param dbname: The morpheo database full path
@@ -433,10 +436,10 @@ def mesh_simplest_path(dbname, path, source, target, edges, conn=None, output=No
             :param edges: List 3-tuples edges as returned from edges_from... functions
     """
     return _edge_components_path(dbname, path, source, target, edges, conn=conn,
-                                 output=output)
+                                 output=output, store_path=store_path)
 
 
-def mesh_shortest_path(dbname, path, source, target, edges, conn=None, output=None ):
+def mesh_shortest_path(dbname, path, source, target, edges, conn=None, output=None, store_path=True ):
     """ Compute the edge simplest path using subgraph components as shortcuts
 
             :param dbname: The morpheo database full path
@@ -446,7 +449,7 @@ def mesh_shortest_path(dbname, path, source, target, edges, conn=None, output=No
                            shortest path
     """
     return _edge_components_path(dbname, path, source, target, edges, conn=conn,
-                                 weight='length', output=output)
+                                 weight='length', output=output, store_path=store_path)
 
 
 def edges_from_edge_attribute( conn, attribute, percentile ):
@@ -493,7 +496,7 @@ def edges_from_way_fid( conn, fids ):
 
 
 
-def way_simplest_path(conn, G, dbname, path, sources, targets, start_place, end_place, output=None):
+def way_simplest_path(conn, G, dbname, path, sources, targets, start_place, end_place, output=None, store_path=True):
     """ Compute the way simplest path
 
         The way simplest path is computed on the line graph of the ways connectivity:
@@ -555,11 +558,12 @@ def way_simplest_path(conn, G, dbname, path, sources, targets, start_place, end_
 
     path_type = 'way_simplest'
 
-    _store_path(cur, dbname, edges, path_type, output=output, manifest=dict(
-                input=path,
-                source="{}".format(sources),
-                destination="{}".format(targets),
-                type="way_simplest"))
+    if store_path:
+        _store_path(cur, dbname, edges, path_type, output=output, manifest=dict(
+                    input=path,
+                    source="{}".format(sources),
+                    destination="{}".format(targets),
+                    type="way_simplest"))
 
     cur.close()
     conn.commit()

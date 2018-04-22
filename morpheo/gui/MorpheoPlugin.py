@@ -16,7 +16,7 @@ from qgis.core import (
 from qgis.gui import QgsMessageBar, QgsMapToolEmitPoint
 
 from .MorpheoDialog import MorpheoDialog
-from .MorpheoAlgorithmProvider import MorpheoAlgorithmProvider
+from ..processing.MorpheoAlgorithmProvider import MorpheoAlgorithmProvider
 
 from processing.tools.general import runAndLoadResults
 
@@ -457,66 +457,55 @@ class MorpheoPlugin:
             OUTPUT_PLACE_EDGES = "%s_%s" % ('place_edges',dbname),
             OUTPUT_WAYS        = "%s_%s" % ('ways',dbname)
         )
-     
-        feedback = ProcessingFeedBack(self)
-        runAndLoadResults('morpheo:ways', parameters, feedback=feedback, context=None)
+        
+        runAndLoadResults('morpheo:ways', parameters, feedback=ProcessingFeedBack(self), context=None)
 
         self.setText(self.tr('Compute ways builder finished'), withMessageBar=True)
         self.synchronizeAllDBPathOnChanged(os.path.join(output, dbname)+'.sqlite')
 
 
     def computeWayAttributes(self):
-
+        """ Compute attributes on ways or edges
+        """
         self.setText(self.tr('Compute attributes'))
 
-        dbpath    = self.dlg.letWayAttributesDBPath.text()
+        dbpath = self.dlg.letWayAttributesDBPath.text()
         if not os.path.isfile( dbpath ):
             self.setError(self.tr('DB Path does not exist!'))
             return
 
-        output    = os.path.dirname(dbpath)
-        dbname    = os.path.basename(dbpath).replace('.sqlite','')
+        basename = os.path.basename(dbpath).replace('.sqlite','')
 
-        builder = Builder.from_database( os.path.join(output, dbname) )
+        parameters = {
+            'DBPATH': dbpath,
+            'ORTHOGONALITY': self.dlg.cbxWayAttributesOrthogonality.isChecked(),
+            'BETWEENNESS'  : self.dlg.cbxWayAttributesBetweenness.isChecked(),
+            'CLOSENESS'    : self.dlg.cbxWayAttributesCloseness.isChecked(),
+            'STRESS'       : self.dlg.cbxWayAttributesStress.isChecked(),
+            'CLASSES'      : self.dlg.spxWayAttributesClasses.value(),
+        }        
+
         if self.dlg.cbxWayAttributesComputeOn.currentText() == self.tr('Edges'):
-            builder.compute_edge_attributes( os.path.join(output, dbname),
-                    orthogonality = self.dlg.cbxWayAttributesOrthogonality.isChecked(),
-                    betweenness   = self.dlg.cbxWayAttributesBetweenness.isChecked(),
-                    closeness     = self.dlg.cbxWayAttributesCloseness.isChecked(),
-                    stress        = self.dlg.cbxWayAttributesStress.isChecked(),
-                    classes       = self.dlg.spxWayAttributesClasses.value(),
-                    output        = os.path.join(output, dbname))
-
-            # Visualize data
-            self.add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'place_edges', "%s_%s" % ('place_edges',dbname))
+            algorithm = 'morpheo:edge_attributes'
+            parameters['OUTPUT_PLACE_EDGES'] = "%s_%s" % ('place_edges',basename)
         else:
-            builder.compute_way_attributes(
-                    orthogonality = self.dlg.cbxWayAttributesOrthogonality.isChecked(),
-                    betweenness   = self.dlg.cbxWayAttributesBetweenness.isChecked(),
-                    closeness     = self.dlg.cbxWayAttributesCloseness.isChecked(),
-                    stress        = self.dlg.cbxWayAttributesStress.isChecked(),
-                    rtopo         = self.dlg.cbxWayAttributesRtopo.isChecked(),
-                    classes       = self.dlg.spxWayAttributesClasses.value(),
-                    output        = os.path.join(output, dbname))
+            parameters['RTOPO']       = self.dlg.cbxWayAttributesRtopo.isChecked()
+            parameters['OUTPUT_WAYS'] = "%s_%s" % ('ways',basename)
+            algorithm = 'morpheo:way_attributes'
 
-            # Visualize data
-            self.add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'places', "%s_%s" % ('places',dbname))
-            self.add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'place_edges', "%s_%s" % ('place_edges',dbname))
-            self.add_vector_layer( os.path.join(output, dbname)+'.sqlite', 'ways', "%s_%s" % ('ways',dbname))
-
+        runAndLoadResults(algorithm, parameters, feedback=ProcessingFeedBack(self), context=None)
         self.setText(self.tr('Compute attributes finished'), withMessageBar=True)
 
-    def computePath(self):
 
+    def computePath(self):
+        """ Compute paths on morpheo graph
+        """
         self.setText(self.tr('Compute path'))
 
         dbpath    = self.dlg.letPathDBPath.text()
         if not os.path.isfile( dbpath ):
             self.setError(self.tr('DB Path does not exist!'))
             return
-
-        output    = os.path.dirname(dbpath)
-        dbname    = os.path.basename(dbpath).replace('.sqlite','')
 
         attribute = self.dlg.cbxPathWayAttribute.currentText()
         percentile = self.dlg.spxPathPercentile.value()
