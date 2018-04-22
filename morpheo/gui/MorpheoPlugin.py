@@ -28,8 +28,6 @@ from functools import partial
 from math import pi
 from datetime import datetime
 
-import logging
-
 
 class ProcessingFeedBack(QgsProcessingFeedback):
 
@@ -450,7 +448,8 @@ class MorpheoPlugin:
         project = QgsProject.instance()
         layers = project.mapLayersByName(name)
         if layers:
-            project.removeMapLayers(layers)
+            # XXX Problem with qgis list type conversion error
+            project.removeMapLayers([l.id() for l in layers])
 
 
     def computeWayAttributes(self):
@@ -590,55 +589,38 @@ class MorpheoPlugin:
 
         self.setText(self.tr('Compute structural differences'))
 
-        def check_dbpath(path):
-            basename = os.path.basename(path)
-            shp = os.path.join(path,'place_edges_%s.shp' % basename)
-            if not os.path.isfile(shp):
-                loggin.error("Missing %s" % shp)
-                return False
-            gpickle = os.path.join(path,'way_graph_%s.gpickle' % basename)
-            if not os.path.isfile(gpickle):
-                logging.error("Missing %s" % gpickle)
-                return False
-
-            return True
-
         dbpath1  = self.dlg.letStructuralDiffDBPath1.text()
-        dirname1 = os.path.dirname(dbpath1)
-        dbname1  = os.path.basename(dbpath1).replace('.sqlite','')
-        if not check_dbpath(os.path.join(dirname1, dbname1)):
-            self.setError(self.tr('Initial Morpheo directory is incomplete'))
-            return
-
         dbpath2  = self.dlg.letStructuralDiffDBPath2.text()
-        dirname2 = os.path.dirname(dbpath2)
-        dbname2  = os.path.basename(dbpath2).replace('.sqlite','')
-        if not check_dbpath(os.path.join(dirname2, dbname2)):
-            self.setError(self.tr('Final Morpheo directory is incomplete'))
-            return
+
+        dbname1 = self.get_basename(dbpath1)
+        dbname2 = self.get_basename(dbpath2)
 
         output = self.dlg.letStructuralDiffDirectoryPath.text() or tempFolder()
-        dbname = self.dlg.letStructuralDiffDBName.text() or 'morpheo_%s_%s' % (dbname1, dbname2)
+        dbname = self.dlg.letStructuralDiffDBName.text() or 'morpheo_diff_{}_{}'.format(
+                                                            os.path.basename(dbname1),
+                                                            os.path.basename(dbname2))
 
-        dboutput = os.path.join(output, dbname)
-
-        if not os.path.exists(dboutput):
-            os.mkdir(dboutput)
+        paired_edges  = "%s_%s" % ('paired_edges' , dbname)
+        removed_edges = "%s_%s" % ('removed_edges', dbname)
+        added_edges   = "%s_%s" % ('added_edges'  , dbname)
 
         # Remove already computed layers
-        remove_vector_layer( "%s_%s" % ('paired_edges' ,dbname))
-        remove_vector_layer( "%s_%s" % ('removed_edges',dbname))
-        remove_vector_layer( "%s_%s" % ('added_edges'  ,dbname))
+        for layer_name in (paired_edges, removed_edges, added_edges):
+            self.remove_layer(layer_name)
 
-        structural_diff( os.path.join(dirname1, dbname1), os.path.join(dirname2, dbname2),
-                         output=dboutput, buffersize=float(self.dlg.spxStructuralDiffTolerance.value()) )
-
-        # Visualize data
-        self.add_vector_layer( dboutput+'.sqlite', 'paired_edges' , "%s_%s" % ('paired_edges' ,dbname))
-        self.add_vector_layer( dboutput+'.sqlite', 'removed_edges', "%s_%s" % ('removed_edges',dbname))
-        self.add_vector_layer( dboutput+'.sqlite', 'added_edges'  , "%s_%s" % ('added_edges'  ,dbname))
-
-        self.setText(self.tr('Compute structural differences'), withMessageBar=True)
+        parameters = {
+            'DBPATH1'  : dbpath1,
+            'DBPATH2'  : dbpath2,
+            'DIRECTORY': output,
+            'DBNAME'   : dbname,
+            'TOLERANCE': self.dlg.spxStructuralDiffTolerance.value(),
+            'OUTPUT_PAIRED_EDGES' : paired_edges,
+            'OUTPUT_ADDED_EDGES'  : added_edges,
+            'OUTPUT_REMOVED_EDGES': removed_edges
+        }
+        
+        runAndLoadResults('morpheo:structural_diff', parameters, feedback=ProcessingFeedBack(self), context=None)
+        self.setText(self.tr('Compute structural differences finished'), withMessageBar=True)
 
     def setInfo(self, msg, error=False):
         if error:

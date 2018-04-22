@@ -30,13 +30,14 @@ import logging
 import os
 import time
 from qgis.core import QgsProcessingProvider
-from .MorpheoAlgorithm import (MorpheoWayAlgorithm,
-                               MorpheoWayAttributesAlgorithm,
-                               MorpheoEdgeAttributesAlgorithm,
-                               MorpheoPathAlgorithm,
-                               MorpheoStructuralDiffAlgorithm,
-                               MorpheoMeshAlgorithm,
+from .MorpheoAlgorithm import (MorpheoMeshAlgorithm,
                                MorpheoHorizonAlgorithm)
+
+from .MorpheoWayAlgorithm import (MorpheoWayAlgorithm,
+                                  MorpheoWayAttributesAlgorithm,
+                                  MorpheoEdgeAttributesAlgorithm)
+from .MorpheoPathAlgorithm import MorpheoPathAlgorithm
+from .MorpheoDiffAlgorithm import MorpheoStructuralDiffAlgorithm
 
 from qgis.PyQt.QtGui import QIcon
 
