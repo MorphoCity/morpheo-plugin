@@ -621,6 +621,7 @@ class MorpheoPathAlgorithm(MorpheoAlgorithm):
         self.addParameter(QgsProcessingParameterFile(self.DBPATH, 'Morpheo database', 
                         extension='sqlite'))
 
+        self.addParameter(QgsProcessingParameterString(self.PATH_TYPE,'Path type'))
         self.addParameter(QgsProcessingParameterNumber(self.PLACE_START,'FID of starting place'))
         self.addParameter(QgsProcessingParameterNumber(self.PLACE_END,  'FID of destination place'))
 
@@ -648,19 +649,17 @@ class MorpheoPathAlgorithm(MorpheoAlgorithm):
         if not os.path.isfile(dbpath):
             raise QgsProcessingException("Database %s not found" % dbpath)
  
-        db_output_path = dbpath.replace('.sqlite','')
-
-        attribute = self.parameterAsString(params, self.WAY_ATTRIBUTE, context) or None
+        attribute = self.parameterAsString(params, self.ATTRIBUTE, context) or None
         if attribute:
             percentile = self.parameterAsDouble(params, self.PERCENTILE, context) or self.PERCENTILE_DEFAULT
             use_way    = self.parameterAsBool(params, self.USE_WAY, context ) or False
 
         path_type = self.parameterAsString(params, self.PATH_TYPE, context)
 
-        path   = os.path.dirname(dbpath) # input path
-        output = path                    # output path
-
         conn = connect_database(dbpath)
+
+        source      = self.parameterAsInt(params, self.PLACE_START, context)
+        destination = self.parameterAsInt(params, self.PLACE_END,   context)
 
         if attribute:
             if use_way:
@@ -675,7 +674,7 @@ class MorpheoPathAlgorithm(MorpheoAlgorithm):
             elif path_type=='simplest':
                 _path_fun = iti.mesh_simplest_path
             else:
-                feedback.pushError("Attribute is only supported for simplest or shortest path type", fatalError=True)
+                feedback.reportError("Attribute is only supported for simplest or shortest path type")
                 raise QgsProcessingException("Invalid path type")
 
             mesh_ids = _edges(conn, args.attribute, args.percentile)
@@ -690,9 +689,11 @@ class MorpheoPathAlgorithm(MorpheoAlgorithm):
                 _path_fun = iti.azimuth_path
             elif path_type=='naive-azimuth':
                 _path_fun = iti.naive_azimuth_path
+            else:
+                feedback.reportError("Unknown path type '%s'" % path_type)
+                raise QgsProcessingException("Invalid path type")
 
-            ids = _path_fun(dbname, path, args.source, args.destination, conn=conn, output=output, store_path=False) 
-
+        ids = _path_fun(dbpath, dbpath.replace('.sqlite',''), source, destination, conn=conn, store_path=False) 
         path_layer = as_layer(dbpath, 'place_edges', sql='OGC_FID IN ('+','.join(str(i) for i in ids)+')', keyColumn='OGC_FID')
  
         # Get the path layer
@@ -703,7 +704,7 @@ class MorpheoPathAlgorithm(MorpheoAlgorithm):
 
         if attribute:
             # Add the mesh layer to the results
-            destName    = path_layer.name()+'_mesh'
+            destName    = 'mesh_'+path_layer.name()
             mesh_layer  = as_layer(dbpath, 'place_edges', sql='OGC_FID IN ('+','.join(str(i) for i in mesh_ids)+')', keyColumn='OGC_FID')
             output_mesh = self.addLayerToLoad( mesh_layer, self.OUTPUT_MESH, destName, context, destinationProject)
             restults[self.OUTPUT_MESH] = output_mesh

@@ -1,6 +1,6 @@
 
 from qgis.PyQt.QtCore import (QCoreApplication, QSettings, Qt, QByteArray, QVariant)
-from qgis.PyQt.QtWidgets import (QAction, QDialogButtonBox, QFileDialog)
+from qgis.PyQt.QtWidgets import (QAction, QDialogButtonBox, QFileDialog, QMessageBox)
 from qgis.PyQt.QtGui import (QIcon,)
 from qgis.core import (
             Qgis,
@@ -18,7 +18,7 @@ from qgis.gui import QgsMessageBar, QgsMapToolEmitPoint
 from .MorpheoDialog import MorpheoDialog
 from ..processing.MorpheoAlgorithmProvider import MorpheoAlgorithmProvider
 
-from processing.tools.general import runAndLoadResults
+from processing.tools.general import run, runAndLoadResults
 
 from ..core.edge_properties import computed_properties
 from ..core.sql import connect_database
@@ -457,11 +457,30 @@ class MorpheoPlugin:
             OUTPUT_PLACE_EDGES = "%s_%s" % ('place_edges',dbname),
             OUTPUT_WAYS        = "%s_%s" % ('ways',dbname)
         )
-        
+
+        self.remove_layer(parameters['OUTPUT_PLACES'])
+        self.remove_layer(parameters['OUTPUT_PLACE_EDGES'])
+        self.remove_layer(parameters['OUTPUT_WAYS'])
+
         runAndLoadResults('morpheo:ways', parameters, feedback=ProcessingFeedBack(self), context=None)
 
         self.setText(self.tr('Compute ways builder finished'), withMessageBar=True)
         self.synchronizeAllDBPathOnChanged(os.path.join(output, dbname)+'.sqlite')
+
+
+    def get_basename( self, dbpath):
+        """ Return a layer name for the table' table
+        """
+        return os.path.basename(dbpath).replace('.sqlite','')
+
+
+    def remove_layer(self, name):
+        """
+        """
+        project = QgsProject.instance()
+        layers = project.mapLayersByName(name)
+        if layers:
+            project.removeMapLayers(layers)
 
 
     def computeWayAttributes(self):
@@ -474,7 +493,7 @@ class MorpheoPlugin:
             self.setError(self.tr('DB Path does not exist!'))
             return
 
-        basename = os.path.basename(dbpath).replace('.sqlite','')
+        basename = self.get_basename(dbpath)
 
         parameters = {
             'DBPATH': dbpath,
@@ -493,7 +512,7 @@ class MorpheoPlugin:
             parameters['OUTPUT_WAYS'] = "%s_%s" % ('ways',basename)
             algorithm = 'morpheo:way_attributes'
 
-        runAndLoadResults(algorithm, parameters, feedback=ProcessingFeedBack(self), context=None)
+        run(algorithm, parameters, feedback=ProcessingFeedBack(self), context=None)
         self.setText(self.tr('Compute attributes finished'), withMessageBar=True)
 
 
@@ -502,96 +521,53 @@ class MorpheoPlugin:
         """
         self.setText(self.tr('Compute path'))
 
-        dbpath    = self.dlg.letPathDBPath.text()
+        dbpath = self.dlg.letPathDBPath.text()
         if not os.path.isfile( dbpath ):
             self.setError(self.tr('DB Path does not exist!'))
             return
 
-        attribute = self.dlg.cbxPathWayAttribute.currentText()
-        percentile = self.dlg.spxPathPercentile.value()
-        use_way = self.dlg.cbxPathComputeOn.currentText() == self.tr('Ways')
-        edge_table = 'place_edges'
-        way_table  = 'ways'
+        basename = self.get_basename(dbpath)
 
-        conn = connect_database(dbpath)
-        cur = conn.cursor()
-
-        start = self.dlg.letPathStartPoint.text()
-        if len(start.split(',')) != 2:
-            self.setError(self.tr('Invalid start point!'))
+        # Get the selection on the place layer
+        place_layer = QgsProject.instance().mapLayersByName('places_%s' % basename)
+        if not place_layer:
+            self.setError("No 'places' layer found !")
             return
-        start = [ float(n) for n in start.split(',') ]
 
-        start = itinerary.get_closest_feature( cur, 'places', 10, start[0], start[1] )
-
-        end = self.dlg.letPathEndPoint.text()
-        if len(end.split(',')) != 2:
-            self.setError(self.tr('Invalid start point!'))
+        place_layer = place_layer[0]
+        if place_layer.selectedFeatureCount() != 2:
+            QMessageBox.information(self.dlg,
+                    self.tr("Message"),
+                    self.tr("You must select exactly 2 places in the 'places' layer"))
             return
-        end = [ float(n) for n in end.split(',') ]
 
-        end = itinerary.get_closest_feature( cur, 'places', 10, end[0], end[1] )
-
-        # The mname determine on which table attributes are computed
-        mname, mtable = ('ways', way_table) if use_way else ('edges', edge_table)
+        fi = place_layer.getSelectedFeatures()  
 
         path_type = self.dlg.cbxPathType.currentText()
-        path_name = 'path_%s_%s' % (mname, path_type)
-        ids = []
+        parameters = {
+            'DBPATH'     : dbpath,
+            'PLACE_START': next(fi).id(),
+            'PLACE_END'  : next(fi).id(),
+            'PATH_TYPE'  : str(path_type).lower(),
+            'OUTPUT_PATH': "path_%s_%s" % (path_type, basename) 
+        }
 
         if self.dlg.grpPathAttribute.isChecked():
+            use_way   = self.dlg.cbxPathComputeOn.currentText() == self.tr('Ways')
+            attribute = self.dlg.cbxPathWayAttribute.currentText()
+            parameters.update(
+                ATTRIBUTE   = attribute,
+                PERCENTILE  = self.dlg.spxPathPercentile.value(),
+                USE_WAY     = use_way,
+                OUTPUT_PATH = "path_{}_{}{}_{}".format(
+                    path_type,
+                    attribute,
+                    '_way' if use_way else '',
+                    basename)
+            )
 
-            ids = mesh.features_from_attribute(cur, mtable, attribute, percentile)
-            name = 'mesh_%s_%s_%s' % (mname, attribute, percentile)
-            self.add_vector_layer( os.path.join(output, dbname)+'.sqlite', mtable, "%s_%s" % (name,dbname), 
-                    'OGC_FID IN ('+','.join(str(i) for i in ids)+')')
-
-            if use_way:
-                _edges = itinerary.edges_from_way_attribute
-            else:
-                _edges = itinerary.edges_from_edge_attribute
-
-            if attribute not in computed_properties(conn,ways=use_way):
-                self.setError(self.tr('Attribute %s is not computed or does not exists') % attribute)
-                return
-
-            if path_type == self.tr('Shortest'):
-                _path_fun = itinerary.mesh_shortest_path
-            elif path_type == self.tr('Simplest'):
-                _path_fun = itinerary.mesh_simplest_path
-            else:
-                self.setError(self.tr('Attribute is only supported for simplest or shortest path type!'))
-                return
-
-            path_name = '%s_%s_%s' % (path_name, attribute, percentile)
-
-            _path_fun = partial(_path_fun, edges=_edges(conn, attribute, percentile))
-
-            ids = _path_fun( dbpath, os.path.join(output, dbname), start, end)
-
-        else:
-            if path_type == self.tr('Shortest'):
-                _path_fun = itinerary.shortest_path
-            elif path_type == self.tr('Simplest'):
-                _path_fun = itinerary.simplest_path
-            elif path_type == self.tr('Azimuth'):
-                _path_fun = itinerary.azimuth_path
-
-            path_name = 'path_%s' % path_type
-
-            ids = _path_fun( dbpath, os.path.join(output, dbname), start, end)
-        
-        # XXX way simplest: move to another section
-        #    path_name = 'path_%s_%s' % ('ways', path_type)
-        #    ways1,place1 = itinerary.ways_from_places(conn, start)
-        #    ways2,place2 = itinerary.ways_from_places(conn, end)
-        #    G = read_ways_graph(os.path.join(output, dbname))
-        #    ids = itinerary.way_simplest_path(conn, G, dbpath, os.path.join(output, dbname), ways1, ways2, place1, place2)
-
-        if ids:
-            self.add_vector_layer( os.path.join(output, dbname)+'.sqlite', edge_table, "%s_%s" % (path_name,dbname), 'OGC_FID IN ('+','.join(str(i) for i in ids)+')')
-        else:
-            self.setError(self.tr('No path build!'))
+        runAndLoadResults('morpheo:path', parameters, feedback=ProcessingFeedBack(self), context=None)
+        self.setText(self.tr('Compute path finished'), withMessageBar=True)
 
 
     def computeHorizon(self):

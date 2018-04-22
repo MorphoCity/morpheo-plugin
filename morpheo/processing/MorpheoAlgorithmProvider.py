@@ -33,6 +33,7 @@ from qgis.core import QgsProcessingProvider
 from .MorpheoAlgorithm import (MorpheoWayAlgorithm,
                                MorpheoWayAttributesAlgorithm,
                                MorpheoEdgeAttributesAlgorithm,
+                               MorpheoPathAlgorithm,
                                MorpheoStructuralDiffAlgorithm,
                                MorpheoMeshAlgorithm,
                                MorpheoHorizonAlgorithm)
@@ -50,6 +51,7 @@ class MorpheoAlgorithmProvider(QgsProcessingProvider):
             MorpheoWayAlgorithm(),
             MorpheoWayAttributesAlgorithm(),
             MorpheoEdgeAttributesAlgorithm(),
+            MorpheoPathAlgorithm(),
             MorpheoStructuralDiffAlgorithm(),
             MorpheoMeshAlgorithm(),
             MorpheoHorizonAlgorithm()
