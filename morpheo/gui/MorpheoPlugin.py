@@ -331,12 +331,15 @@ class MorpheoPlugin:
             pass
             attributeCbx.clear()
             dbpath = dbpathLet.text()
-            conn = connect_database(dbpath)
-            use_way = True
-            if waysCbx:
-                use_way = waysCbx.currentText() == self.tr('Ways')
-            for fieldName in computed_properties(conn, use_way):
-                attributeCbx.addItem(fieldName)
+            try:
+                conn = connect_database(dbpath)
+                use_way = True
+                if waysCbx:
+                    use_way = waysCbx.currentText() == self.tr('Ways')
+                for fieldName in computed_properties(conn, use_way):
+                    attributeCbx.addItem(fieldName)
+            except Exception as e:
+                self.setWarningInfo(str(e))
             
         dbpathLet.textChanged.connect(updateAttributeCombobox)
         if waysCbx:
