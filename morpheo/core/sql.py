@@ -63,7 +63,7 @@ def spatialite_connect(*args, **kwargs):
     return con
 
 
-def connect_database( dbname ):
+def connect_database( dbname, init_spatial_metadata=False ):
     """ Connect to database 'dbname'
     """
     import sqlite3 as db
@@ -74,6 +74,10 @@ def connect_database( dbname ):
 
     cur = conn.cursor()
     cur.execute("PRAGMA temp_store=MEMORY")
+
+    if init_spatial_metadata:
+        # Must be called when creating new database
+        cur.execute("select InitSpatialMetaData()")
 
     logging.info("Testing spatialite metadata")
     [check_metadata] = cur.execute("select CheckSpatialMetaData()").fetchone()
@@ -97,7 +101,7 @@ def create_database( dbname ):
     """
     if not os.path.exists(dbname):
         logging.info("Creating database %s" % dbname)
-        conn = connect_database(dbname)
+        conn = connect_database(dbname, True)
         conn.commit()
         conn.close()
  

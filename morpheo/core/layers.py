@@ -16,26 +16,19 @@ def check_layer(layer, wkbtypes):
     if layer.crs().isGeographic():
        raise InvalidLayerError("Invalid CRS (lat/long) for layer")
 
-def import_vector_layer( dbname, layer, name, forceSinglePartGeometryType=False):
-    from qgis.core import QgsDataSourceUri, QgsVectorLayerExporter
-    # Create database if it does not exists
-    create_database(dbname)
-    # Create Spatialite URI
-    uri = QgsDataSourceUri()
-    uri.setDatabase(dbname)
-    uri.setDataSource('', name, 'GEOMETRY')
-    options = {}
-    options['overwrite'] = True
-    options['forceSinglePartGeometryType'] = forceSinglePartGeometryType
-    error, errMsg = QgsVectorLayerExporter.exportLayer(layer, uri.uri(False), 
-            providerKey='spatialite', 
-            destCRS=layer.crs(), 
-            options=options)
-    if error != QgsVectorLayerImport.NoError:
-        raise IOError("Failed to add layer to database '{}': error {}".format(dbname, errMsg))
+
+def import_vector_layer( dbname, layer, name, forceSinglePartGeometryType=False, feedback=None, context=None):
+    from processing.tools.general import run
+    logging.info("Importing layer %s as %s", layer.name(), name)
+    run('morpheo:importlayer',{
+            'INPUT': layer,
+            'DBNAME': dbname,
+            'NAME' : name,
+            'SINGLEPARTGEOMETRY': forceSinglePartGeometryType
+        }, feedback=feedback, context=context)
 
 
-def import_as_layer( dbname, layer, name, forceSinglePartGeometryType=False ):
+def import_as_layer( dbname, layer, name, forceSinglePartGeometryType=False, feedback=None, context=None ):
     """
     """
     if 'OGR2OGR' in os.environ:
@@ -43,19 +36,20 @@ def import_as_layer( dbname, layer, name, forceSinglePartGeometryType=False ):
     else:
         from qgis.core import QgsVectorLayer
         if isinstance(layer, QgsVectorLayer):
-            import_vector_layer(dbname, layer, name, forceSinglePartGeometryType)
+            import_vector_layer(dbname, layer, name, forceSinglePartGeometryType, feedback=feedback,
+                    context=context)
         else:
             import_shapefile( dbname, layer, name )
 
 
-def import_shapefile( dbname, path, name, forceSinglePartGeometryType=False ):
+def import_shapefile( dbname, path, name, forceSinglePartGeometryType=False, feedback=None, context=None ):
     """ Add shapefile as new table in database
 
         :param dbname: Path of the database
         :param path: Path of the shapefile
         :param name: Name of the table
     """
-    if 'OGR2OGR' in os.environ:
+    if not 'OGR2OGR' in os.environ:
         from subprocess import call
 
         # Append layer to  database
@@ -80,7 +74,8 @@ def import_shapefile( dbname, path, name, forceSinglePartGeometryType=False ):
         layer = QgsVectorLayer(path, name, 'ogr')
         if not layer.isValid():
             raise IOError("Shapefile '{}' is not valid".format(path))
-        import_vector_layer(dbname, layer, name, forceSinglePartGeometryType)
+        import_vector_layer(dbname, layer, name, forceSinglePartGeometryType, feedback=feedback,
+                context=context)
         # Add spatial index
         conn = connect_database(dbname)
         cur  = conn.cursor()

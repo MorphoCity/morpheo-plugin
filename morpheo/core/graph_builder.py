@@ -7,7 +7,7 @@ import logging
 from .logger import log_progress
 from .errors import BuilderError, FileNotFoundError, DatabaseNotFound
 from .sql import SQL, execute_sql, delete_table, connect_database, set_srid
-from .layers import check_layer, import_as_layer, import_shapefile, export_shapefile
+from .layers import check_layer, import_vector_layer, import_shapefile, export_shapefile
 from .sanitize import sanitize
 
 
@@ -282,7 +282,7 @@ class SpatialiteBuilder(object):
         return SpatialiteBuilder(dbname)
 
     @staticmethod
-    def from_layer( layer, dbname=None ):
+    def from_layer( layer, dbname=None, feedback=None, context=None ):
         """ Build graph from qgis layer
 
             :param layer: A QGis layer to build the graph from
@@ -290,20 +290,15 @@ class SpatialiteBuilder(object):
         """
         from qgis.core import QgsVectorFileWriter, QgsWkbTypes
 
-        check_layer(layer, (QgsWkbTypes.LineString25D, QgsWkbTypes.LineString))
-
-        name   = dbname or 'morpheo_'+layer.name().replace(" ", "_")
-        dbname = name + '.sqlite'
+        dbname = dbname or 'morpheo_'+layer.name().replace(" ", "_")
+        dbname = dbname + '.sqlite'
         if os.path.isfile(dbname):
             logging.info("Removing existing database %s" % dbname)
             os.remove(dbname)
 
-        # Create database from layer
-        logging.info("Creating database '%s' from layer" % dbname)
-        #import_as_layer( dbname, layer, name, forceSinglePartGeometryType=True )
-        error, msg = QgsVectorFileWriter.writeAsVectorFormat(layer, dbname, "utf-8", driverName="SpatiaLite")
-        if error != QgsVectorFileWriter.NoError:
-            raise IOError("Failed to create database '{}': error {}".format(dbname, msg))
+        tablename = os.path.basename(os.path.splitext(dbname)[0]).lower()
+        import_vector_layer( dbname, layer, tablename, forceSinglePartGeometryType=True,
+                feedback=feedback, context=context)
 
         return SpatialiteBuilder(dbname)
 

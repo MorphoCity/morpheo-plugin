@@ -38,6 +38,7 @@ from .MorpheoWayAlgorithm import (MorpheoWayAlgorithm,
                                   MorpheoEdgeAttributesAlgorithm)
 from .MorpheoPathAlgorithm import MorpheoPathAlgorithm
 from .MorpheoDiffAlgorithm import MorpheoStructuralDiffAlgorithm
+from .MorpheoImportLayer import MorpheoImportLayer
 
 from qgis.PyQt.QtGui import QIcon
 
@@ -55,7 +56,8 @@ class MorpheoAlgorithmProvider(QgsProcessingProvider):
             MorpheoPathAlgorithm(),
             MorpheoStructuralDiffAlgorithm(),
             MorpheoMeshAlgorithm(),
-            MorpheoHorizonAlgorithm()
+            MorpheoHorizonAlgorithm(),
+            MorpheoImportLayer(),
         ]
         return algs
 

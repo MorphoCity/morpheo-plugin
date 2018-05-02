@@ -178,7 +178,7 @@ class MorpheoWayAlgorithm(MorpheoAlgorithm):
         if not os.path.exists(db_output_path):
             os.mkdir(db_output_path)
 
-        builder = Builder.from_layer( layer, db_output_path )
+        builder = Builder.from_layer( layer, db_output_path, feedback=feedback, context=context )
 
         way_field = self.parameterAsFields(params, self.WAY_ATTRIBUTE, context) or None
         if way_field:
