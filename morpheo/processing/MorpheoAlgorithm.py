@@ -96,6 +96,9 @@ class MorpheoAlgorithm(QgsProcessingAlgorithm):
         return QIcon(':/plugins/Morpheo/morpheo.png')
 
     def addLayerToLoad(self, layer, outputName, destName, context, destinationProject):
+        """ Add a layer to the context layer store so that it can be reused 
+            later
+        """
         layer.setName(destName)
         context.temporaryLayerStore().addMapLayer( layer )
         if destinationProject:
@@ -105,12 +108,17 @@ class MorpheoAlgorithm(QgsProcessingAlgorithm):
 
     def asDestinationLayer(self, params, outputName, layer, context ):
         """ Add layer to load in the final project
+
+            We need to bypass the standard way of dealing with destination layer
+            since we have a database table as input and destination parameters objects deals
+            with files.
         """
         # Add layer store
         definition = self.parameterDefinition(outputName)
         destinationProject = None
         # Get the destination project
         p = params.get(outputName)
+        # Check for destination layer name
         if isinstance(p, QgsProcessingOutputLayerDefinition) and p.destinationProject:
             destName = p.destinationName
             if not destName:

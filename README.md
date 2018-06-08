@@ -7,8 +7,9 @@
 
 # Requirements:
 
-* QGIS 2.14 minimum (with spatialite 4.2.1+ enabled)
+* QGIS 3.0 minimum
 * GDAL/OGR tools
+* spatialite 4.2 (Use 
 
 # Install as command line:
 
@@ -16,7 +17,7 @@
 python setup.py 
 ```
 
-From this, Morpheo will ba available as command line, i.e:
+From this, Morpheo will be available as command line, i.e:
 
 ```bash
 morpheo --help
