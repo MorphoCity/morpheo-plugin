@@ -9,7 +9,7 @@
 
 * QGIS 3.0 minimum
 * GDAL/OGR tools
-* spatialite 4.2 (Use 
+* spatialite 4.2 (Use mod\_spatialite)
 
 # Install as command line:
 
